@@ -1933,9 +1933,9 @@ async function ghLoginDone(){
   const p=$('gh-p').value,p2=$('gh-p2').value;
   if(p.length<8){toast('Phrase secrète trop courte (8 caractères minimum)');return}
   let F;
-  try{F=await fb()}catch(e){toast(e.message);return}
+  try{F=await fb();await F.auth.authStateReady()}catch(e){toast(e.message);return}
   let cred;
-  try{cred=await F.Au.signInWithPopup(F.auth,new F.Au.GoogleAuthProvider())}
+  try{cred=F.auth.currentUser?{user:F.auth.currentUser}:await F.Au.signInWithPopup(F.auth,new F.Au.GoogleAuthProvider())} /* déjà connecté dans une autre app QuenTools : session réutilisée */
   catch(e){const c=e&&e.code||'';
     toast(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request'?'Connexion annulée':c==='auth/popup-blocked'?'Autorisez les fenêtres pop-up pour ce site puis réessayez':c==='auth/unauthorized-domain'?'Domaine non autorisé : ajoutez-le dans Firebase → Authentication → Paramètres (voir README)':c==='auth/operation-not-allowed'?'Connexion Google non activée dans Firebase (voir README)':'Connexion impossible : '+(e.message||c));return}
   toast('Connexion…');
