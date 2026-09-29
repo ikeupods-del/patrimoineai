@@ -697,11 +697,11 @@ function calcNew(){
 function accountCard(){
   let h='<section class="card span2"><h3>Compte et synchronisation</h3>';
   if(!ID.ready)return h+'<p class="sm mut" style="margin-top:6px">Chargement…</p></section>';
-  if(!ID.user)return h+`<p class="sm mut" style="margin-top:6px">Connectez votre compte GitHub gratuit pour retrouver vos placements sur tous vos appareils. Les données sont <b>chiffrées sur l’appareil</b> avant l’envoi : seul vous, avec votre phrase secrète, pouvez les lire.</p><button class="gbtn mt" data-act="glogin"><svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>Se connecter avec GitHub</button></section>`;
+  if(!ID.user)return h+`<p class="sm mut" style="margin-top:6px">Connectez votre compte Google gratuit pour retrouver vos placements sur tous vos appareils. Les données sont <b>chiffrées sur l’appareil</b> avant l’envoi : seul vous, avec votre phrase secrète, pouvez les lire.</p><button class="gbtn mt" data-act="glogin"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continuer avec Google</button></section>`;
   const nm=idName(),av=ID.user.user_metadata&&ID.user.user_metadata.avatar_url;
   return h+`<div class="acc mt"><span class="av">${av?`<img src="${esc(av)}" alt="" referrerpolicy="no-referrer">`:esc(nm.slice(0,1).toUpperCase())}</span><div style="min-width:0"><b>${esc(nm)}</b><div class="sm mut" style="overflow:hidden;text-overflow:ellipsis">${esc(ID.user.email)}</div></div></div>
   <div class="kv mt"><span>État</span><b id="sync-st"></b></div><div class="kv"><span>Cet appareil</span><b>${esc(DEV)}</b></div>
-  <div class="g2 mt"><button class="btn sec" data-act="syncnow">${ic('refresh',18)}Synchroniser maintenant</button><button class="btn sec" data-act="backups">Sauvegardes GitHub</button></div><button class="btn dng blk mt" data-act="logout">Se déconnecter de cet appareil</button></section>`;
+  <div class="g2 mt"><button class="btn sec" data-act="syncnow">${ic('refresh',18)}Synchroniser maintenant</button><button class="btn sec" data-act="backups">Sauvegardes</button></div><button class="btn dng blk mt" data-act="logout">Se déconnecter de cet appareil</button></section>`;
 }
 const keyProv=()=>aiProv()==='local'?'gemini':aiProv();
 function aiSetBlock(){
@@ -724,7 +724,7 @@ function renderSet(){
 <div class="set"><div><b>Actualiser les cours à l’ouverture</b><div class="hint">Récupère les cours Yahoo des positions avec ticker, au plus toutes les 6 heures.</div></div>${sw('auto',D.set.auto!==false,'Actualiser les cours à l’ouverture')}</div></section>
 <section class="card"><h3>Assistant IA</h3><p class="sm mut" style="margin-top:6px">L’IA locale fonctionne sans Internet ni clé, et vos données restent sur l’appareil. Gemini et Grok rédigent plus librement, mais reçoivent vos placements. L’enquête web et la lecture de photos passent par Gemini.</p><div class="mt">${provChips()}</div>${aiSetBlock()}<div class="set" style="margin-top:6px"><div><b>Relais par l’IA locale</b><div class="hint">Si Gemini ou Grok ne répond pas, l’IA locale répond à sa place au lieu d’afficher une erreur.</div></div>${sw('fb',D.set.fb!==false,'Relais par l’IA locale')}</div></section>
 <section class="card span2"><h3>Mes données</h3><p class="sm mut" style="margin-top:6px">${syncOn()?'Enregistré sur cet appareil et synchronisé avec votre compte sur tous vos appareils.':'Tout est enregistré dans ce navigateur, sur cet appareil uniquement.'}</p><div class="kv" style="margin-top:8px"><span>Dernière sauvegarde</span><b>${D.lastBackup?esc(fd(new Date(D.lastBackup))):'Jamais'}</b></div><div class="g2 mt"><button class="btn sec" data-act="exp">${ic('download',18)}Exporter (JSON)</button><button class="btn sec" data-act="expcsv">${ic('download',18)}Exporter (CSV)</button></div><div class="fld"><label for="rest">Restaurer une sauvegarde</label><input id="rest" type="file" accept=".json,application/json" data-ch="restore"></div><button class="btn dng blk mt" data-act="reset">Réinitialiser mes données</button></section>
-<section class="card span2"><h3>À propos</h3><p class="sm mut" style="margin-top:6px"><b>Patrimoine AI ${VER}</b> · produit par <b>QuenTools</b>. Les données sont chiffrées sur l’appareil avant toute sauvegarde sur votre GitHub ; ni GitHub ni QuenTools ne peuvent les lire. Avec l’IA locale, rien ne sort de votre appareil hormis les demandes de cours (Yahoo Finance). Si vous activez Gemini ou Grok, vos questions et un résumé de vos placements leur sont envoyés. Les scores, estimations et simulations sont indicatifs et ne constituent pas un conseil en investissement.</p></section></div>`;
+<section class="card span2"><h3>À propos</h3><p class="sm mut" style="margin-top:6px"><b>Patrimoine AI ${VER}</b> · produit par <b>QuenTools</b>. Les données sont chiffrées sur l’appareil avant toute sauvegarde dans le cloud (Firebase, lié à votre compte Google) ; ni Google ni QuenTools ne peuvent les lire. Avec l’IA locale, rien ne sort de votre appareil hormis les demandes de cours (Yahoo Finance). Si vous activez Gemini ou Grok, vos questions et un résumé de vos placements leur sont envoyés. Les scores, estimations et simulations sont indicatifs et ne constituent pas un conseil en investissement.</p></section></div>`;
 }
 
 async function fileText(f){if(/pdf/.test(f.type)){if(!window.pdfjsLib){await new Promise((ok,ko)=>{const x=document.createElement('script');x.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';x.onload=ok;x.onerror=()=>ko(Error('pdf.js indisponible'));document.head.appendChild(x)});pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}
@@ -1716,7 +1716,7 @@ const ACT={
   prov:d=>{D.set.prov=d.v;save();renderAI();renderSet();toast(d.v==='local'?'IA locale activée : fonctionne hors ligne':keyOf(d.v)?PROV[d.v].n+' activé':'Ajoutez une clé '+PROV[d.v].n+' pour l’activer')},
   glogin:()=>googleLogin(),
   ghdone:()=>ghLoginDone(),
-  logout:async()=>{if(!await ask('Se déconnecter ?','Vos données restent sur cet appareil mais ne seront plus synchronisées tant que vous ne vous reconnectez pas. La copie chiffrée reste sur votre GitHub.','Se déconnecter'))return;ghLogout()},
+  logout:async()=>{if(!await ask('Se déconnecter ?','Vos données restent sur cet appareil mais ne seront plus synchronisées tant que vous ne vous reconnectez pas. La copie chiffrée reste sur votre compte Google (Firebase).','Se déconnecter'))return;ghLogout()},
   syncnow:()=>{SY.dirty=true;syncNow()},backups:()=>openBackups(),bkrest:d=>restoreBackup(d.d),
   fc:d=>{const f=CUR.fc;CUR.fc=null;$('modal').classList.remove('open');if(f)f(d.v)},
   gsrc:d=>{D.set.gsrc=d.v;save();renderSet();renderAI();toast(d.v==='srv'?'Gemini passe par votre serveur':'Gemini utilisera la clé de cet appareil')},
@@ -1836,62 +1836,72 @@ async function unseal(txt,pass){
   catch(e){const x=Error('Phrase secrète incorrecte pour cette sauvegarde.');x.st=403;throw x}
 }
 
-/* --- GitHub : jeton « gist » + gists secrets (aucun serveur, aucun compte QuenTools) --- */
-const KGH='pat_gh_token',KPW='pat_pass',KGI='pat_gist',KGU='pat_gh_user';
+/* --- Google (Firebase Auth) + Firestore : sauvegarde chiffrée, aucun serveur à gérer --- */
+const KPW='pat_pass',KGU='pat_user',FBV='10.14.1';
 const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}},lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}};
-const GIST_DESC='Patrimoine AI — sauvegarde chiffrée (produit par QuenTools, ne pas modifier)',MAIN='patrimoine-sauvegarde.enc.json';
-async function ghf(path,opt){
-  const t=lsGet(KGH);if(!t){const e=Error('Connectez-vous à GitHub (Réglages).');e.st=401;throw e}
-  opt=opt||{};let r;
-  try{r=await tfetch('https://api.github.com'+path,{method:opt.method||'GET',cache:'no-store',body:opt.body,headers:Object.assign({Authorization:'Bearer '+t,Accept:'application/vnd.github+json'},opt.body?{'Content-Type':'application/json'}:{})},30000)}
-  catch(e){throw Error('GitHub injoignable (connexion internet ?)')}
-  if(r.status===401){const e=Error('Jeton GitHub refusé ou expiré : reconnectez-vous.');e.st=401;throw e}
-  if(r.status===403){const e=Error('GitHub refuse l’accès : le jeton doit avoir le droit « gist » (ou limite atteinte, réessayez plus tard).');e.st=403;throw e}
-  if(r.status===404)return null;
-  if(!r.ok)throw Error('GitHub a répondu '+r.status);
-  return r;
+const MAXENC=950000; /* limite d'un document Firestore ≈ 1 Mo */
+let FBP=null;
+function fb(){ /* charge le SDK Firebase à la demande */
+  if(!CFG.firebase||!CFG.firebase.apiKey)return Promise.reject(Error('Firebase non configuré (config.js).'));
+  if(!FBP)FBP=(async()=>{
+    const B='https://www.gstatic.com/firebasejs/'+FBV+'/',[A,Au,Fs]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
+    const app=A.initializeApp(CFG.firebase);return{A,Au,Fs,auth:Au.getAuth(app),db:Fs.getFirestore(app)};
+  })().catch(e=>{FBP=null;throw Error('Service Google injoignable (connexion internet ?)')});
+  return FBP;
 }
-async function gistFind(create){
-  let id=lsGet(KGI);if(id&&await ghf('/gists/'+id))return id;lsSet(KGI,null);
-  for(let p=1;p<=5;p++){const l=await(await ghf('/gists?per_page=100&page='+p)).json();
-    const g=l.find(x=>x.description===GIST_DESC&&x.files[MAIN]);if(g){lsSet(KGI,g.id);return g.id}if(l.length<100)break}
-  if(!create)return null;
-  const g=await(await ghf('/gists',{method:'POST',body:JSON.stringify({description:GIST_DESC,public:false,files:{[MAIN]:{content:'{}'}}})})).json();
-  lsSet(KGI,g.id);return g.id;
+async function fbUser(){ /* utilisateur Firebase courant (attend la restauration de session) */
+  const F=await fb();await F.auth.authStateReady();
+  if(!F.auth.currentUser){const e=Error('Connectez-vous avec Google (Réglages).');e.st=401;throw e}
+  return{F,u:F.auth.currentUser};
 }
-const gfile=async f=>f?(f.truncated?(await fetch(f.raw_url,{cache:'no-store'})).text():f.content):null;
-async function gistRead(){ /* -> {id,files} */
-  const id=await gistFind(false);if(!id)return null;
-  const g=await(await ghf('/gists/'+id)).json();return{id,files:g.files};
+function fbErr(e){
+  const c=e&&e.code||'';
+  if(c==='permission-denied'){const x=Error('Accès refusé par Firestore : publiez les règles de sécurité (voir README).');x.st=403;return x}
+  if(c==='unavailable'||c==='deadline-exceeded'||c==='auth/network-request-failed')return Error('Google injoignable (connexion internet ?)');
+  if(c==='resource-exhausted')return Error('Quota Firestore gratuit atteint, réessayez plus tard.');
+  if(c==='failed-precondition'||c==='not-found'){const x=Error('Base Firestore introuvable : créez-la dans la console Firebase (voir README).');x.st=403;return x}
+  return e;
 }
+const uref=(F,u,...p)=>F.Fs.doc(F.db,'users',u.uid,...p);
 function passOf(){const p=lsGet(KPW);if(!p){const e=Error('Phrase secrète manquante : reconnectez-vous.');e.st=401;throw e}return p}
-async function mainDoc(g){ /* enveloppe en clair {rev,at,dev} + données déchiffrées à la demande */
-  const t=g&&g.files[MAIN]?await gfile(g.files[MAIN]):null;if(!t||t==='{}')return{rev:0,env:null};
-  return{rev:JSON.parse(t).rev||0,env:JSON.parse(t)};
+async function mainDoc(F,u){ /* enveloppe {rev,env} ; env = objet chiffré */
+  const s=await F.Fs.getDoc(uref(F,u));const t=s.exists()?s.data().main:null;
+  if(!t||t==='{}')return{rev:0,env:null};
+  const env=JSON.parse(t);return{rev:env.rev||0,env};
 }
 async function gsync(path,opt){
-  const u=new URL(path,location.origin),q=u.searchParams,m=opt.method||'GET',pass=passOf();
-  if(m==='GET'){
-    const g=await gistRead();
-    if(q.has('backups')){return{backups:g?Object.keys(g.files).map(n=>(n.match(/^sauvegarde-(\d{4}-\d{2}-\d{2})\.enc\.json$/)||[])[1]).filter(Boolean).sort().reverse():[]}}
-    if(q.get('backup')){const d=q.get('backup'),f=g&&g.files['sauvegarde-'+d+'.enc.json'];if(!f)throw Error('Sauvegarde introuvable');const doc=await unseal(await gfile(f),pass);return{data:doc.data}}
-    const cur=await mainDoc(g),since=Number(q.get('since'));
-    if(!cur.env)return{rev:0,data:null};
-    if(since&&since===cur.rev)return{rev:cur.rev,same:true};
-    const doc=await unseal(cur.env,pass);return{rev:cur.rev,data:doc.data,at:cur.env.atMs||0,dev:doc.dev||''};
-  }
-  if(m==='PUT'){
-    const b=JSON.parse(opt.body),g=await gistRead(),cur=await mainDoc(g);
-    if((Number(b.baseRev)||0)!==cur.rev){const doc=await unseal(cur.env,pass);return{_st:409,conflict:true,rev:cur.rev,data:doc.data,at:cur.env.atMs||0}}
-    const rev=cur.rev+1,at=Date.now(),id=g?g.id:await gistFind(true),day=new Date().toISOString().slice(0,10);
-    const txt=await seal({data:b.data,dev:String(b.dev||'').slice(0,60)},pass,{rev,atMs:at});
-    if(txt.length>9e6)throw Error('Données trop volumineuses pour la sauvegarde GitHub');
-    const files={[MAIN]:{content:txt},['sauvegarde-'+day+'.enc.json']:{content:txt}};
-    const old=Object.keys((g&&g.files)||{}).filter(n=>/^sauvegarde-\d{4}-\d{2}-\d{2}\.enc\.json$/.test(n)&&n!=='sauvegarde-'+day+'.enc.json').sort().reverse().slice(29);
-    old.forEach(n=>{files[n]=null});
-    if(!await ghf('/gists/'+id,{method:'PATCH',body:JSON.stringify({files})})){lsSet(KGI,null);throw Error('Sauvegarde GitHub introuvable, réessayez.')}
-    return{rev,at};
-  }
+  const u0=new URL(path,location.origin),q=u0.searchParams,m=opt.method||'GET',pass=passOf();
+  const{F,u}=await fbUser();
+  try{
+    if(m==='GET'){
+      if(q.has('backups')){const s=await F.Fs.getDocs(F.Fs.collection(F.db,'users',u.uid,'backups'));return{backups:s.docs.map(d=>d.id).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse()}}
+      if(q.get('backup')){const s=await F.Fs.getDoc(uref(F,u,'backups',q.get('backup')));if(!s.exists())throw Error('Sauvegarde introuvable');const doc=await unseal(JSON.parse(s.data().txt),pass);return{data:doc.data}}
+      const cur=await mainDoc(F,u),since=Number(q.get('since'));
+      if(!cur.env)return{rev:0,data:null};
+      if(since&&since===cur.rev)return{rev:cur.rev,same:true};
+      const doc=await unseal(cur.env,pass);return{rev:cur.rev,data:doc.data,at:cur.env.atMs||0,dev:doc.dev||''};
+    }
+    if(m==='PUT'){
+      const b=JSON.parse(opt.body),day=new Date().toISOString().slice(0,10),ref=uref(F,u);
+      let cf=null;
+      /* on chiffre avec la révision suivante, en s'appuyant sur une lecture transactionnelle de la révision courante */
+      const cur0=await mainDoc(F,u);
+      if((Number(b.baseRev)||0)!==cur0.rev){const doc=cur0.env?await unseal(cur0.env,pass):null;return{_st:409,conflict:true,rev:cur0.rev,data:doc?doc.data:null,at:cur0.env?cur0.env.atMs||0:0}}
+      const rev=cur0.rev+1,at=Date.now(),txt=await seal({data:b.data,dev:String(b.dev||'').slice(0,60)},pass,{rev,atMs:at});
+      if(txt.length>MAXENC)throw Error('Données trop volumineuses pour la sauvegarde (limite ≈ 1 Mo chiffré).');
+      await F.Fs.runTransaction(F.db,async tx=>{
+        const s=await tx.get(ref),t=s.exists()?s.data().main:null,r=t&&t!=='{}'?(JSON.parse(t).rev||0):0;
+        if(r!==cur0.rev){cf={rev:r,t};return}
+        tx.set(ref,{main:txt,rev,at},{merge:true});
+        tx.set(uref(F,u,'backups',day),{txt,rev,at});
+      });
+      if(cf){const env=JSON.parse(cf.t),doc=await unseal(env,pass);return{_st:409,conflict:true,rev:cf.rev,data:doc.data,at:env.atMs||0}}
+      /* ne garder que les 30 dernières sauvegardes quotidiennes */
+      try{const s=await F.Fs.getDocs(F.Fs.collection(F.db,'users',u.uid,'backups')),ids=s.docs.map(d=>d.id).sort().reverse().slice(30);
+        await Promise.all(ids.map(id=>F.Fs.deleteDoc(uref(F,u,'backups',id))))}catch(e){}
+      return{rev,at};
+    }
+  }catch(e){throw fbErr(e)}
   throw Error('Opération non prise en charge');
 }
 async function api(path,opt,ms){
@@ -1901,42 +1911,44 @@ async function api(path,opt,ms){
   d._st=d._st||200;return d;
 }
 
-/* --- Connexion GitHub (jeton « gist » collé + phrase secrète) --- */
+/* --- Connexion Google (Firebase Auth) + phrase secrète --- */
+const toUser=u=>({email:u.email||'',user_metadata:{full_name:u.displayName||u.email||'',avatar_url:u.photoURL||''}});
 function idLoad(){
-  ID.ready=true;
-  const t=lsGet(KGH),p=lsGet(KPW);
-  if(t&&p){let cached=null;try{cached=JSON.parse(lsGet(KGU)||'null')}catch(e){}
-    if(cached){ID.user=cached;onAuth(false)}
-    ghf('/user').then(r=>r.json()).then(u=>{ID.user={email:'@'+u.login+' · GitHub',user_metadata:{full_name:u.name||u.login,avatar_url:u.avatar_url}};lsSet(KGU,JSON.stringify(ID.user));if(!cached)onAuth(false);else renderSet()})
-      .catch(e=>{if(e.st===401){ID.user=null;lsSet(KGH,null);toast(e.message);onAuth(false)}else if(!cached){ID.user=null;renderSet()}});
-  }else{ID.user=null;renderSet()}
+  let cached=null;try{cached=JSON.parse(lsGet(KGU)||'null')}catch(e){}
+  if(cached&&lsGet(KPW)){ID.user=cached;ID.ready=true;onAuth(false)}
+  fb().then(async F=>{
+    await F.auth.authStateReady();ID.ready=true;
+    const u=F.auth.currentUser;
+    if(u&&lsGet(KPW)){const first=!ID.user;ID.user=toUser(u);lsSet(KGU,JSON.stringify(ID.user));if(first)onAuth(false);else renderSet()}
+    else{if(u)await F.Au.signOut(F.auth);ID.user=null;lsSet(KGU,null);renderSet();syncUI()}
+  }).catch(()=>{ID.ready=true;renderSet()});
 }
 function googleLogin(){
-  const url='https://github.com/settings/tokens/new?scopes=gist&description='+encodeURIComponent('Patrimoine AI (QuenTools) — '+DEV);
-  sheet('Connexion GitHub',`<ol class="sm" style="padding-left:20px;line-height:1.7"><li>Créez un compte gratuit sur <a href="https://github.com/signup" target="_blank" rel="noopener">github.com</a> si besoin.</li>
-  <li><a href="${url}" target="_blank" rel="noopener"><b>Ouvrez cette page</b></a>, choisissez « No expiration » puis « Generate token » (seule la case <b>gist</b> est cochée).</li>
-  <li>Copiez le code (<code>ghp_…</code> ou <code>github_pat_…</code>) et collez-le ci-dessous.</li></ol>
-  <div class="fld"><label for="gh-t">Jeton GitHub</label><div class="inp"><input id="gh-t" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="ghp_…"></div></div>
-  <div class="fld"><label for="gh-p">Phrase secrète (chiffre vos données)</label><div class="inp"><input id="gh-p" type="password" autocomplete="new-password" placeholder="8 caractères minimum"></div></div>
+  sheet('Connexion Google',`<p class="sm mut">Connectez-vous avec votre compte Google gratuit. Vos données sont <b>chiffrées sur l’appareil</b> avec la phrase secrète ci-dessous avant l’envoi : ni Google ni QuenTools ne peuvent les lire.</p>
+  <div class="fld mt"><label for="gh-p">Phrase secrète (chiffre vos données)</label><div class="inp"><input id="gh-p" type="password" autocomplete="new-password" placeholder="8 caractères minimum"></div></div>
   <div class="fld"><label for="gh-p2">Confirmer la phrase secrète</label><div class="inp"><input id="gh-p2" type="password" autocomplete="new-password"></div><div class="hint">Sur un autre appareil, utilisez la même phrase. Sans elle, la sauvegarde est irrécupérable : notez-la.</div></div>
-  <button class="btn blk mt" data-act="ghdone">Se connecter</button><p class="hint mt">Le jeton reste sur cet appareil et ne donne accès qu’à vos « gists », où Patrimoine AI range une copie chiffrée. Ni GitHub ni QuenTools ne peuvent la lire.</p>`);
+  <button class="gbtn mt" data-act="ghdone"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continuer avec Google</button>`);
 }
 async function ghLoginDone(){
-  const tok=$('gh-t').value.trim(),p=$('gh-p').value,p2=$('gh-p2').value;
-  if(!/^(gh[pousr]_|github_pat_)\S{10,}$/.test(tok)){toast('Jeton GitHub invalide : il commence par ghp_ ou github_pat_');return}
+  const p=$('gh-p').value,p2=$('gh-p2').value;
   if(p.length<8){toast('Phrase secrète trop courte (8 caractères minimum)');return}
-  lsSet(KGH,tok);lsSet(KGI,null);toast('Connexion…');
+  let F;
+  try{F=await fb()}catch(e){toast(e.message);return}
+  let cred;
+  try{cred=await F.Au.signInWithPopup(F.auth,new F.Au.GoogleAuthProvider())}
+  catch(e){const c=e&&e.code||'';
+    toast(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request'?'Connexion annulée':c==='auth/popup-blocked'?'Autorisez les fenêtres pop-up pour ce site puis réessayez':c==='auth/unauthorized-domain'?'Domaine non autorisé : ajoutez-le dans Firebase → Authentication → Paramètres (voir README)':c==='auth/operation-not-allowed'?'Connexion Google non activée dans Firebase (voir README)':'Connexion impossible : '+(e.message||c));return}
+  toast('Connexion…');
   try{
-    const u=await(await ghf('/user')).json();lsSet(KPW,p);
-    const g=await gistRead(),cur=await mainDoc(g);
+    const u=cred.user,cur=await mainDoc(F,u);
     if(cur.env)await unseal(cur.env,p); /* phrase incorrecte -> erreur */
-    else if(p!==p2){lsSet(KPW,null);lsSet(KGH,null);toast('Les deux phrases secrètes sont différentes');return}
-    localStorage.removeItem('pat_rev');
-    ID.user={email:'@'+u.login+' · GitHub',user_metadata:{full_name:u.name||u.login,avatar_url:u.avatar_url}};lsSet(KGU,JSON.stringify(ID.user));
+    else if(p!==p2){await F.Au.signOut(F.auth);toast('Les deux phrases secrètes sont différentes');return}
+    lsSet(KPW,p);localStorage.removeItem('pat_rev');
+    ID.user=toUser(u);lsSet(KGU,JSON.stringify(ID.user));
     $('modal').classList.remove('open');onAuth(true);
-  }catch(e){lsSet(KGH,null);lsSet(KPW,null);ID.user=null;toast(e.message)}
+  }catch(e){try{await F.Au.signOut(F.auth)}catch(_){}lsSet(KPW,null);ID.user=null;toast(fbErr(e).message)}
 }
-function ghLogout(){[KGH,KPW,KGI,KGU].forEach(k=>lsSet(k,null));localStorage.removeItem('pat_rev');SY.rev=0;ID.user=null;renderSet();syncUI()}
+function ghLogout(){[KPW,KGU].forEach(k=>lsSet(k,null));localStorage.removeItem('pat_rev');SY.rev=0;ID.user=null;renderSet();syncUI();fb().then(F=>F.Au.signOut(F.auth)).catch(()=>{})}
 function onAuth(fresh){
   if(fresh&&ID.user)toast('Connecté : '+ID.user.email);
   syncUI();renderSet();if(!AIBUSY)renderAI();
@@ -2036,7 +2048,7 @@ function firstChoice(R){
   });
 }
 async function openBackups(){
-  sheet('Sauvegardes sur GitHub','<p class="sm mut">Une copie est gardée chaque jour où vous modifiez vos données. Restaurer remplace vos données sur tous vos appareils.</p><div id="bk" class="mt"><p class="hint">Chargement…</p></div>');
+  sheet('Sauvegardes du compte','<p class="sm mut">Une copie est gardée chaque jour où vous modifiez vos données. Restaurer remplace vos données sur tous vos appareils.</p><div id="bk" class="mt"><p class="hint">Chargement…</p></div>');
   try{const r=await api('/api/sync?backups=1');$('bk').innerHTML=r.backups.length?r.backups.slice(0,30).map(d=>`<button class="item sm" data-act="bkrest" data-d="${esc(d)}"><div class="ir"><b>${esc(fd(new Date(d+'T12:00:00')))}</b><span class="mut xs">Restaurer</span></div></button>`).join(''):'<p class="sm mut">Aucune sauvegarde pour le moment.</p>'}
   catch(e){$('bk').innerHTML=`<p class="sm neg">${esc(e.message)}</p>`}
 }
