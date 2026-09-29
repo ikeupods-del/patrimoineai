@@ -1837,7 +1837,7 @@ async function unseal(txt,pass){
 }
 
 /* --- Google (Firebase Auth) + Firestore : sauvegarde chiffrée, aucun serveur à gérer --- */
-const KPW='pat_pass',KGU='pat_user',FBV='10.14.1';
+const KPW='pat_pass',KGU='pat_user',FBV='10.14.1',APP_ID='patrimoine'; /* une entrée par app : users/{uid}/apps/{APP_ID} */
 const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}},lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}};
 const MAXENC=950000; /* limite d'un document Firestore ≈ 1 Mo */
 let FBP=null;
@@ -1862,7 +1862,7 @@ function fbErr(e){
   if(c==='failed-precondition'||c==='not-found'){const x=Error('Base Firestore introuvable : créez-la dans la console Firebase (voir README).');x.st=403;return x}
   return e;
 }
-const uref=(F,u,...p)=>F.Fs.doc(F.db,'users',u.uid,...p);
+const uref=(F,u,...p)=>F.Fs.doc(F.db,'users',u.uid,'apps',APP_ID,...p);
 function passOf(){const p=lsGet(KPW);if(!p){const e=Error('Phrase secrète manquante : reconnectez-vous.');e.st=401;throw e}return p}
 async function mainDoc(F,u){ /* enveloppe {rev,env} ; env = objet chiffré */
   const s=await F.Fs.getDoc(uref(F,u));const t=s.exists()?s.data().main:null;
@@ -1874,7 +1874,7 @@ async function gsync(path,opt){
   const{F,u}=await fbUser();
   try{
     if(m==='GET'){
-      if(q.has('backups')){const s=await F.Fs.getDocs(F.Fs.collection(F.db,'users',u.uid,'backups'));return{backups:s.docs.map(d=>d.id).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse()}}
+      if(q.has('backups')){const s=await F.Fs.getDocs(F.Fs.collection(F.db,'users',u.uid,'apps',APP_ID,'backups'));return{backups:s.docs.map(d=>d.id).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse()}}
       if(q.get('backup')){const s=await F.Fs.getDoc(uref(F,u,'backups',q.get('backup')));if(!s.exists())throw Error('Sauvegarde introuvable');const doc=await unseal(JSON.parse(s.data().txt),pass);return{data:doc.data}}
       const cur=await mainDoc(F,u),since=Number(q.get('since'));
       if(!cur.env)return{rev:0,data:null};
@@ -1897,7 +1897,7 @@ async function gsync(path,opt){
       });
       if(cf){const env=JSON.parse(cf.t),doc=await unseal(env,pass);return{_st:409,conflict:true,rev:cf.rev,data:doc.data,at:env.atMs||0}}
       /* ne garder que les 30 dernières sauvegardes quotidiennes */
-      try{const s=await F.Fs.getDocs(F.Fs.collection(F.db,'users',u.uid,'backups')),ids=s.docs.map(d=>d.id).sort().reverse().slice(30);
+      try{const s=await F.Fs.getDocs(F.Fs.collection(F.db,'users',u.uid,'apps',APP_ID,'backups')),ids=s.docs.map(d=>d.id).sort().reverse().slice(30);
         await Promise.all(ids.map(id=>F.Fs.deleteDoc(uref(F,u,'backups',id))))}catch(e){}
       return{rev,at};
     }
