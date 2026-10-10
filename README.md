@@ -11,12 +11,13 @@ Settings → Pages → Source : **GitHub Actions**. Le workflow `.github/workflo
 ## Utilisation
 - **Connexion** : Réglages → « Continuer avec Google ». Vous choisissez aussi une **phrase secrète** qui chiffre vos données.
 - **Synchronisation** entre appareils via Firestore (`users/{uid}/apps/patrimoine`), chiffrée sur l'appareil (AES-256-GCM, PBKDF2) : ni Google ni QuenTools ne peuvent lire les données. Une copie par jour est gardée 30 jours (Réglages → « Sauvegardes »).
-- **Cours en direct** (Yahoo Finance) via un relais CORS : relais publics par défaut ; pour plus de fiabilité, déployez `cors-worker/worker.js` sur Cloudflare Workers (gratuit) et renseignez `marketProxy` dans `config.js`.
+- **Cours en direct** : flux continus (WebSocket), sans clé ni serveur. Cryptos via Binance (temps réel), actions/ETF/indices/devises/matières via le flux Yahoo Finance (temps réel ou différé selon la place ; l'état est affiché sous chaque valeur). Moteur : `marches.js` (testé par `node tests/marches.test.js`), écran « Marchés », total du patrimoine et variation du jour mis à jour à chaque cours. Si un flux est muet, une interrogation rapide (≈ 12 s) prend le relais. Test navigateur : `node tests/e2e.js`.
+- **Cours de secours** (Yahoo Finance) via un relais CORS : relais publics par défaut ; pour plus de fiabilité, déployez `cors-worker/worker.js` sur Cloudflare Workers (gratuit) et renseignez `marketProxy` dans `config.js`.
 - **IA** : locale sans clé, ou Gemini / Grok avec votre propre clé (gardée sur l'appareil).
 - **Récupérer l'ancienne version Netlify** : exporter le JSON de l'ancienne app, puis « Restaurer une sauvegarde » dans la nouvelle.
 
 ## Fichiers
-`index.html` (l'app), `config.js`, `manifest.webmanifest`, `sw.js`, icônes, `cors-worker/worker.js` (facultatif).
+`index.html` (l'app), `marches.js` (cours en direct), `tests/`, `config.js`, `manifest.webmanifest`, `sw.js`, icônes, `cors-worker/worker.js` (facultatif).
 
 
 ## Configuration Firebase (une seule fois)
