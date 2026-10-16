@@ -235,6 +235,32 @@ header.top h1{white-space:nowrap;min-width:0}
 .rowgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .rowgrid div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 11px}.rowgrid span{display:block;font-size:12px;color:var(--mut)}.rowgrid b{font:600 15px var(--num)}
 .srch{margin-top:10px}.srch .item{margin-bottom:6px}
+/* v6 : patrimoine net, palette, alertes, calendrier, application Mac */
+.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}@media(min-width:620px){.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.bars{display:flex;align-items:flex-end;gap:4px;height:120px;margin-top:12px;padding-bottom:18px;position:relative}
+.bars>div{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative}
+.bars i{display:block;width:100%;max-width:28px;border-radius:6px 6px 2px 2px;background:var(--pt);min-height:2px}
+.bars i.z{background:var(--card2)}
+.bars span{position:absolute;bottom:-18px;font-size:10px;color:var(--mut);white-space:nowrap}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) 64px 88px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.trow:first-of-type{border-top:0}.trow input{min-height:36px;padding:6px 8px;text-align:right}
+.bar2{height:6px;border-radius:99px;background:var(--card2);position:relative;margin-top:4px;overflow:visible}.bar2 i{position:absolute;top:0;bottom:0;left:0;border-radius:99px;background:var(--pt)}.bar2 b{position:absolute;top:-3px;width:2px;height:12px;background:var(--tx);border-radius:2px}
+.alr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:14px}.alr:first-child{border-top:0}
+#pal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:70}
+#pal.open{display:flex}
+.palb{background:var(--card);border:1px solid var(--line);border-radius:16px;width:min(620px,92vw);box-shadow:var(--shadow);overflow:hidden}
+.palb input{border:0;border-bottom:1px solid var(--line);border-radius:0;font-size:17px;padding:16px 18px;background:transparent}
+.pall{max-height:52vh;overflow-y:auto;padding:6px}
+.pali{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:10px;text-align:left;min-height:44px}
+.pali.on,.pali:hover{background:var(--card2)}.pali .xs{margin-left:auto;color:var(--mut)}
+.palh{font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;padding:10px 12px 4px}
+#lock{position:fixed;inset:0;z-index:90;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);text-align:center;padding:24px}
+body.locked #lock{display:flex}body.locked .app,body.locked .tabs,body.locked .fab{visibility:hidden}
+#lock .ico{width:64px;height:64px;border-radius:18px}
+body.mac .side{padding-top:44px;-webkit-app-region:drag}body.mac .side button,body.mac .side a{-webkit-app-region:no-drag}
+body.mac header.top{-webkit-app-region:drag}body.mac header.top button{-webkit-app-region:no-drag}
+.macup{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+@media print{body{height:auto;overflow:visible}.side,.tabs,.fab,header.top,#toast,#modal,#pal{display:none!important}}
 </style></head><body data-view="home">
 <div class="app">
 <aside class="side"><div class="brand"><svg class="ic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/></svg>Patrimoine AI</div><nav class="sidein" id="side" aria-label="Navigation"></nav></aside>
@@ -243,6 +269,8 @@ header.top h1{white-space:nowrap;min-width:0}
 <main class="content" id="content"><div class="wrap">
 <section class="view on" id="v-home"></section>
 <section class="view" id="v-assets"></section>
+<section class="view" id="v-goals"></section>
+<section class="view" id="v-budget"></section>
 <section class="view" id="v-mk"></section>
 <section class="view" id="v-analyse"></section>
 <section class="view" id="v-ai"></section>
@@ -253,13 +281,17 @@ header.top h1{white-space:nowrap;min-width:0}
 <button class="fab" id="fab" data-act="add" aria-label="Ajouter un placement"></button>
 <div id="modal" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="pal" role="dialog" aria-modal="true" aria-label="Recherche rapide"><div class="palb"><input id="pal-q" type="search" placeholder="Chercher un placement, une valeur, une action…" autocomplete="off" aria-label="Recherche rapide" data-in="pal"><div class="pall" id="pal-l" role="listbox"></div></div></div>
+<div id="lock" aria-live="polite"></div>
+<script>window.__erreurs=[];window.addEventListener('error',e=>{window.__erreurs.push(String(e.message||e))});</script>
 <script>
 'use strict';
 /* ===================== Utilitaires ===================== */
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
-const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='5.0';
+const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.0';
+const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
 const UI={view:'home',filter:'all',q:'',sort:'val',tool:'tax',range:'all'};
 let HIDE=false,CUR={id:''},IMP={},AIBUSY=false,RFB=false,ASK=null,TOASTACT=null,toastT=null;
 const newId=()=>'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -281,6 +313,10 @@ function load(){
   d.hist=Array.isArray(d.hist)?d.hist:[];
   d.chat=Array.isArray(d.chat)?d.chat:[];
   d.watch=Array.isArray(d.watch)?d.watch:[];d.del=d.del&&typeof d.del==='object'?d.del:{};d.mt=d.mt&&typeof d.mt==='object'?d.mt:{};
+  {const b=d.budget&&typeof d.budget==='object'&&!Array.isArray(d.budget)?d.budget:{};const L=x=>Array.isArray(x)?x.filter(l=>l&&typeof l==='object'&&l.id):[];
+   d.budget={inc:L(b.inc),exp:L(b.exp),loans:b.loans!==false,mois:num(b.mois)||6,marge:b.marge==null?10:num(b.marge),delai:num(b.delai)||12}}
+  d.goals=Array.isArray(d.goals)?d.goals.filter(g=>g&&typeof g==='object'&&g.id):[];
+  d.alerts=Array.isArray(d.alerts)?d.alerts.filter(x=>x&&x.s&&num(x.p)>0):[];d.target=d.target&&typeof d.target==='object'&&!Array.isArray(d.target)?d.target:{};
   d.set=Object.assign({theme:'auto',hide:false,auto:true,prov:localStorage.getItem(KK)?'gemini':'local',fb:true,gmodel:'',gsrc:'key',mtab:'etf'},d.set||{});
   return d;
 }
@@ -290,6 +326,7 @@ function save(){
   try{localStorage.setItem(K,JSON.stringify(D))}
   catch(e){if(!save.w){save.w=1;toast('Enregistrement impossible (stockage plein ou navigation privée). Exportez vos données pour ne rien perdre.')}}
   if(ch&&typeof syncSoon==='function')syncSoon();
+  if(MAC&&typeof macSave==='function')macSave();
 }
 
 /* ===================== Catégories & plateformes ===================== */
@@ -297,10 +334,14 @@ const CATS={
   bourse:{ic:'trend',n:'Bourse',c:'#60a5fa',h:'Actions, ETF et fonds cotés'},
   crowd:{ic:'users',n:'Crowdlending',c:'#34d399',h:'Prêts à des projets via une plateforme'},
   immo:{ic:'building',n:'Immobilier fractionné',c:'#fbbf24',h:'Briques, SCPI, parts de projets immobiliers'},
+  bien:{ic:'house',n:'Immobilier physique',c:'#fb923c',h:'Résidence principale, locatif, résidence secondaire, terrain'},
   epargne:{ic:'bank',n:'Assurance-vie & épargne',c:'#a78bfa',h:'Assurance-vie, PER, PEL, épargne salariale'},
   cash:{ic:'card',n:'Livrets & liquidités',c:'#94a3b8',h:'Livret A, LDDS, compte courant'},
-  autre:{ic:'coins',n:'Autre',c:'#f472b6',h:'Crypto, or, prêt à un proche…'}
+  autre:{ic:'coins',n:'Autre',c:'#f472b6',h:'Crypto, or, prêt à un proche…'},
+  credit:{ic:'key',n:'Crédits',c:'#f87171',h:'Prêt immobilier, prêt auto ou personnel : ce que vous devez encore'}
 };
+const USAGE={rp:'Résidence principale',loc:'Locatif',sec:'Résidence secondaire',terrain:'Terrain ou autre'};
+const ENV={pea:'PEA',peapme:'PEA-PME',cto:'Compte-titres',av:'Assurance-vie',per:'PER',crypto:'Plateforme crypto',autre:'Autre'};
 const cinfo=a=>CATS[a.cat]||CATS.autre;
 const ST={cours:'En cours',rembourse:'Remboursé',retard:'En retard',defaut:'Défaut'};
 // Plateformes : [régulation, ancienneté, transparence, garanties] notes /5 — ESTIMATIONS INDICATIVES à ajuster
@@ -311,13 +352,33 @@ const pScore=n=>{const v=pVec(n);return Math.round((v[0]*.3+v[1]*.15+v[2]*.25+v[
 
 /* ===================== Calculs ===================== */
 const isRisky=a=>a.cat==='crowd'||a.cat==='immo';
+const isDebt=a=>a.cat==='credit';
 const live=a=>a.status!=='rembourse';
+const owned=()=>D.assets.filter(a=>!isDebt(a));
+/* Crédit amortissable : mensualité, échéances déjà payées, capital restant dû (saisi, sinon calculé) */
+function loanM(a){const P=num(a.amount),n=Math.round(num(a.dur)),r=num(a.rate)/1200;if(!(P>0)||!(n>0))return 0;return r?P*r/(1-Math.pow(1+r,-n)):P/n}
+function loanK(a){
+  if(!a.date||!(num(a.dur)>0))return null;const d=new Date(a.date+'T12:00:00');if(isNaN(d))return null;
+  const t=new Date();let k=(t.getFullYear()-d.getFullYear())*12+(t.getMonth()-d.getMonth());if(t.getDate()<d.getDate())k--;
+  return Math.max(0,Math.min(Math.round(num(a.dur)),k));
+}
+function crd(a){
+  if(a.value!==''&&a.value!=null)return Math.max(0,num(a.value));
+  const P=num(a.amount),k=loanK(a),n=Math.round(num(a.dur)),r=num(a.rate)/1200;
+  if(k==null)return P;if(k>=n)return 0;const M=loanM(a);
+  return Math.max(0,r?P*Math.pow(1+r,k)-M*(Math.pow(1+r,k)-1)/r:P-M*k);
+}
+function loanEnd(a){if(!a.date||!(num(a.dur)>0))return null;const d=new Date(a.date+'T12:00:00');if(isNaN(d))return null;d.setMonth(d.getMonth()+Math.round(num(a.dur)));return d}
+function loanLeft(a){const k=loanK(a);return k==null?null:Math.max(0,Math.round(num(a.dur))-k)}
 function val(a){
   if(a.cat==='bourse')return num(a.qty)*(num(a.price)||num(a.pru));
+  if(isDebt(a))return crd(a);
   return (a.value===''||a.value==null)?num(a.amount):num(a.value);
 }
 function inv(a){
   if(a.cat==='bourse')return num(a.qty)*num(a.pru);
+  if(isDebt(a))return 0;
+  if(a.cat==='bien')return (a.amount===''||a.amount==null)?val(a):num(a.amount);
   if(a.status==='rembourse'&&val(a)===0)return 0;   // remboursé et retiré : n'entre plus dans les totaux
   return num(a.amount);
 }
@@ -348,12 +409,13 @@ function portfolio(){
   if(bad)notes.push(bad+' projet(s) en retard ou en défaut');
   return{score:Math.max(0,Math.round(sc)),base:Math.round(base),pc:Math.round(pc),pd,notes,tot,n,top,topName:ents[0][0],by:ents,R};
 }
+/* tv : patrimoine brut (ce que vous possédez) ; debt : capital restant dû ; net = brut − dettes ; fin = brut hors immobilier physique */
 function totals(){
-  const tv=D.assets.reduce((s,a)=>s+val(a),0),ti=D.assets.reduce((s,a)=>s+inv(a),0);
-  return{tv,ti,gain:tv-ti,pct:ti>0?(tv-ti)/ti*100:null};
+  const A=owned(),tv=A.reduce((s,a)=>s+val(a),0),ti=A.reduce((s,a)=>s+inv(a),0),debt=D.assets.filter(isDebt).reduce((s,a)=>s+crd(a),0),bv=A.filter(a=>a.cat==='bien').reduce((s,a)=>s+val(a),0);
+  return{tv,ti,debt,net:tv-debt,fin:tv-bv,gain:tv-ti,pct:ti>0?(tv-ti)/ti*100:null};
 }
 function byCat(){
-  const by={};D.assets.forEach(a=>{const v=val(a);if(v>0)by[a.cat]=(by[a.cat]||0)+v});
+  const by={};owned().forEach(a=>{const v=val(a);if(v>0)by[a.cat]=(by[a.cat]||0)+v});
   return Object.entries(by).sort((x,y)=>y[1]-x[1]);
 }
 function endDate(a){
@@ -368,13 +430,14 @@ function dueTxt(a){
   if(m<0)return 'échéance dépassée';if(m===0)return 'échéance ce mois-ci';
   return 'dans '+m+' mois';
 }
-function yearly(){
-  return D.assets.filter(a=>a.cat!=='bourse'&&live(a)&&a.status!=='defaut'&&num(a.rate)>0)
-    .reduce((s,a)=>s+(isRisky(a)?inv(a):val(a))*num(a.rate)/100,0);
-}
+const rated=()=>D.assets.filter(a=>a.cat!=='bourse'&&a.cat!=='bien'&&!isDebt(a)&&live(a)&&a.status!=='defaut'&&num(a.rate)>0);
+const interests=()=>rated().reduce((s,a)=>s+(isRisky(a)?inv(a):val(a))*num(a.rate)/100,0);
+const rents=()=>D.assets.filter(a=>a.cat==='bien').reduce((s,a)=>s+num(a.rent)*12,0);
+const loanPay=()=>D.assets.filter(a=>isDebt(a)&&crd(a)>0).reduce((s,a)=>s+loanM(a)+num(a.ins),0);
+function yearly(){return interests()+rents()}
 function snap(){
   if(!D.assets.length||D.assets.every(a=>a.demo))return;
-  const T=totals(),d=today(),e={d,v:Math.round(T.tv),i:Math.round(T.ti)},L=D.hist[D.hist.length-1];
+  const T=totals(),d=today(),e={d,v:Math.round(T.net),i:Math.round(T.ti)},L=D.hist[D.hist.length-1];
   if(L&&L.d===d)D.hist[D.hist.length-1]=e;else D.hist.push(e);
   if(D.hist.length>1500)D.hist=D.hist.slice(-1500);
 }
@@ -409,14 +472,23 @@ function insights(){
     if(share>50)add('warn','Poids élevé des placements peu liquides',Math.round(share)+' % de votre patrimoine est en crowdlending ou immobilier fractionné : difficile à revendre et exposé à la perte en capital.');
     else if(share>30)add('info','Placements peu liquides : '+Math.round(share)+' %','Ils sont bloqués jusqu’à l’échéance et exposés à la perte en capital. Gardez de quoi faire face aux imprévus ailleurs.');
   }
+  {const b=budget();if(b.R>0&&b.cap<0)add('warn','Budget dans le rouge','Vos dépenses dépassent vos revenus de '+eur(-b.cap)+' par mois.',{l:'Voir mon budget',a:'go',v:'budget'})}
+  (D.goals||[]).forEach(g=>{const s=gState(g);if(s.k==='late'&&s.need!=null)add('info','Objectif à accélérer : '+g.name,'Pour l’atteindre à temps, il faudrait mettre '+eur(s.need)+' de côté par mois'+(s.mo>0?' au lieu de '+eur(s.mo):'')+'.',{l:'Voir l’objectif',a:'go',v:'goals'})});
+  const C=A.filter(isDebt);
+  if(C.length){
+    if(T.tv>0&&T.debt/T.tv>.6)add('warn','Dettes élevées : '+Math.round(T.debt/T.tv*100)+' % du patrimoine brut','Il vous reste '+eur(T.debt)+' à rembourser. Gardez une épargne de précaution suffisante pour faire face aux mensualités en cas d’imprévu.',{l:'Voir les crédits',a:'filter',c:'credit'});
+    C.filter(a=>a.value===''&&loanK(a)==null&&!(num(a.dur)>0&&a.date)).slice(0,2).forEach(a=>add('info','Crédit à compléter : '+a.name,'Indiquez la durée et la date de début (ou le capital restant dû) pour suivre le remboursement mois après mois.',{l:'Compléter',a:'edit',id:a.id}));
+    C.filter(a=>crd(a)===0).slice(0,2).forEach(a=>add('good','Crédit remboursé : '+a.name,'D’après sa durée, ce crédit est terminé. Vous pouvez le supprimer de la liste.',{l:'Ouvrir la fiche',a:'detail',id:a.id}));
+  }
   const B=A.filter(a=>a.cat==='bourse'),bt=B.reduce((s,a)=>s+val(a),0);
   if(B.length>=2&&bt>0){const m=B.slice().sort((x,y)=>val(y)-val(x))[0];if(val(m)/bt>.5)add('warn','Une seule ligne pèse '+Math.round(val(m)/bt*100)+' % de votre bourse',m.name+' domine votre portefeuille boursier.',{l:'Voir la ligne',a:'detail',id:m.id})}
   const nt=B.filter(a=>!a.tick).length;
   if(nt)add('info',nt+' position(s) sans ticker','Sans ticker Yahoo, les cours ne peuvent pas être actualisés automatiquement.',{l:'Voir la bourse',a:'filter',c:'bourse'});
   const st=B.filter(a=>a.tick&&(!a.pxts||Date.now()-a.pxts>7*864e5)).length;
   if(st)add('info','Cours à actualiser','Le cours de '+st+' position(s) date de plus de 7 jours.',{l:'Actualiser',a:'refresh'});
+  {const pea=B.filter(a=>a.env==='pea').reduce((s,a)=>s+inv(a),0);if(pea>135000)add(pea>150000?'warn':'info','Plafond du PEA bientôt atteint','Vos achats sur le PEA représentent environ '+eur(pea)+' pour un plafond de versements de 150 000 €. Les versements comptent, pas la valeur : vérifiez le montant exact chez votre courtier.')}
   if(A.length>=3&&!A.some(a=>a.cat==='cash'))add('info','Aucune liquidité renseignée','Ajoutez vos livrets et comptes pour voir la part de votre patrimoine disponible immédiatement.',{l:'Ajouter un livret',a:'add',c:'cash'});
-  if(A.length>=3&&!A.every(a=>a.demo)&&(!D.lastBackup||Date.now()-D.lastBackup>30*864e5))add('info','Pensez à sauvegarder','Vos données ne sont que sur cet appareil. Un export régulier évite de tout perdre en cas de changement de téléphone ou d’effacement du navigateur.',{l:'Exporter maintenant',a:'exp'});
+  if(A.length>=3&&!MAC&&!syncOn()&&!A.every(a=>a.demo)&&(!D.lastBackup||Date.now()-D.lastBackup>30*864e5))add('info','Pensez à sauvegarder','Vos données ne sont que sur cet appareil. Un export régulier évite de tout perdre en cas de changement de téléphone ou d’effacement du navigateur.',{l:'Exporter maintenant',a:'exp'});
   if(!out.some(o=>o.lvl==='bad'||o.lvl==='warn'))out.push({lvl:'good',title:'Rien d’alarmant',text:'Aucun point de vigilance détecté sur vos données actuelles.'});
   const ord={bad:0,warn:1,info:2,good:3};return out.sort((x,y)=>ord[x.lvl]-ord[y.lvl]);
 }
@@ -460,7 +532,19 @@ cloud:'<path d="M17.5 19H7a5 5 0 1 1 1.1-9.9A6.5 6.5 0 0 1 20.6 11 4 4 0 0 1 17.
 cloudok:'<path d="M17.5 19H7a5 5 0 1 1 1.1-9.9A6.5 6.5 0 0 1 20.6 11 4 4 0 0 1 17.5 19z"/><path d="m9.5 13.5 2 2 3.5-3.5"/>',
 cloudoff:'<path d="M2 2l20 20M5.8 9.4A5 5 0 0 0 7 19h10.5M20.6 17.2A4 4 0 0 0 20.6 11a6.5 6.5 0 0 0-9.7-4.6"/>',
 star:'<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>',
-wifioff:'<path d="M1 1l22 22M16.7 11.1A11 11 0 0 1 19 12.6M5 12.6a11 11 0 0 1 5.2-2.5M10.7 5.1A16 16 0 0 1 22.6 9M1.4 9a16 16 0 0 1 4.4-2.7M8.5 16.1a5 5 0 0 1 7 0M12 20h.01"/>'
+wifioff:'<path d="M1 1l22 22M16.7 11.1A11 11 0 0 1 19 12.6M5 12.6a11 11 0 0 1 5.2-2.5M10.7 5.1A16 16 0 0 1 22.6 9M1.4 9a16 16 0 0 1 4.4-2.7M8.5 16.1a5 5 0 0 1 7 0M12 20h.01"/>',
+house:'<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10M10 20v-5h4v5"/>',
+key:'<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2.5 2.5"/>',
+lock:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
+printer:'<path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+cmd:'<path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 0 0 0-6z"/>',
+pie:'<path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+wallet:'<path d="M20 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-2"/><path d="M22 11h-6a2 2 0 0 0 0 4h6z"/>',
+grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
 };
 const ic=(n,s=20)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]||''}</svg>`;
 
@@ -512,22 +596,27 @@ const PROV={
   gemini:{n:'Gemini',co:'Google Gemini',host:'aistudio.google.com/apikey',url:'https://aistudio.google.com/apikey',pre:'AIza',steps:['Connectez-vous avec Google.','Touchez « Create API key » (Créer une clé API) et copiez-la : elle commence par AIza et fait 39 caractères.','Ne mettez aucune restriction de site web sur cette clé : ouverte comme fichier, l’application n’envoie pas d’adresse de site et Google la refuserait.']},
   grok:{n:'Grok',co:'xAI Grok',host:'console.x.ai',url:'https://console.x.ai',pre:'xai-',steps:['Connectez-vous à votre compte xAI.','Dans « API Keys », créez une clé et copiez-la (elle commence par xai-).','Vérifiez que votre compte dispose de crédits : l’API xAI est en général payante à l’usage.']}
 };
+/* IA du Mac : modèle de langage (Qwen3 4B) qui tourne sur la puce du Mac, partagé avec les autres logiciels QuenTools */
+const MACIA={installee:false,mo:2500,progres:null,erreur:''};
+if(MAC&&MAC.ia){const o={local:PROV.local,mac:{n:'IA du Mac',co:'l’IA du Mac',mac:1}};delete PROV.local;Object.assign(o,PROV);Object.keys(PROV).forEach(k=>delete PROV[k]);Object.assign(PROV,o)}
 const aiProv=()=>PROV[D.set.prov]?D.set.prov:'local';
-const keyOf=p=>p==='local'?'local':p==='gemini'&&typeof srvAI==='function'&&srvAI()?'srv':localStorage.getItem(p==='grok'?KX:KK);
+const keyOf=p=>p==='local'?'local':p==='mac'?(MACIA.installee?'mac':null):p==='gemini'&&typeof srvAI==='function'&&srvAI()?'srv':localStorage.getItem(p==='grok'?KX:KK);
 const hasAIKey=()=>!!keyOf(aiProv());
 
 /* ===================== Navigation ===================== */
-const TITLES={home:'Mon patrimoine',assets:'Mes placements',mk:'Marchés',analyse:'Analyse',ai:'Assistant IA',tools:'Simulateurs',set:'Réglages'};
-const NAV=[['home','Accueil','home'],['assets','Placements','list'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['ai','Assistant','spark'],['tools','Outils','calc']];
+const TITLES={home:'Mon patrimoine',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',mk:'Marchés',analyse:'Analyse',ai:'Assistant IA',tools:'Simulateurs',set:'Réglages'};
+const NAV=[['home','Accueil','home'],['assets','Placements','list'],['budget','Budget','wallet'],['goals','Objectifs','target'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['ai','Assistant','spark'],['tools','Outils','calc']];
+const NAVM=['home','assets','budget','goals','ai']; /* barre du bas sur téléphone ; le reste est dans « Plus » */
 function renderNav(){
-  $('tabs').innerHTML=NAV.map(n=>`<button class="tab" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],22)}<span>${n[1]}</span></button>`).join('');
+  $('tabs').innerHTML=NAV.filter(n=>NAVM.includes(n[0])).map(n=>`<button class="tab" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],22)}<span>${n[1]}</span></button>`).join('')+`<button class="tab" data-act="more" id="tmore">${ic('grid',22)}<span>Plus</span></button>`;
   $('side').innerHTML=NAV.map(n=>`<button class="navi" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],20)}${({ai:'Assistant IA',tools:'Simulateurs'})[n[0]]||n[1]}</button>`).join('')
-    +`<button class="btn mt" data-act="add" style="margin:12px 4px">${ic('plus',18)}Ajouter un placement</button><div class="sp"></div><button class="navi" data-act="go" data-v="set" data-nav="set">${ic('sliders',20)}Réglages</button><div class="xs mut" style="padding:10px 14px">Produit par QuenTools</div>`;
+    +`<button class="btn mt" data-act="add" style="margin:12px 4px;white-space:nowrap;padding:0 12px">${ic('plus',18)}Ajouter un placement</button><div class="sp"></div><button class="navi" data-act="go" data-v="set" data-nav="set">${ic('sliders',20)}Réglages</button><div class="xs mut" style="padding:10px 14px">Produit par QuenTools</div>`;
 }
 function show(v){
   if(!TITLES[v])v='home';UI.view=v;document.body.dataset.view=v;
   document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
   document.querySelectorAll('[data-nav]').forEach(e=>{const on=e.dataset.nav===v;e.classList.toggle('on',on);if(on)e.setAttribute('aria-current','page');else e.removeAttribute('aria-current')});
+  if($('tmore'))$('tmore').classList.toggle('on',!NAVM.includes(v));
   $('ttl').textContent=TITLES[v];$('content').scrollTop=0;
   if(v==='ai')scrollChat();
   if(v==='mk'&&typeof liveSync==='function'){liveSync();mkLoad(MK.tab,true)}
@@ -540,7 +629,7 @@ function applyTheme(){
   const light=t==='light'||(t==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches);
   const m=document.querySelector('meta[name=theme-color]');if(m)m.content=light?'#f3f4f1':'#151311';
 }
-function render(){renderHome();renderAssets();mkRender();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();$('ttl').textContent=TITLES[UI.view]}
+function render(){renderHome();renderAssets();renderBudget();renderGoals();mkRender();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();$('ttl').textContent=TITLES[UI.view]}
 
 /* ===================== Accueil ===================== */
 const actBtn=a=>`<button class="btn sm sec" data-act="${a.a}"${a.id?` data-id="${esc(a.id)}"`:''}${a.v?` data-v="${a.v}"`:''}${a.c?` data-c="${a.c}"`:''}>${esc(a.l)}</button>`;
@@ -549,8 +638,8 @@ function insHTML(i,full){
   return `<div class="ins"><span style="color:${c}">${ic(n,22)}</span><div><b>${esc(i.title)}</b><div class="sm mut">${esc(i.text)}</div>${i.act||ask?`<div class="acts2">${i.act?actBtn(i.act):''}${ask?`<button class="btn sm ghost" data-act="askai" data-q="${esc('Explique-moi ce point de vigilance et ce que je peux faire concrètement : '+i.title+'. '+i.text)}">${ic('spark',15)}Demander à l’IA</button>`:''}</div>`:''}</div></div>`;
 }
 function onboarding(){
-  return `<section class="card"><h2>Bienvenue dans Patrimoine AI</h2><p class="mut mt" style="margin-top:6px">Suivez tout votre patrimoine au même endroit. Vos données restent sur cet appareil.</p>
-<ol class="steps"><li><div><b>Ajoutez un premier placement</b><div class="sm mut">Bourse, crowdlending, immobilier, livrets : choisissez le type et remplissez quelques champs.</div></div></li>
+  return `<section class="card"><h2>Bienvenue dans Patrimoine AI</h2><p class="mut mt" style="margin-top:6px">Suivez tout votre patrimoine au même endroit${MAC?', sur votre Mac':''}. Vos données restent sur cet appareil.</p>
+<ol class="steps"><li><div><b>Ajoutez un premier placement</b><div class="sm mut">Bourse, crowdlending, livrets, mais aussi votre logement et vos crédits : choisissez le type et remplissez quelques champs.</div></div></li>
 <li><div><b>Suivez l’essentiel automatiquement</b><div class="sm mut">Répartition, évolution, échéances, alertes et indice de fiabilité se calculent tout seuls.</div></div></li>
 <li><div><b>Posez vos questions à l’assistant</b><div class="sm mut">L’IA locale fonctionne tout de suite, sans Internet ni clé. Une clé Gemini gratuite (facultative) ajoute l’enquête web et la lecture de photos.</div></div></li></ol>
 <div class="stack"><button class="btn" data-act="add">${ic('plus',18)}Ajouter mon premier placement</button><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat ou un CSV</button><button class="btn ghost" data-act="demo">${ic('gem',18)}Découvrir avec des exemples</button></div></section>`;
@@ -561,10 +650,10 @@ function renderHome(){
   const T=totals(),bc=byCat(),ins=insights(),dem=A.some(a=>a.demo),pts=histPts(UI.range);
   let h='<div class="grid2">';
   if(dem)h+=`<section class="card span2" style="border-color:var(--warn)"><b>Vous regardez des données d’exemple</b><div class="sm mut">Supprimez-les quand vous voulez pour commencer avec vos vrais placements.</div><div class="g2 mt"><button class="btn sec sm" data-act="democlear">Supprimer les exemples</button><button class="btn sm" data-act="add">Ajouter mon placement</button></div></section>`;
-  h+=`<section class="card hero span2"><div class="lab">Patrimoine total</div><div class="tot" id="h-tot">${eur(T.tv)}</div>`;
+  h+=`<section class="card hero span2"><div class="lab" id="h-lab">${T.debt>0?'Patrimoine net':'Patrimoine total'}</div><div class="tot" id="h-tot">${eur(T.net)}</div>`;
   if(T.ti>0)h+=`<div class="delta ${T.gain>=0?'pos':'neg'}" id="h-gain">${gainHTML(T)}</div>`;
   h+=`<div class="delta" id="h-day">${dayHTML()}</div>`;
-  {const X=metrics();h+=`<div class="kpis"><div><span>Disponible</span><b>${eur(X.cash)}</b></div><div><span>Peu liquide</span><b>${eur(X.rv)}</b></div><div><span>Rendement</span><b>${X.wr?nf(X.wr,1)+'\u00a0%':'–'}</b></div></div>`}
+  {const X=metrics();h+=T.debt>0?`<div class="kpis k4"><div><span>Ce que vous possédez</span><b id="h-brut">${eur(T.tv)}</b></div><div><span>Ce que vous devez</span><b class="neg">${eur(T.debt)}</b></div><div><span>Disponible</span><b>${eur(X.cash)}</b></div><div><span>Rendement</span><b>${X.wr?nf(X.wr,1)+'\u00a0%':'–'}</b></div></div>`:`<div class="kpis"><div><span>Disponible</span><b>${eur(X.cash)}</b></div><div><span>Peu liquide</span><b>${eur(X.rv)}</b></div><div><span>Rendement</span><b>${X.wr?nf(X.wr,1)+'\u00a0%':'–'}</b></div></div>`}
   if(D.hist.length>=2){
     h+=`<div class="rng">${[['30','30 jours'],['180','6 mois'],['365','1 an'],['all','Tout']].map(r=>`<button class="chip${UI.range===r[0]?' on':''}" data-act="range" data-r="${r[0]}">${r[1]}</button>`).join('')}</div>`;
     if(pts.length>=2){const f=pts[0],l=pts[pts.length-1];
@@ -575,17 +664,150 @@ function renderHome(){
   h+=`<section class="card span2" id="mkmini"></section>`;
   h+=`<section class="card"><div class="ct"><h3>À surveiller</h3>${ins.length>3?`<button class="btn sm sec" data-act="go" data-v="analyse">Tout voir (${ins.length})</button>`:''}</div>${ins.slice(0,3).map(i=>insHTML(i)).join('')}</section>`;
   h+=`<section class="card"><div class="ct"><h3>Répartition</h3></div>`+(bc.length&&T.tv>0?`<div class="alloc"><div class="dw">${donut(bc,bc.reduce((s,x)=>s+x[1],0))}<div class="dc"><b>${A.length}</b><span>placement${A.length>1?'s':''}</span></div></div><div class="lg">${bc.map(([c,v])=>`<button class="lgi" data-act="filter" data-c="${c}"><i style="background:${CATS[c].c}"></i><span>${esc(CATS[c].n)}</span><b>${nf(v/T.tv*100,0)}\u00a0%</b><em>${eur(v)}</em></button>`).join('')}</div></div>`:'<p class="mut sm">Renseignez des montants pour voir la répartition.</p>')+'</section>';
-  if(D.goal>0){const p=Math.min(100,T.tv/D.goal*100);
-    h+=`<section class="card"><div class="ct"><h3>Objectif de patrimoine</h3><button class="btn sm sec" data-act="goal">Modifier</button></div><div class="row"><b>${eur(T.tv)}</b><span class="mut">${eur(D.goal)}</span></div><div class="prog mt" style="margin-top:8px" role="progressbar" aria-valuenow="${Math.round(p)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p.toFixed(1)}%"></i></div><div class="sm mut" style="margin-top:8px">${T.tv>=D.goal?'Objectif atteint.':nf(p,0)+' % atteint, il reste '+eur(D.goal-T.tv)+'.'}</div></section>`;
-  }else h+=`<section class="card"><div class="row"><div class="it"><span class="ico" style="--c:var(--pt)">${ic('target')}</span><div><b>Fixez-vous un objectif</b><span class="mut xs" style="white-space:normal">Suivez votre progression sur l’accueil.</span></div></div><button class="btn sm sec" data-act="goal">Définir</button></div></section>`;
+  if((D.goals||[]).length){const S=D.goals.map(g=>[g,gState(g)]).sort((a,b)=>({late:0,ok:1,free:2,done:3})[a[1].k]-({late:0,ok:1,free:2,done:3})[b[1].k]).slice(0,3);
+    h+=`<section class="card"><div class="ct"><h3>Mes objectifs</h3><button class="btn sm sec" data-act="go" data-v="goals">Tout voir</button></div>${S.map(([g,s])=>`<button class="lgi" style="display:block;width:100%;text-align:left" data-act="go" data-v="goals"><div class="row sm"><b>${esc(g.name)}</b><span class="badge" style="--c:${GST[s.k][1]}">${nf(s.p,0)}\u00a0%</span></div><div class="prog" style="margin-top:6px;height:6px"><i style="width:${s.p.toFixed(1)}%;background:${GST[s.k][1]}"></i></div><div class="xs mut" style="margin-top:4px">${eur(s.cur)} sur ${eur(s.t)}${s.k==='late'&&s.need!=null?' · '+eur(s.need)+' par mois nécessaires':''}</div></button>`).join('')}</section>`}
+  else if(D.goal>0){const p=Math.max(0,Math.min(100,T.net/D.goal*100));
+    h+=`<section class="card"><div class="ct"><h3>Objectif de patrimoine</h3><button class="btn sm sec" data-act="goal">Modifier</button></div><div class="row"><b>${eur(T.net)}</b><span class="mut">${eur(D.goal)}</span></div><div class="prog mt" style="margin-top:8px" role="progressbar" aria-valuenow="${Math.round(p)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${p.toFixed(1)}%"></i></div><div class="sm mut" style="margin-top:8px">${T.net>=D.goal?'Objectif atteint.':nf(p,0)+' % atteint, il reste '+eur(D.goal-T.net)+'.'}</div></section>`;
+  }else h+=`<section class="card"><div class="row"><div class="it"><span class="ico" style="--c:var(--pt)">${ic('target')}</span><div><b>Fixez-vous un objectif</b><span class="mut xs" style="white-space:normal">Apport, retraite, épargne de précaution : l’effort mensuel est calculé pour vous.</span></div></div><button class="btn sm sec" data-act="go" data-v="goals">Définir</button></div></section>`;
   const due=A.filter(a=>isRisky(a)&&(a.status==='cours'||a.status==='retard')&&endDate(a)).sort((x,y)=>endDate(x)-endDate(y)).slice(0,4);
   const nod=A.filter(a=>isRisky(a)&&live(a)&&!endDate(a)).length;
   if(due.length)h+=`<section class="card"><div class="ct"><h3>Prochaines échéances</h3></div>${due.map(a=>`<button class="item" data-act="detail" data-id="${esc(a.id)}"><div class="ir"><div class="it"><div><b>${esc(a.name)}</b><span class="mut xs">${esc(fd(endDate(a)))}, ${dueTxt(a)}</span></div></div><b>${eur(val(a))}</b></div></button>`).join('')}</section>`;
   else if(nod)h+=`<section class="card"><h3>Échéances</h3><p class="sm mut" style="margin-top:6px">Renseignez la date de début et la durée de vos projets de crowdlending pour suivre leurs échéances.</p></section>`;
   const y=yearly();
-  if(y>0)h+=`<section class="card"><h3>Revenus estimés</h3><div class="big mt" style="margin-top:6px">${eur(y)}<span class="mut sm" style="font-family:inherit"> par an</span></div><div class="sm mut">Soit environ ${eur(y/12)} par mois avant impôts, d’après les taux renseignés (hors dividendes).</div></section>`;
-  h+=`<section class="card span2"><div class="g2"><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat</button><button class="btn sec" data-act="go" data-v="ai">${ic('spark',18)}Poser une question</button></div></section></div>`;
+  const ry=rents(),lp=loanPay();
+  if(y>0)h+=`<section class="card"><h3>Revenus estimés</h3><div class="big mt" style="margin-top:6px">${eur(y)}<span class="mut sm" style="font-family:inherit"> par an</span></div><div class="sm mut">Soit environ ${eur(y/12)} par mois avant impôts, d’après les taux renseignés${ry>0?', dont '+eur(ry/12)+' de loyers bruts par mois':''} (hors dividendes).</div></section>`;
+  if(lp>0)h+=`<section class="card"><div class="ct"><h3>Crédits en cours</h3><button class="btn sm sec" data-act="filter" data-c="credit">Voir</button></div><div class="big" style="margin-top:2px">${eur(lp)}<span class="mut sm" style="font-family:inherit"> par mois</span></div><div class="sm mut">Mensualités${D.assets.some(a=>isDebt(a)&&num(a.ins))?' assurance comprise':''}. Il reste ${eur(T.debt)} de capital à rembourser.</div></section>`;
+  h+=`<section class="card span2"><div class="g2"><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat</button><button class="btn sec" data-act="go" data-v="ai">${ic('spark',18)}Poser une question</button><button class="btn sec" data-act="bilan">${ic('printer',18)}Bilan en PDF</button><button class="btn sec" data-act="pal">${ic('search',18)}Rechercher <span class="xs mut">${/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent)?'⌘K':'Ctrl K'}</span></button></div></section></div>`;
   el.innerHTML=h;mkMini();
+}
+
+/* ===================== Budget : revenus, dépenses, reste à vivre, combien investir ===================== */
+const BCAT={logement:'Logement',energie:'Énergie',telecom:'Internet et téléphone',assurance:'Assurances',transport:'Transport',abonnement:'Abonnements',impots:'Impôts',enfants:'Enfants',alimentation:'Courses',sante:'Santé',loisirs:'Loisirs et sorties',autre:'Autre'};
+const BTPL={inc:[['Salaire net']],exp:[['Loyer','fixe','logement'],['Électricité et gaz','fixe','energie'],['Internet et téléphone','fixe','telecom'],['Assurances (habitation, auto…)','fixe','assurance'],['Transport (carburant, abonnement)','fixe','transport'],['Abonnements (streaming, sport…)','fixe','abonnement'],['Courses','courant','alimentation'],['Loisirs et sorties','courant','loisirs'],['Santé, vêtements, divers','courant','autre']]};
+function budget(){
+  const B=D.budget,R=B.inc.reduce((s,l)=>s+num(l.v),0),lp=B.loans?loanPay():0;
+  const fixe=B.exp.filter(l=>l.k!=='courant').reduce((s,l)=>s+num(l.v),0)+lp,cour=B.exp.filter(l=>l.k==='courant').reduce((s,l)=>s+num(l.v),0),dep=fixe+cour,cap=R-dep;
+  const cash=owned().filter(a=>a.cat==='cash').reduce((s,a)=>s+val(a),0),cible=dep*B.mois,gap=Math.max(0,cible-cash);
+  const plan={marge:0,prec:0,goals:0,inv:0,gl:[]};
+  if(cap>0){
+    let rest=cap;plan.marge=Math.round(cap*Math.min(50,Math.max(0,num(B.marge)))/100);rest-=plan.marge;
+    plan.prec=gap>0?Math.min(rest,Math.ceil(gap/Math.max(1,B.delai))):0;rest-=plan.prec;
+    (D.goals||[]).forEach(g=>{if(g.src==='net')return;const s=gState(g);if(s.k==='done'||s.need==null||!(s.need>0))return;const put=Math.min(rest,Math.round(s.need));if(put>0){plan.gl.push([g,put,s.need]);plan.goals+=put;rest-=put}});
+    plan.inv=Math.max(0,rest);
+  }
+  return{R,lp,fixe,cour,dep,cap,rav:R-fixe,te:R>0?lp/R*100:null,ts:R>0?cap/R*100:null,cash,cible,gap,plan,mois:B.mois};
+}
+const bline=(l,t)=>`<div class="trow" style="grid-template-columns:minmax(0,1fr) ${t==='exp'?'118px ':''}132px 36px"><input aria-label="Libellé" value="${esc(l.n||'')}" placeholder="Libellé" data-in="bud" data-t="${t}" data-id="${esc(l.id)}" data-f="n" style="text-align:left">${t==='exp'?`<select aria-label="Type de dépense" data-ch="bud" data-t="exp" data-id="${esc(l.id)}" data-f="k" style="min-height:36px;padding:6px 8px"><option value="fixe"${l.k!=='courant'?' selected':''}>Fixe</option><option value="courant"${l.k==='courant'?' selected':''}>Courante</option></select>`:''}<div class="inp has"><input type="number" inputmode="decimal" min="0" step="any" aria-label="Montant par mois" value="${l.v===''||l.v==null?'':esc(l.v)}" placeholder="0" data-in="bud" data-t="${t}" data-id="${esc(l.id)}" data-f="v"><span class="suf">€</span></div><button class="ibtn" style="width:36px;height:36px" data-act="bdel" data-t="${t}" data-id="${esc(l.id)}" aria-label="Supprimer la ligne">${ic('x',16)}</button></div>`;
+function renderBudget(){
+  const el=$('v-budget');if(!el)return;const B=D.budget;
+  if(!B.inc.length&&!B.exp.length){el.innerHTML=`<section class="card"><div class="empty"><span class="ico" style="--c:var(--pt)">${ic('wallet',24)}</span><h2>Votre budget du mois</h2><p class="mut">Notez vos revenus et vos dépenses : l’application calcule votre reste à vivre et vous dit combien mettre de côté et investir chaque mois, sans vous mettre en difficulté.</p><button class="btn" data-act="bstart">${ic('plus',18)}Commencer avec une liste type</button><button class="btn sec mt" style="margin-left:8px" data-act="bblank">Partir d’une page vide</button></div></section>`;return}
+  const lp=loanPay();
+  let h=`<div class="grid2"><section class="card"><div class="ct"><h3>Revenus par mois</h3><button class="btn sm sec" data-act="badd" data-t="inc">${ic('plus',15)}Ajouter</button></div><div class="xs mut">Salaires nets, primes lissées sur 12 mois, loyers perçus, pensions…</div><div class="mt" id="b-inc">${B.inc.map(l=>bline(l,'inc')).join('')}</div></section>
+  <section class="card" id="bud-sum"></section>
+  <section class="card span2"><div class="ct"><h3>Dépenses par mois</h3><button class="btn sm sec" data-act="badd" data-t="exp">${ic('plus',15)}Ajouter</button></div><div class="xs mut">Fixes : loyer, factures, abonnements, assurances. Courantes : courses, loisirs, santé. Pour une dépense annuelle (taxe foncière…), divisez par 12.</div><div class="mt" id="b-exp">${B.exp.map(l=>bline(l,'exp')).join('')}</div>
+  ${lp>0?`<div class="set" style="margin-top:6px;border-top:1px solid var(--line)"><div><b>Mensualités de crédit : ${eur(lp)}</b><div class="hint">Reprises automatiquement de vos crédits enregistrés, comptées en dépenses fixes.</div></div>${sw('bloans',B.loans,'Compter les mensualités de crédit')}</div>`:''}</section>
+  <section class="card span2"><div id="bud-plan"></div><details class="mt"><summary>Régler le plan</summary><div class="g2">${nfld('b-mois','Précaution visée',B.mois,'mois','Mois de dépenses : 3 pour un salarié, 6 à 12 pour un indépendant.')}${nfld('b-delai','La constituer en',B.delai,'mois')}</div>${nfld('b-marge','Marge pour les imprévus',B.marge,'%','Part de l’épargne possible laissée sur le compte courant.')}</details></section></div>`;
+  el.innerHTML=h;budOut();
+}
+function budOut(){
+  const s=$('bud-sum'),p=$('bud-plan');if(!s||!p)return;const b=budget(),B=D.budget,P=b.plan;
+  const seg=(v,c,t)=>v>0&&b.R>0?`<i title="${esc(t)}" style="width:${Math.min(100,v/Math.max(b.R,b.dep)*100).toFixed(1)}%;background:${c}"></i>`:'';
+  s.innerHTML=`<h3>En résumé</h3><div class="kpis k4"><div><span>Revenus</span><b>${eur(b.R)}</b></div><div><span>Dépenses</span><b>${eur(b.dep)}</b></div><div><span>Reste à vivre</span><b class="${b.rav>=0?'':'neg'}">${eur(b.rav)}</b></div><div><span>Épargne possible</span><b class="${b.cap>=0?'pos':'neg'}">${eur(b.cap)}</b></div></div>
+  <div style="display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--card2);margin-top:14px">${seg(b.fixe,'#f87171','Dépenses fixes')}${seg(b.cour,'#fbbf24','Dépenses courantes')}${seg(Math.max(0,b.cap),'var(--pt)','Épargne possible')}</div><div class="xs mut" style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px"><span><i class="dot" style="background:#f87171"></i>Fixes ${b.R>0?nf(b.fixe/b.R*100,0)+' %':''}</span><span><i class="dot" style="background:#fbbf24"></i>Courantes ${b.R>0?nf(b.cour/b.R*100,0)+' %':''}</span><span><i class="dot" style="background:var(--pt)"></i>Épargne ${b.ts!=null?nf(Math.max(0,b.ts),0)+' %':''}</span></div>
+  <div class="mt">${kv('Reste à vivre <span class="xs">(revenus moins dépenses fixes)</span>',eur(b.rav))}${b.te!=null&&b.lp>0?kv('Taux d’endettement',`<span class="${b.te>35?'neg':''}">${nf(b.te,1)}\u00a0%</span>`):''}${b.ts!=null?kv('Taux d’épargne',nf(b.ts,1)+'\u00a0%'):''}</div>`;
+  if(!(b.R>0)){p.innerHTML='<h3>Combien investir chaque mois ?</h3><p class="sm mut" style="margin-top:6px">Indiquez vos revenus pour obtenir votre plan.</p>';return}
+  if(b.cap<=0){p.innerHTML=`<h3>Combien investir chaque mois ?</h3><div class="box mt" style="border-color:var(--red)"><b class="neg">Vos dépenses dépassent vos revenus de ${eur(-b.cap)} par mois.</b><div class="sm mut" style="margin-top:6px">Avant d’investir : repérez les abonnements inutilisés, renégociez assurances et forfaits, et fixez un plafond pour les dépenses courantes. ${b.cour>0?'Vos dépenses courantes représentent '+eur(b.cour)+' par mois.':''}</div></div><button class="btn sec mt" data-act="askai" data-q="Mon budget est déficitaire : aide-moi à trouver des économies concrètes.">${ic('spark',16)}Demander des pistes d’économies à l’IA</button>`;return}
+  const L=[['Marge pour les imprévus du mois','card',P.marge,'Reste sur le compte courant : '+nf(B.marge,0)+' % de votre épargne possible.'],['Épargne de précaution','shield',P.prec,b.gap>0?`Objectif ${eur(b.cible)} (${b.mois} mois de dépenses) sur livrets : il manque ${eur(b.gap)}, comblés en ${B.delai} mois environ.`:`Déjà constituée : ${eur(b.cash)} sur livrets pour ${eur(b.cible)} visés.`]].concat(P.gl.map(([g,put,need])=>[g.name,g.ic||'target',put,put+0.5<need?`Il faudrait ${eur(need)} par mois pour tenir l’échéance.`:'Effort nécessaire pour tenir l’échéance.'])).concat([['À investir sur le long terme','trend',P.inv,P.inv>0?'Pour un horizon de 8 ans et plus : par exemple un ETF monde dans un PEA ou une assurance-vie. Le capital n’est pas garanti.':'Rien à investir pour l’instant : la sécurité passe d’abord.']]);
+  const proj=(m,y,r)=>{let c=0;for(let k=0;k<y*12;k++)c=c*(1+r/1200)+m;return c};
+  p.innerHTML=`<div class="ct"><h3>Combien investir chaque mois ?</h3><span class="badge" style="--c:var(--pt)">${eur(b.cap)} disponibles</span></div><p class="sm mut">Dans cet ordre : la sécurité d’abord, puis vos projets datés, puis le long terme.</p><div class="mt">${L.map((x,i)=>`<div class="ins"><span class="ico" style="--c:${i===L.length-1?'var(--pt)':'var(--blue)'};width:36px;height:36px">${ic(x[1],18)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(x[0])}</b><b class="${i===L.length-1&&x[2]>0?'pos':''}">${eur(x[2])}</b></div><div class="sm mut">${esc(x[3])}</div></div></div>`).join('')}</div>
+  ${P.inv>0?`<div class="box mt"><b>Si vous investissez ${eur(P.inv)} par mois</b> (rendement hypothétique de 5 % par an, non garanti) : environ <b>${eur(proj(P.inv,10,5))}</b> dans 10 ans et <b>${eur(proj(P.inv,20,5))}</b> dans 20 ans, pour ${eur(P.inv*240)} versés sur 20 ans.</div>`:''}
+  <div class="g2 mt"><button class="btn sec" data-act="askai" data-q="Analyse mon budget et dis-moi comment mieux répartir mon épargne chaque mois.">${ic('spark',16)}Avis de l’IA sur mon budget</button><button class="btn sec" data-act="go" data-v="goals">${ic('target',16)}Mes objectifs</button></div><p class="hint">Repère courant (règle 50/30/20) : 50 % pour les dépenses fixes, 30 % pour les dépenses courantes, 20 % pour l’épargne. Ce plan est indicatif et ne constitue pas un conseil en investissement.</p>`;
+}
+function budIn(t){
+  const B=D.budget;
+  if(['b-mois','b-delai','b-marge'].includes(t.id)){const v=num(t.value);if(t.id==='b-mois')B.mois=Math.max(1,Math.min(24,v||6));if(t.id==='b-delai')B.delai=Math.max(1,Math.min(60,v||12));if(t.id==='b-marge')B.marge=Math.max(0,Math.min(50,v));}
+  else{const l=(B[t.dataset.t]||[]).find(x=>x.id===t.dataset.id);if(!l)return;l[t.dataset.f]=t.dataset.f==='v'?(t.value===''?'':num(t.value)):t.value}
+  clearTimeout(budIn.t);budIn.t=setTimeout(save,700);budOut();
+}
+
+/* ===================== Objectifs ===================== */
+const GTPL=[['Épargne de précaution','shield',10000,12,'cats',['cash'],1.5],['Apport pour un achat immobilier','house',30000,48,'cats',['cash','epargne'],2.5],['Préparer la retraite','sun',300000,240,'net',[],5],['Voiture','card',15000,24,'manual',[],0],['Voyage','gem',4000,12,'manual',[],0],['Études des enfants','users',25000,120,'cats',['epargne','bourse'],4]];
+function gCur(g){
+  if(g.src==='manual')return num(g.saved);
+  if(g.src==='cats')return owned().filter(a=>(g.cats||[]).includes(a.cat)).reduce((s,a)=>s+val(a),0);
+  return totals().net;
+}
+function gMonths(g){if(!g.date)return null;const d=new Date(g.date+'T12:00:00');if(isNaN(d))return null;const t=new Date();return Math.max(0,(d.getFullYear()-t.getFullYear())*12+d.getMonth()-t.getMonth()+(d.getDate()>=t.getDate()?0:-1))}
+/* Effort mensuel nécessaire pour atteindre la cible à l'échéance, avec le rendement estimé */
+function gNeed(target,cur,m,rate){
+  if(cur>=target)return 0;if(m==null)return null;if(m<=0)return target-cur;
+  const r=rate/1200,f=Math.pow(1+r,m);return Math.max(0,r?(target-cur*f)*r/(f-1):(target-cur)/m);
+}
+function gState(g){
+  const cur=gCur(g),t=num(g.target),m=gMonths(g),need=gNeed(t,cur,m,num(g.rate)),mo=num(g.monthly),yrs=t>cur?yearsToGoal(t,Math.max(0,cur),mo,num(g.rate)):0;
+  const k=cur>=t?'done':m===0?'late':need==null?(mo>0?'ok':'free'):mo+0.5>=need?'ok':'late';
+  return{cur,t,m,need,mo,yrs,k,p:t>0?Math.max(0,Math.min(100,cur/t*100)):0};
+}
+const GST={done:['Atteint','var(--ok)'],ok:['En bonne voie','var(--ok)'],late:['À accélérer','var(--warn)'],free:['Sans échéance','var(--blue)']};
+const whenTxt=y=>{if(y==null)return 'hors de portée à ce rythme';if(y===0)return 'déjà atteint';const d=new Date();d.setMonth(d.getMonth()+Math.ceil(y*12));return fmy(d)};
+function goalCard(g){
+  const s=gState(g),st=GST[s.k],src=g.src==='manual'?'Somme mise de côté':g.src==='cats'?(g.cats||[]).map(c=>(CATS[c]||{}).n).filter(Boolean).join(', ')||'Aucun placement choisi':'Patrimoine net';
+  let h=`<section class="card"><div class="ct"><div class="it"><span class="ico" style="--c:${st[1]}">${ic(g.ic||'target')}</span><div><b>${esc(g.name||'Objectif')}</b><span class="mut xs">${esc(src)}</span></div></div><span class="badge" style="--c:${st[1]}">${st[0]}</span></div>`;
+  h+=`<div class="row"><b class="big" style="font-size:24px">${eur(s.cur)}</b><span class="mut">sur ${eur(s.t)}</span></div><div class="prog" style="margin-top:8px" role="progressbar" aria-valuenow="${Math.round(s.p)}" aria-valuemin="0" aria-valuemax="100" aria-label="Progression"><i style="width:${s.p.toFixed(1)}%;background:${st[1]}"></i></div>`;
+  h+=`<div class="mt" style="margin-top:8px">`;
+  if(s.k==='done')h+=`<p class="sm pos">Objectif atteint, bravo. ${s.cur>s.t?'Vous le dépassez de '+eur(s.cur-s.t)+'.':''}</p>`;
+  else{
+    if(s.m!=null)h+=kv('Échéance',esc(fmy(new Date(g.date+'T12:00:00')))+` <span class="mut xs">(${s.m?'dans '+(s.m>=24?nf(s.m/12,s.m%12?1:0)+' ans':s.m+' mois'):'ce mois-ci'})</span>`);
+    if(s.need!=null)h+=kv('Effort nécessaire',`<span class="${s.k==='late'?'warnc':''}">${eur(s.need)} par mois</span>`);
+    h+=kv('Prévu',s.mo>0?eur(s.mo)+' par mois'+(num(g.rate)?' à '+nf(g.rate,1)+'\u00a0%':''):'aucun versement');
+    if(s.mo>0||num(g.rate)>0)h+=kv(s.mo>0?'À ce rythme':'Sans versement',esc(whenTxt(s.yrs)));
+  }
+  h+=`</div><div class="acts2" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">${g.src==='manual'&&s.k!=='done'?`<button class="btn sm" data-act="gadd" data-id="${esc(g.id)}">${ic('plus',15)}Ajouter un versement</button>`:''}<button class="btn sm sec" data-act="gedit" data-id="${esc(g.id)}">${ic('edit',15)}Modifier</button>${s.k!=='done'?`<button class="btn sm ghost" data-act="askai" data-q="${esc('Aide-moi à atteindre mon objectif « '+(g.name||'objectif')+' » : '+eur(s.t)+(g.date?' pour '+fmy(new Date(g.date+'T12:00:00')):'')+'. Propose un plan concret.')}">${ic('spark',15)}Plan avec l’IA</button>`:''}</div></section>`;
+  return h;
+}
+function renderGoals(){
+  const el=$('v-goals');if(!el)return;const T=totals(),G=D.goals||[];
+  let h=`<section class="card"><div class="row" style="justify-content:flex-start;gap:12px;align-items:flex-start"><span class="ico" style="--c:var(--pt)">${ic('target')}</span><div style="flex:1"><h3>Vos projets, chiffrés</h3><p class="sm mut" style="margin-top:4px">Fixez un montant et une date : l’application calcule l’effort mensuel nécessaire, vous dit si vous êtes en bonne voie et l’assistant propose un plan.</p></div></div><div class="chips mt" style="flex-wrap:wrap">${GTPL.map((t,i)=>`<button class="chip" data-act="gnew" data-i="${i}">${ic(t[1],15)}${esc(t[0])}</button>`).join('')}<button class="chip on" data-act="gnew">${ic('plus',15)}Autre objectif</button></div></section>`;
+  h+='<div class="grid2 mt">';
+  if(D.goal>0){const g={id:'_main',name:'Patrimoine visé',target:D.goal,src:'net',ic:'gem'},s=gState(g);
+    h+=`<section class="card"><div class="ct"><div class="it"><span class="ico" style="--c:var(--pt)">${ic('gem')}</span><div><b>Patrimoine visé</b><span class="mut xs">Objectif principal, patrimoine net</span></div></div><button class="btn sm sec" data-act="goal">Modifier</button></div><div class="row"><b class="big" style="font-size:24px">${eur(s.cur)}</b><span class="mut">sur ${eur(s.t)}</span></div><div class="prog" style="margin-top:8px"><i style="width:${s.p.toFixed(1)}%"></i></div><p class="sm mut mt" style="margin-top:8px">${s.k==='done'?'Objectif atteint.':'Il reste '+eur(s.t-s.cur)+'. Le simulateur de projection estime le temps nécessaire.'}</p></section>`}
+  h+=G.map(goalCard).join('');
+  if(!G.length&&!(D.goal>0))h+=`<section class="card span2"><div class="empty"><span class="ico" style="--c:var(--pt)">${ic('target',24)}</span><h2>Aucun objectif pour l’instant</h2><p class="mut">Choisissez un modèle ci-dessus ou créez le vôtre : épargne de précaution, apport, retraite, voyage…</p><button class="btn" data-act="gnew">${ic('plus',18)}Créer un objectif</button></div></section>`;
+  if(G.length){const S=G.map(gState),need=S.filter(s=>s.k!=='done'&&s.need!=null).reduce((t,s)=>t+s.need,0),plan=S.filter(s=>s.k!=='done').reduce((t,s)=>t+s.mo,0);
+    h+=`<section class="card span2"><h3>Effort d’épargne total</h3><div class="kpis"><div><span>Nécessaire</span><b>${eur(need)}</b></div><div><span>Prévu</span><b class="${plan+0.5>=need?'pos':'warnc'}">${eur(plan)}</b></div><div><span>Objectifs</span><b>${S.filter(s=>s.k==='done').length}/${G.length} atteints</b></div></div><p class="hint">Montants par mois. ${plan+0.5>=need?'Vos versements prévus couvrent vos objectifs datés.':'Il manque '+eur(need-plan)+' par mois : repoussez une échéance, augmentez un versement ou priorisez.'}</p></section>`}
+  el.innerHTML=h+'</div>';
+}
+function openGoalForm(id,tpl){
+  const ex=id?(D.goals||[]).find(g=>g.id===id):null;let g=Object.assign({src:'net',cats:[],rate:3,monthly:''},ex||{});
+  if(!ex&&tpl){const d=new Date();d.setMonth(d.getMonth()+tpl[3]);g=Object.assign(g,{name:tpl[0],ic:tpl[1],target:tpl[2],date:d.toLocaleDateString('sv-SE'),src:tpl[4],cats:tpl[5].slice(),rate:tpl[6]})}
+  CUR.g=id||'';CUR.gic=g.ic||'target';
+  let f=F('gname','Nom de l’objectif',g.name,{ph:'Ex : Apport pour notre maison'});
+  f+=`<div class="g2">${F('gtarget','Montant visé',g.target,{t:'number',suf:'€'})}${F('gdate','Échéance',g.date,{t:'date',opt:1})}</div>`;
+  f+=`<div class="fld"><div class="lbl">Ce qui compte pour cet objectif</div>${seg('f-gsrc',[['net','Mon patrimoine net'],['cats','Certains placements'],['manual','Une somme dédiée']],g.src)}</div>`;
+  f+=`<div class="fld" id="g-cats"${g.src==='cats'?'':' hidden'}><div class="lbl">Placements comptés</div><div class="chips" style="flex-wrap:wrap">${Object.keys(CATS).filter(c=>c!=='credit').map(c=>`<button type="button" class="chip${(g.cats||[]).includes(c)?' on':''}" aria-pressed="${(g.cats||[]).includes(c)}" data-act="gcat" data-c="${c}">${esc(CATS[c].n)}</button>`).join('')}</div></div>`;
+  f+=`<div id="g-saved"${g.src==='manual'?'':' hidden'}>${F('gsaved','Déjà mis de côté',g.saved,{t:'number',suf:'€'})}</div>`;
+  f+=`<div class="g2">${F('gmonthly','Versement prévu',g.monthly,{t:'number',suf:'€/mois',opt:1})}${F('grate','Rendement estimé',g.rate,{t:'number',suf:'%/an',hint:'Livret ≈ 1,5 à 3 %, ETF monde ≈ 5 à 7 % sur le long terme, sans garantie.'})}</div>`;
+  f+=`<div class="live" id="g-live"></div><div class="g2 mt" style="margin-top:20px">${ex?`<button class="btn dng" data-act="gdel" data-id="${esc(ex.id)}">${ic('trash',18)}Supprimer</button>`:'<button class="btn sec" data-act="closeM">Annuler</button>'}<button class="btn" data-act="gsave">Enregistrer</button></div>`;
+  sheet(ex?'Modifier l’objectif':'Nouvel objectif',f);goalLive();
+}
+function goalCollect(){const v=id=>{const e=$('f-'+id);return e?e.value:''};return{name:v('gname').trim(),target:num(v('gtarget')),date:v('gdate'),src:v('gsrc')||'net',cats:[...document.querySelectorAll('#g-cats .chip.on')].map(b=>b.dataset.c),saved:v('gsaved')===''?'':num(v('gsaved')),monthly:v('gmonthly')===''?'':num(v('gmonthly')),rate:num(v('grate'))}}
+function goalLive(){
+  const el=$('g-live');if(!el)return;const o=goalCollect();$('g-cats').hidden=o.src!=='cats';$('g-saved').hidden=o.src!=='manual';
+  if(!(o.target>0)){el.innerHTML='';return}const s=gState(o);
+  el.innerHTML=s.k==='done'?`Déjà atteint : ${eur(s.cur)} pour ${eur(s.t)}.`:`Aujourd’hui : <b>${eur(s.cur)}</b> (${nf(s.p,0)} %).`+(s.need!=null?` Il faut épargner <b>${eur(s.need)} par mois</b> pour l’atteindre à temps.`:' Ajoutez une échéance pour connaître l’effort mensuel.')+(s.mo>0?` Avec ${eur(s.mo)} par mois : ${esc(whenTxt(s.yrs))}.`:'');
+}
+function goalSave(){
+  const o=goalCollect();document.querySelectorAll('#sheet .err').forEach(e=>e.textContent='');
+  if(!o.name){$('e-gname').textContent='Donnez un nom à l’objectif.';return}
+  if(!(o.target>0)){$('e-gtarget').textContent='Indiquez le montant visé.';return}
+  if(o.src==='cats'&&!o.cats.length){toast('Choisissez au moins un type de placement.');return}
+  D.goals=D.goals||[];const ex=CUR.g&&D.goals.find(g=>g.id===CUR.g);
+  if(ex)Object.assign(ex,o);else D.goals.push(Object.assign({id:newId(),ic:CUR.gic||'target',at:Date.now()},o));
+  save();closeM();render();go('goals');toast(ex?'Objectif modifié':'Objectif créé');
+}
+function goalAdd(id){
+  const g=(D.goals||[]).find(x=>x.id===id);if(!g)return;CUR.g=id;
+  sheet('Ajouter un versement',`<p class="sm mut">${esc(g.name)} : ${eur(num(g.saved))} mis de côté.</p><div class="fld"><label for="ga-v">Montant</label><div class="inp has"><input id="ga-v" type="number" inputmode="decimal" step="any" value="${num(g.monthly)||''}"><span class="suf">€</span></div><div class="hint">Un montant négatif enregistre un retrait.</div></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="gaddok">Valider</button></div>`);
 }
 
 /* ===================== Placements ===================== */
@@ -600,16 +822,22 @@ function filtered(){
 function itemHTML(a){
   const c=cinfo(a),v=val(a),i=inv(a),r=isRisky(a);let sub='',sec='';
   if(a.cat==='bourse'){
-    const p=num(a.price)||num(a.pru);sub=nf(a.qty,num(a.qty)%1?2:0)+' × '+eur(p,2);
+    const p=num(a.price)||num(a.pru);sub=(a.env&&ENV[a.env]?ENV[a.env]+', ':'')+nf(a.qty,num(a.qty)%1?2:0)+' × '+eur(p,2);
     if(a.prev&&a.pxts&&new Date(a.pxts).toLocaleDateString('sv-SE')===today()&&a.prev>0)sub+=', aujourd’hui '+pct((p/a.prev-1)*100);
     if(i>0){const pf=(v-i)/i*100;sec=`<span class="xs ${pf>=0?'pos':'neg'}">${pct(pf)}</span>`}
+  }else if(isDebt(a)){
+    const b=[a.plat||c.n];if(num(a.rate))b.push(nf(a.rate,2)+' %');const m=loanM(a);if(m>0)b.push(eur(m+num(a.ins))+' par mois');const l=loanLeft(a);if(l!=null)b.push(l?'encore '+(l>=24?nf(l/12,l%12?1:0)+' ans':l+' mois'):'terminé');
+    sub=b.join(', ');
+  }else if(a.cat==='bien'){
+    const b=[USAGE[a.usage]||c.n];if(num(a.rent))b.push(eur(a.rent)+' de loyer par mois');sub=b.join(', ');
+    if(i>0&&i!==v){const pf=(v-i)/i*100;sec=`<span class="xs ${pf>=0?'pos':'neg'}">${pct(pf)}</span>`}
   }else{
     const b=[a.plat||c.n];if(num(a.rate))b.push(nf(a.rate,1)+' %');if(r&&num(a.dur))b.push(a.dur+' mois');
     if(r&&live(a)&&endDate(a))b.push(dueTxt(a));sub=b.join(', ');
     if(r&&live(a))sec=chip(aScore(a));
   }
   const stB=a.status&&a.status!=='cours'?`<span class="badge" style="--c:${a.status==='defaut'?'var(--red)':a.status==='retard'?'var(--warn)':'var(--mut)'}">${ST[a.status]||''}</span>`:'';
-  return `<button class="item" data-act="detail" data-id="${esc(a.id)}"><div class="ir"><div class="it"><span class="ico" style="--c:${c.c}">${ic(c.ic,20)}</span><div><b>${esc(a.name||'Sans nom')}</b><span class="mut xs">${esc(sub)}</span></div></div><div class="rt"><b>${eur(v)}</b><span style="display:flex;gap:6px;align-items:center">${stB}${sec}</span></div></div></button>`;
+  return `<button class="item" data-act="detail" data-id="${esc(a.id)}"><div class="ir"><div class="it"><span class="ico" style="--c:${c.c}">${ic(c.ic,20)}</span><div><b>${esc(a.name||'Sans nom')}</b><span class="mut xs">${esc(sub)}</span></div></div><div class="rt"><b${isDebt(a)?' class="neg"':''}>${isDebt(a)?'−\u00a0'+eur(v):eur(v)}</b><span style="display:flex;gap:6px;align-items:center">${stB}${sec}</span></div></div></button>`;
 }
 function renderAssets(){
   const el=$('v-assets');
@@ -623,9 +851,10 @@ function renderAssets(){
 }
 function renderList(){
   if(!$('list'))return;
-  const L=filtered(),f=UI.filter,base=f==='all'?D.assets:D.assets.filter(a=>a.cat===f);
+  const L=filtered(),f=UI.filter,base=f==='all'?owned():D.assets.filter(a=>a.cat===f);
   const tv=base.reduce((s,a)=>s+val(a),0),ti=base.reduce((s,a)=>s+inv(a),0);
-  $('asum').innerHTML=`<div class="sum"><div><div class="mut sm">${f==='all'?'Total des placements':esc((CATS[f]||CATS.autre).n)}</div><div class="big">${eur(tv)}</div></div>${ti>0?`<div class="rt ${tv>=ti?'pos':'neg'}"><b>${sgn(tv-ti)}</b><span class="xs">${pct((tv-ti)/ti*100)}</span></div>`:''}</div>`;
+  if(f==='credit'){const lp=loanPay();$('asum').innerHTML=`<div class="sum"><div><div class="mut sm">Capital restant dû</div><div class="big neg">${eur(tv)}</div></div>${lp>0?`<div class="rt"><b>${eur(lp)}</b><span class="xs mut">par mois</span></div>`:''}</div>`}
+  else{const T=totals();$('asum').innerHTML=`<div class="sum"><div><div class="mut sm">${f==='all'?'Ce que vous possédez':esc((CATS[f]||CATS.autre).n)}</div><div class="big">${eur(tv)}</div>${f==='all'&&T.debt>0?`<div class="xs mut">Patrimoine net, crédits déduits : <b>${eur(T.net)}</b></div>`:''}</div>${ti>0?`<div class="rt ${tv>=ti?'pos':'neg'}"><b>${sgn(tv-ti)}</b><span class="xs">${pct((tv-ti)/ti*100)}</span></div>`:''}</div>`}
   $('list').innerHTML=L.length?L.map(itemHTML).join(''):`<div class="empty"><p class="mut">${UI.q?'Aucun résultat pour cette recherche.':'Aucun placement de ce type pour le moment.'}</p>${UI.q?'':`<button class="btn" data-act="add" data-c="${f==='all'?'':f}">${ic('plus',18)}Ajouter</button>`}</div>`;
   let ex='';
   if(f==='bourse'){
@@ -641,6 +870,7 @@ function renderAnalyse(){
   let h='<div class="grid2">';
   h+=`<section class="card"><div class="ct"><h3>Indice de fiabilité</h3></div>`+(pf?`<div class="row" style="justify-content:flex-start;gap:18px;flex-wrap:wrap">${gauge(pf.score)}<div style="flex:1;min-width:180px"><b style="color:${col(pf.score)};font-size:17px">${label(pf.score)}</b><div class="sm mut">Sur vos ${pf.R.length} placement${pf.R.length>1?'s':''} en crowdlending et immobilier fractionné, pondérés par les montants investis.</div></div></div><button class="btn sec blk mt" data-act="score">Comprendre ce score</button>`:`<p class="sm mut">L’indice évalue vos placements en crowdlending et en immobilier fractionné : fiabilité des plateformes, risque de chaque projet et diversification. Il apparaît dès votre premier projet.</p><button class="btn blk mt" data-act="add" data-c="crowd">${ic('plus',18)}Ajouter un projet</button>`)+'</section>';
   h+=`<section class="card"><div class="ct"><h3>Points d’attention</h3></div>${ins.length?ins.map(i=>insHTML(i,true)).join(''):'<p class="sm mut">Ajoutez des placements pour obtenir une analyse.</p>'}</section>`;
+  h+=calHTML()+envHTML();
   const known=Object.keys(PL).filter(p=>p!=='Autre plateforme'),ex=pf?pf.by:[],exn=ex.map(e=>e[0]);
   const rest=known.filter(p=>!exn.includes(p));
   h+=`<section class="card span2"><div class="ct"><h3>Plateformes</h3></div>`;
@@ -648,6 +878,35 @@ function renderAnalyse(){
   h+=`<details${ex.length?'':' open'}><summary>${ex.length?'Autres plateformes connues':'Plateformes connues'}</summary><div style="margin-top:8px">${rest.map(p=>`<button class="item sm" data-act="plat" data-p="${esc(p)}"><div class="ir"><b>${esc(p)}</b>${chip(pScore(p))}</div></button>`).join('')}</div></details>`;
   h+=`<p class="hint">Notes indicatives et modifiables : touchez une plateforme pour ajuster ses critères. Vérifiez toujours l’agrément AMF ou ORIAS et les taux de défaut publiés.</p></section></div>`;
   el.innerHTML=h;
+}
+
+/* Calendrier : sommes attendues (capital et intérêts des projets) mois par mois sur 12 mois */
+function calendar(){
+  const t=new Date(),M=[];for(let k=0;k<12;k++){const d=new Date(t.getFullYear(),t.getMonth()+k,1);M.push({d,v:0,L:[]})}
+  D.assets.filter(a=>isRisky(a)&&(a.status==='cours'||a.status==='retard')&&endDate(a)).forEach(a=>{
+    const e=endDate(a),k=(e.getFullYear()-t.getFullYear())*12+e.getMonth()-t.getMonth();
+    if(k<0||k>11)return;const v=inv(a)*(1+num(a.rate)/100*num(a.dur)/12);M[k].v+=v;M[k].L.push(a)});
+  return M;
+}
+function bars(M,lab){
+  const mx=Math.max(1,...M.map(x=>x.v));
+  return `<div class="bars" role="img" aria-label="${esc(lab)}">${M.map((x,i)=>`<div title="${esc(fmy(x.d)+' : '+eur(x.v))}"><i class="${x.v?'':'z'}" style="height:${x.v?Math.max(4,x.v/mx*100):2}%"></i>${i%2===0?`<span>${esc(x.d.toLocaleDateString('fr-FR',{month:'short'}))}</span>`:''}</div>`).join('')}</div>`;
+}
+function calHTML(){
+  const M=calendar(),tot=M.reduce((s,x)=>s+x.v,0);if(!D.assets.some(isRisky))return '';
+  const next=M.filter(x=>x.v>0).slice(0,3);
+  return `<section class="card"><div class="ct"><h3>Remboursements attendus</h3></div>${tot>0?`<div class="big" style="font-size:26px">${eur(tot)}<span class="mut sm" style="font-family:inherit"> sur 12 mois</span></div>${bars(M,'Remboursements attendus mois par mois')}<div class="mt">${next.map(x=>kv(esc(fmy(x.d)),eur(x.v)+` <span class="mut xs">(${x.L.length} projet${x.L.length>1?'s':''})</span>`)).join('')}</div><p class="hint">Capital et intérêts bruts, si tout se passe comme prévu.</p>`:'<p class="sm mut">Aucune échéance prévue dans les 12 prochains mois. Renseignez la date de début et la durée de vos projets pour les voir ici.</p>'}</section>`;
+}
+/* Enveloppes : bourse rangée par PEA, compte-titres, assurance-vie… */
+function envHTML(){
+  const B=D.assets.filter(a=>a.cat==='bourse');if(!B.length)return '';
+  const by={};B.forEach(a=>{const k=ENV[a.env]?a.env:'';(by[k]=by[k]||{v:0,i:0,n:0});by[k].v+=val(a);by[k].i+=inv(a);by[k].n++});
+  const tot=B.reduce((s,a)=>s+val(a),0),pea=(by.pea||{i:0}).i;
+  let h=`<section class="card"><div class="ct"><h3>Enveloppes de vos titres</h3></div>`;
+  h+=Object.entries(by).sort((a,b)=>b[1].v-a[1].v).map(([k,x])=>`<div class="kv"><span>${esc(k?ENV[k]:'Non précisée')} <span class="xs">(${x.n} ligne${x.n>1?'s':''})</span></span><b>${eur(x.v)} <span class="mut xs">${tot>0?nf(x.v/tot*100,0)+'\u00a0%':''}</span></b></div>`).join('');
+  if(pea>0)h+=`<div class="mt"><div class="row sm"><span>Plafond du PEA (versements)</span><b>${eur(pea)} / 150 000 €</b></div><div class="prog" style="margin-top:6px"><i style="width:${Math.min(100,pea/1500).toFixed(1)}%"></i></div><div class="hint">Estimé d’après vos prix de revient : seul le relevé du courtier fait foi.</div></div>`;
+  if(by[''])h+=`<p class="hint">Précisez l’enveloppe dans chaque fiche (PEA, compte-titres…) pour un suivi complet.</p>`;
+  return h+'</section>';
 }
 
 /* ===================== Assistant ===================== */
@@ -660,6 +919,7 @@ function scrollChat(){setTimeout(()=>{if(UI.view==='ai'&&D.chat.length){const c=
 function aiStatus(){
   const p=aiProv(),off=navigator.onLine===false;
   if(p==='local')return['var(--ok)','IA locale active : fonctionne sans Internet, vos données restent sur l’appareil.'];
+  if(p==='mac')return MACIA.installee?['var(--ok)','IA du Mac active : un modèle de langage sur votre Mac, sans Internet. Chaque chiffre est vérifié.']:['var(--warn)','IA du Mac à installer : en attendant, l’IA locale répond.'];
   if(!keyOf(p))return['var(--warn)','Aucune clé '+PROV[p].n+' : l’IA locale répond à la place.'];
   if(off)return['var(--warn)','Hors ligne : l’IA locale répond à la place de '+PROV[p].n+'.'];
   return['var(--ok)',PROV[p].n+' connecté'+(D.set.fb!==false?', avec relais automatique par l’IA locale.':'.')];
@@ -667,10 +927,11 @@ function aiStatus(){
 function renderAI(){
   const el=$('v-ai'),p=aiProv(),old=$('ai-q')?$('ai-q').value:'',M=D.chat,st=aiStatus();
   let h=`<div class="aibar">${provChips()}</div><div class="aistat" style="--c:${st[0]}"><i></i><span>${esc(st[1])}</span></div>`;
-  if(p!=='local'&&!keyOf(p))h+=`<section class="card"><h3>Connectez ${PROV[p].co}</h3><p class="sm mut" style="margin-top:6px">La clé reste enregistrée uniquement sur cet appareil. En attendant, l’IA locale répond à vos questions.</p>${keyBlock('key-a')}</section>`;
+  if(p==='mac'&&!MACIA.installee)h+=`<section class="card"><h3>L’IA du Mac</h3>${macIaCard()}</section>`;
+  else if(p!=='local'&&p!=='mac'&&!keyOf(p))h+=`<section class="card"><h3>Connectez ${PROV[p].co}</h3><p class="sm mut" style="margin-top:6px">La clé reste enregistrée uniquement sur cet appareil. En attendant, l’IA locale répond à vos questions.</p>${keyBlock('key-a')}</section>`;
   if(!M.length&&!AIBUSY){
-    const S=D.assets.length?SUGG_P:SUGG_E,loc=p==='local'||!keyOf(p);
-    h+=`<section class="card"><div class="row" style="justify-content:flex-start;gap:12px"><span class="ico" style="--c:var(--pt)">${ic(loc?'cpu':'spark')}</span><div><h3>${loc?'Que voulez-vous savoir ?':'Assistant '+PROV[p].n}</h3><div class="sm mut">${loc?(D.assets.length?'Je calcule à partir de vos placements : bilan, risques, échéances, revenus, simulations, fiscalité.':'Posez une question générale, ou ajoutez vos placements pour une analyse personnalisée.'):'Il connaît vos placements et répond librement. S’il ne répond pas, l’IA locale prend le relais.'}</div></div></div><div class="stack mt">${S.map(q=>`<button class="btn sec" style="justify-content:flex-start;text-align:left" data-act="askai" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></section>`;
+    const S=(D.assets.length?SUGG_P:SUGG_E).concat((D.goals||[]).length?['Où en sont mes objectifs ?']:[]),loc=p==='local'||!keyOf(p);
+    h+=`<section class="card"><div class="row" style="justify-content:flex-start;gap:12px"><span class="ico" style="--c:var(--pt)">${ic(loc?'cpu':'spark')}</span><div><h3>${loc?'Que voulez-vous savoir ?':p==='mac'?'IA du Mac':'Assistant '+PROV[p].n}</h3><div class="sm mut">${p==='mac'&&!loc?'Elle connaît vos placements, vos crédits et vos objectifs, et répond librement sans que rien ne sorte de votre Mac. Les chiffres viennent toujours des calculs de l’application.':loc?(D.assets.length?'Je calcule à partir de vos placements : bilan, risques, échéances, revenus, simulations, fiscalité.':'Posez une question générale, ou ajoutez vos placements pour une analyse personnalisée.'):'Il connaît vos placements et répond librement. S’il ne répond pas, l’IA locale prend le relais.'}</div></div></div><div class="stack mt">${S.map(q=>`<button class="btn sec" style="justify-content:flex-start;text-align:left" data-act="askai" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></section>`;
   }
   h+=M.map((m,k)=>{
     if(m.r==='u')return `<div class="msg u">${esc(m.t)}</div>`;
@@ -678,9 +939,9 @@ function renderAI(){
     if(k===M.length-1&&!AIBUSY&&m.sug&&m.sug.length)x+=`<div class="sugg">${m.sug.map(q=>`<button class="chip" data-act="askai" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>`;
     return x;
   }).join('');
-  if(AIBUSY){const loc=p==='local'||!keyOf(p)||navigator.onLine===false;h+=`<div class="msg m"><div class="thinking"><span class="dots" aria-hidden="true"><span></span><span></span><span></span></span><span>${loc?'Calcul en cours…':PROV[p].n+' réfléchit, cela peut prendre jusqu’à une minute…'}</span></div></div>`}
+  if(AIBUSY){const loc=p==='local'||!keyOf(p)||(p!=='mac'&&navigator.onLine===false);h+=`<div class="msg m"><div class="thinking"><span class="dots" aria-hidden="true"><span></span><span></span><span></span></span><span>${loc?'Calcul en cours…':p==='mac'?'L’IA du Mac rédige (quelques secondes, plus longtemps à la première question)…':PROV[p].n+' réfléchit, cela peut prendre jusqu’à une minute…'}</span></div></div>`}
   h+=`<div class="composer"><textarea id="ai-q" rows="1" placeholder="Posez votre question…" data-in="aiq" data-kd="ai" aria-label="Votre question">${esc(old)}</textarea><button class="btn" data-act="aisend" aria-label="Envoyer"${AIBUSY?' disabled':''}>${ic('send',20)}</button></div>`;
-  h+=`<div class="hint">${M.length?`<button class="btn sm sec" data-act="aiclear" style="margin-right:8px">Nouvelle conversation</button>`:''}${p==='local'||!keyOf(p)?'L’IA locale travaille sur l’appareil : rien n’est envoyé.':'Vos placements sont transmis à '+PROV[p].co+' pour répondre.'} Ce n’est pas un conseil en investissement.</div>`;
+  h+=`<div class="hint">${M.length?`<button class="btn sm sec" data-act="aiclear" style="margin-right:8px">Nouvelle conversation</button>`:''}${p==='local'||!keyOf(p)?'L’IA locale travaille sur l’appareil : rien n’est envoyé.':p==='mac'?'L’IA du Mac travaille sur l’ordinateur : rien n’est envoyé.':'Vos placements sont transmis à '+PROV[p].co+' pour répondre.'} Ce n’est pas un conseil en investissement.</div>`;
   el.innerHTML=h;
   const t=$('ai-q');if(t&&old){t.style.height='auto';t.style.height=Math.min(140,t.scrollHeight)+'px'}
   if(UI.view==='ai')scrollChat();
@@ -689,7 +950,7 @@ function renderAI(){
 /* ===================== Simulateurs ===================== */
 const nfld=(id,label,v,suf,hint)=>`<div class="fld"><label for="${id}">${esc(label)}</label><div class="inp has"><input id="${id}" type="number" inputmode="decimal" step="any" min="0" value="${esc(v)}" data-in="calc"><span class="suf">${suf}</span></div>${hint?`<div class="hint">${esc(hint)}</div>`:''}</div>`;
 function renderTools(){
-  const el=$('v-tools'),T=UI.tool,tabs=[['tax','Impôt'],['proj','Projection'],['new','Avant d’investir']];
+  const el=$('v-tools'),T=UI.tool,tabs=[['tax','Impôt'],['proj','Projection'],['new','Avant d’investir'],['alloc','Répartition cible'],['loan','Crédit']];
   let h=`<div class="chips">${tabs.map(t=>`<button class="chip${t[0]===T?' on':''}" data-act="tool" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
   if(T==='tax'){
     h+=`<section class="card"><h3>Simulateur d’impôt</h3><p class="sm mut" style="margin-top:6px">Compare le prélèvement forfaitaire unique (PFU) et le barème progressif pour vos revenus du capital.</p>${nfld('t-inc','Revenus annuels du capital',Math.round(yearly()),'€','Intérêts, dividendes, plus-values imposables. Prérempli avec vos intérêts estimés.')}
@@ -697,16 +958,50 @@ function renderTools(){
 <div class="hint">18,6 % : comptes-titres, crowdlending, PER, PEA. 17,2 % : assurance-vie, PEL.</div><div id="t-out" class="mt"></div>
 <p class="hint">Base 2026 : PFU 31,4 % = 12,8 % d’impôt + 18,6 % de prélèvements sociaux (17,2 % pour l’assurance-vie et certains produits). Le choix du barème vaut pour tous vos revenus du capital de l’année. Calcul simplifié : CSG déductible 6,8 %, hors quotient familial et décote. Les pertes définitives sur prêts participatifs peuvent être déductibles : voyez un professionnel.</p></section>`;
   }else if(T==='proj'){
-    h+=`<section class="card"><h3>Projection de patrimoine</h3><p class="sm mut" style="margin-top:6px">Estime la valeur de votre capital avec des versements réguliers.</p><div class="g2">${nfld('p-cap','Capital de départ',Math.round(totals().tv),'€')}${nfld('p-mo','Versement mensuel',200,'€')}${nfld('p-r','Rendement brut',6,'%/an')}${nfld('p-y','Durée',15,'ans')}</div>
+    h+=`<section class="card"><h3>Projection de patrimoine</h3><p class="sm mut" style="margin-top:6px">Estime la valeur de votre capital avec des versements réguliers.</p><div class="g2">${nfld('p-cap','Capital de départ',Math.max(0,Math.round(totals().fin)),'€','Vos placements, hors immobilier physique.')}${nfld('p-mo','Versement mensuel',200,'€')}${nfld('p-r','Rendement brut',6,'%/an')}${nfld('p-y','Durée',15,'ans')}</div>
 <div class="fld"><label for="p-env">Fiscalité à la sortie</label><select id="p-env" data-in="calc"><option value="31.4">Compte-titres ou crowdlending (PFU 31,4 %)</option><option value="18.6">PEA après 5 ans (prélèvements sociaux 18,6 %)</option><option value="30">Assurance-vie, moins de 8 ans (30 %)</option><option value="24.7">Assurance-vie, plus de 8 ans (24,7 %, hors abattement)</option><option value="0">Sans impôt</option></select></div><div id="p-out" class="mt"></div>
 <p class="hint">Projection théorique à rendement constant, qui ne constitue pas une prévision. Le rendement passé ne préjuge pas de l’avenir.</p></section>`;
+  }else if(T==='alloc'){
+    const cur=allocNow(),tg=D.target||{};
+    h+=`<section class="card"><h3>Répartition cible</h3><p class="sm mut" style="margin-top:6px">Indiquez la part que vous visez pour chaque type de placement (hors logement et crédits). L’outil calcule les écarts et répartit votre prochain versement pour vous en rapprocher, sans rien vendre.</p>
+<div class="trow" style="border-top:0;font-size:12px;color:var(--mut)"><span>Type</span><span style="text-align:right">Actuel</span><span style="text-align:right">Cible</span></div>${ALLOC.map(k=>`<div class="trow"><div><b>${esc(CATS[k].n)}</b><div class="bar2"><i style="width:${Math.min(100,cur.p[k]||0).toFixed(1)}%;background:${CATS[k].c}"></i>${num(tg[k])>0?`<b style="left:calc(${Math.min(100,num(tg[k]))}% - 1px)"></b>`:''}</div></div><span style="text-align:right">${nf(cur.p[k]||0,0)}\u00a0%</span><div class="inp has"><input id="al-${k}" type="number" inputmode="decimal" min="0" max="100" step="1" value="${tg[k]!=null&&tg[k]!==''?esc(tg[k]):''}" placeholder="–" data-in="calc" aria-label="Part visée pour ${esc(CATS[k].n)}"><span class="suf">%</span></div></div>`).join('')}
+${nfld('al-add','Prochain versement',500,'€')}<div id="al-out" class="mt"></div><div class="g2 mt"><button class="btn sec" data-act="alnow">Reprendre la répartition actuelle</button><button class="btn sec" data-act="alclear">Effacer les cibles</button></div><p class="hint">Les parts visées sont enregistrées. Repère courant : garder l’épargne de précaution à part, puis rééquilibrer une ou deux fois par an.</p></section>`;
+  }else if(T==='loan'){
+    h+=`<section class="card"><h3>Simulateur de crédit</h3><p class="sm mut" style="margin-top:6px">Mensualité, coût total et tableau d’amortissement résumé d’un crédit classique à mensualités constantes.</p><div class="g2">${nfld('l-amt','Montant emprunté',200000,'€')}${nfld('l-rate','Taux nominal',3.3,'%/an')}${nfld('l-y','Durée',20,'ans')}${nfld('l-ins','Assurance',0.3,'%/an','Du capital emprunté.')}</div>${nfld('l-inc','Vos revenus nets mensuels',0,'€','Facultatif : pour le taux d’endettement.')}<div id="l-out" class="mt"></div><p class="hint">Calcul indicatif. Seule l’offre de prêt de la banque fait foi (frais de dossier et de garantie non compris).</p></section>`;
   }else{
     h+=`<section class="card"><h3>Avant d’investir dans un projet</h3><p class="sm mut" style="margin-top:6px">Calculez le rendement réel après impôt et le poids du projet dans votre patrimoine.</p><div class="g2">${nfld('n-amt','Montant envisagé',1000,'€')}${nfld('n-rate','Taux annuel annoncé',9,'%')}</div>${nfld('n-dur','Durée du projet',24,'mois')}<div id="n-out" class="mt"></div>
 <p class="hint">Suppose des intérêts simples versés à l’échéance et un impôt de 31,4 % (PFU). Un projet peut être prolongé ou en défaut : le rendement annoncé n’est pas garanti.</p></section>`;
   }
   el.innerHTML=h;calc();
 }
-function calc(){if(UI.tool==='tax')calcTax();else if(UI.tool==='proj')calcProj();else calcNew()}
+function calc(){if(UI.tool==='tax')calcTax();else if(UI.tool==='proj')calcProj();else if(UI.tool==='alloc')calcAlloc();else if(UI.tool==='loan')calcLoan();else calcNew()}
+const ALLOC=['bourse','epargne','cash','crowd','immo','autre'];
+function allocNow(){const v={};owned().forEach(a=>{if(ALLOC.includes(a.cat))v[a.cat]=(v[a.cat]||0)+val(a)});const t=Object.values(v).reduce((s,x)=>s+x,0),p={};ALLOC.forEach(k=>{p[k]=t>0?(v[k]||0)/t*100:0});return{v,t,p}}
+function calcAlloc(){
+  const o=$('al-out');if(!o)return;const tg={};let sum=0;
+  ALLOC.forEach(k=>{const e=$('al-'+k);if(e&&e.value!==''){tg[k]=Math.max(0,Math.min(100,num(e.value)));sum+=tg[k]}});
+  D.target=tg;clearTimeout(calcAlloc.t);calcAlloc.t=setTimeout(save,600);
+  if(!sum){o.innerHTML='<p class="sm mut">Saisissez au moins une part visée.</p>';return}
+  const cur=allocNow(),add=Math.max(0,num($('al-add').value)),F=cur.t+add;
+  let h=Math.abs(sum-100)>0.5?`<div class="box sm warnc">Vos cibles totalisent ${nf(sum,0)} % au lieu de 100 % : elles sont ramenées à 100 % pour le calcul.</div>`:'';
+  const need=ALLOC.map(k=>{const w=(tg[k]||0)/sum,goal=w*F,c=cur.v[k]||0;return{k,w,c,gap:goal-c}});
+  const pos=need.filter(x=>x.gap>0),ps=pos.reduce((s,x)=>s+x.gap,0);
+  need.forEach(x=>{x.put=ps>0&&add>0?Math.min(x.gap,x.gap/ps*add):0});
+  h+=`<div class="mt">${need.filter(x=>x.w>0||x.c>0).map(x=>kv(esc(CATS[x.k].n),`${x.gap>=0?'manque ':'excédent '}${eur(Math.abs(x.gap))}${x.put>=1?` <span class="pos xs">→ verser ${eur(x.put)}</span>`:''}`)).join('')}</div>`;
+  if(add>0)h+=`<p class="sm mt">Pour vous rapprocher de la cible, répartissez vos ${eur(add)} ainsi : ${need.filter(x=>x.put>=1).map(x=>'<b>'+eur(x.put)+'</b> en '+esc(CATS[x.k].n.toLowerCase())).join(', ')||'aucun écart à combler'}.</p>`;
+  o.innerHTML=h;
+}
+function calcLoan(){
+  const g=id=>num($(id).value),P=g('l-amt'),r=g('l-rate')/1200,n=Math.round(g('l-y')*12),ins=P*g('l-ins')/1200,inc=g('l-inc');
+  if(!(P>0)||!(n>0)){$('l-out').innerHTML='';return}
+  const M=r?P*r/(1-Math.pow(1+r,-n)):P/n,cost=M*n-P,ic=ins*n;
+  const yr=[];let c=P;for(let y=1;y<=Math.ceil(n/12);y++){let it=0,cp=0;for(let m=0;m<12&&(y-1)*12+m<n;m++){const i=c*r;it+=i;cp+=M-i;c-=M-i}yr.push({t:y,v:Math.max(0,c),it,cp})}
+  let h=`<div class="g2"><div class="box"><div class="sm mut">Mensualité</div><div class="big" style="font-size:26px">${eur(M+ins,2)}</div><div class="xs mut">dont ${eur(ins,2)} d’assurance</div></div><div class="box"><div class="sm mut">Coût total</div><div class="big" style="font-size:26px">${eur(cost+ic)}</div><div class="xs mut">intérêts ${eur(cost)}, assurance ${eur(ic)}</div></div></div>`;
+  if(inc>0){const te=(M+ins)/inc*100;h+=`<p class="mt">Taux d’endettement : <b class="${te>35?'neg':'pos'}">${nf(te,1)}\u00a0%</b> ${te>35?'(au-dessus du plafond habituel de 35 % appliqué par les banques)':'(sous le plafond habituel de 35 %)'}. Le calcul compte aussi vos autres crédits en cours : ${eur(loanPay())} par mois enregistrés dans l’application.</p>`}
+  if(yr.length>1)h+=lineChart([{p:[{t:0,v:P}].concat(yr.map(x=>({t:x.t,v:x.v}))),c:'var(--red)',area:true}],{id:'l',xl:['Aujourd’hui','Dans '+yr.length+' ans'],aria:'Capital restant dû année après année'})+'<div class="xs mut" style="margin:4px 0 8px">Capital restant dû année après année.</div>';
+  h+=[1,Math.ceil(yr.length/2),yr.length].filter((x,i,A)=>A.indexOf(x)===i&&x<=yr.length).map(y=>{const x=yr[y-1];return kv('Année '+y,`${eur(x.cp)} de capital, ${eur(x.it)} d’intérêts`)}).join('');
+  $('l-out').innerHTML=h;
+}
 function calcTax(){
   const g=id=>num($(id).value),I=g('t-inc'),T=g('t-tmi')/100,P=g('t-ps')/100,pfu=I*(.128+P),bar=I*P+I*(1-.068)*T,win=pfu<=bar;
   const bx=(t,v,w)=>`<div class="box"${w?' style="border-color:var(--pt)"':''}><div class="sm mut">${t}</div><div class="big" style="font-size:26px">${eur(v)}</div><div class="sm">net ${eur(I-v)}</div></div>`;
@@ -737,11 +1032,11 @@ function accountCard(){
   <div class="kv mt"><span>État</span><b id="sync-st"></b></div><div class="kv"><span>Cet appareil</span><b>${esc(DEV)}</b></div>
   <div class="g2 mt"><button class="btn sec" data-act="syncnow">${ic('refresh',18)}Synchroniser maintenant</button><button class="btn sec" data-act="backups">Sauvegardes</button></div><button class="btn dng blk mt" data-act="logout">Se déconnecter de cet appareil</button></section>`;
 }
-const keyProv=()=>aiProv()==='local'?'gemini':aiProv();
+const keyProv=()=>aiProv()==='local'||aiProv()==='mac'?'gemini':aiProv();
 function aiSetBlock(){
   const p=aiProv(),kp=keyProv();
   const has=!!keyOf(kp);
-  let h=p==='local'?`<p class="sm mut">Facultatif : ${has?'une clé Gemini est enregistrée ; elle sert à l’enquête web et à la lecture des photos.':'ajoutez une clé Gemini gratuite pour l’enquête web et la lecture de photos.'}</p>`:`<p class="sm mut">${has?'Une clé '+PROV[kp].n+' est enregistrée sur cet appareil.':'Aucune clé '+PROV[kp].n+' enregistrée.'}</p>`;
+  let h=(MAC&&MAC.ia?macIaCard()+'<div class="mt"></div>':'')+(p==='local'||p==='mac'?`<p class="sm mut">Facultatif : ${has?'une clé Gemini est enregistrée ; elle sert à l’enquête web et à la lecture des photos.':'ajoutez une clé Gemini gratuite pour l’enquête web et la lecture de photos.'}</p>`:`<p class="sm mut">${has?'Une clé '+PROV[kp].n+' est enregistrée sur cet appareil.':'Aucune clé '+PROV[kp].n+' enregistrée.'}</p>`);
   h+=keyBlock('key-s',kp);
   if(kp==='gemini'&&has){
     const cur=D.set.gmodel,L=(GLIST||GFALL).slice();if(cur&&!L.includes(cur))L.unshift(cur);const last=localStorage.getItem(KM);
@@ -757,12 +1052,12 @@ function renderSet(){
 <div class="set"><div><b>Masquer les montants</b><div class="hint">Remplace les sommes par des points, utile en public.</div></div>${sw('hide',HIDE,'Masquer les montants')}</div>
 <div class="set"><div><b>Actualiser les cours à l’ouverture</b><div class="hint">Récupère les cours Yahoo des positions avec ticker, au plus toutes les 6 heures.</div></div>${sw('auto',D.set.auto!==false,'Actualiser les cours à l’ouverture')}</div></section>
 <section class="card"><h3>Marchés en direct</h3><p class="sm mut" style="margin-top:6px">Les cours de vos placements et de l’écran Marchés se mettent à jour en continu. Seuls les symboles suivis (par exemple CW8.PA ou BTC-EUR) sont transmis à Yahoo Finance et à Binance, jamais vos montants. Désactivez pour économiser la batterie et les données.</p><div class="set" style="margin-top:6px"><div><b>Cours en direct</b><div class="hint">Flux continu tant que l’application est ouverte.</div></div>${sw('live',D.set.live!==false,'Cours en direct')}</div></section>
-<section class="card"><h3>Assistant IA</h3><p class="sm mut" style="margin-top:6px">L’IA locale fonctionne sans Internet ni clé, et vos données restent sur l’appareil. Gemini et Grok rédigent plus librement, mais reçoivent vos placements. L’enquête web et la lecture de photos passent par Gemini.</p><div class="mt">${provChips()}</div>${aiSetBlock()}<div class="set" style="margin-top:6px"><div><b>Relais par l’IA locale</b><div class="hint">Si Gemini ou Grok ne répond pas, l’IA locale répond à sa place au lieu d’afficher une erreur.</div></div>${sw('fb',D.set.fb!==false,'Relais par l’IA locale')}</div></section>
-<section class="card span2"><h3>Mes données</h3><p class="sm mut" style="margin-top:6px">${syncOn()?'Enregistré sur cet appareil et synchronisé avec votre compte sur tous vos appareils.':'Tout est enregistré dans ce navigateur, sur cet appareil uniquement.'}</p><div class="kv" style="margin-top:8px"><span>Dernière sauvegarde</span><b>${D.lastBackup?esc(fd(new Date(D.lastBackup))):'Jamais'}</b></div><div class="g2 mt"><button class="btn sec" data-act="exp">${ic('download',18)}Exporter (JSON)</button><button class="btn sec" data-act="expcsv">${ic('download',18)}Exporter (CSV)</button></div><div class="fld"><label for="rest">Restaurer une sauvegarde</label><input id="rest" type="file" accept=".json,application/json" data-ch="restore"></div><button class="btn dng blk mt" data-act="reset">Réinitialiser mes données</button></section>
+${macSetHTML()}<section class="card"><h3>Assistant IA</h3><p class="sm mut" style="margin-top:6px">${MAC&&MAC.ia?'L’IA du Mac rédige librement sans Internet ; l’IA locale répond instantanément par des calculs.':'L’IA locale fonctionne sans Internet ni clé, et vos données restent sur l’appareil.'} Gemini et Grok rédigent plus librement, mais reçoivent vos placements. L’enquête web et la lecture de photos passent par Gemini.</p><div class="mt">${provChips()}</div>${aiSetBlock()}<div class="set" style="margin-top:6px"><div><b>Relais par l’IA locale</b><div class="hint">Si Gemini ou Grok ne répond pas, l’IA locale répond à sa place au lieu d’afficher une erreur.</div></div>${sw('fb',D.set.fb!==false,'Relais par l’IA locale')}</div></section>
+<section class="card span2"><h3>Mes données</h3><p class="sm mut" style="margin-top:6px">${syncOn()?'Enregistré sur cet appareil et synchronisé avec votre compte sur tous vos appareils.':'Tout est enregistré dans ce navigateur, sur cet appareil uniquement.'}</p><div class="kv" style="margin-top:8px"><span>Dernière sauvegarde</span><b>${D.lastBackup?esc(fd(new Date(D.lastBackup))):'Jamais'}</b></div><div class="g2 mt"><button class="btn sec" data-act="exp">${ic('download',18)}Exporter (JSON)</button><button class="btn sec" data-act="expcsv">${ic('download',18)}Exporter (CSV)</button></div><button class="btn sec blk mt" data-act="bilan">${ic('printer',18)}Bilan patrimonial en PDF</button><div class="fld"><label for="rest">Restaurer une sauvegarde</label><input id="rest" type="file" accept=".json,application/json" data-ch="restore"></div><button class="btn dng blk mt" data-act="reset">Réinitialiser mes données</button></section>
 <section class="card span2"><h3>À propos</h3><p class="sm mut" style="margin-top:6px"><b>Patrimoine AI ${VER}</b> · produit par <b>QuenTools</b>. Les données sont chiffrées sur l’appareil avant toute sauvegarde dans le cloud (Firebase, lié à votre compte Google) ; ni Google ni QuenTools ne peuvent les lire. Avec l’IA locale, rien ne sort de votre appareil hormis la liste des symboles suivis, envoyée à Yahoo Finance et à Binance pour les cours en direct. Si vous activez Gemini ou Grok, vos questions et un résumé de vos placements leur sont envoyés. Les scores, estimations et simulations sont indicatifs et ne constituent pas un conseil en investissement.</p></section></div>`;
 }
 
-async function fileText(f){if(/pdf/.test(f.type)){if(!window.pdfjsLib){await new Promise((ok,ko)=>{const x=document.createElement('script');x.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';x.onload=ok;x.onerror=()=>ko(Error('pdf.js indisponible'));document.head.appendChild(x)});pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'}
+async function fileText(f){if(/pdf/.test(f.type)){if(!window.pdfjsLib){await new Promise((ok,ko)=>{const x=document.createElement('script');x.src='vendor/pdfjs/pdf.min.js';x.onload=ok;x.onerror=()=>ko(Error('lecteur PDF indisponible'));document.head.appendChild(x)});pdfjsLib.GlobalWorkerOptions.workerSrc='vendor/pdfjs/pdf.worker.min.js'}
  const p=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;let t='';for(let i=1;i<=Math.min(p.numPages,30);i++){const c=await(await p.getPage(i)).getTextContent();t+=c.items.map(x=>x.str).join(' ')+'\n'}return t}
  return /^image/.test(f.type)?'':await f.text()}
 
@@ -771,6 +1066,58 @@ function localAnalyze(t){const T=t.replace(/\s+/g,' '),n=x=>parseFloat(x.replace
  const g=[['hypoth','Hypothèque / privilège de prêteur de deniers'],['caution personnelle|cautionnement','Caution personnelle'],['GAPD|première demande','Garantie à première demande'],['fiducie','Fiducie-sûreté'],['nantissement','Nantissement'],['assurance','Assurance mentionnée']].filter(x=>new RegExp(x[0],'i').test(T)).map(x=>x[1]);
  const fl=[];if(!g.length)fl.push('Aucune garantie détectée');if(/in fine/i.test(T))fl.push('Remboursement in fine : risque concentré à l\'échéance');if(/prorogation|allongement|report de l'échéance/i.test(T))fl.push('Prorogation possible de la durée');if(/subordonn/i.test(T))fl.push('Créance subordonnée : remboursée après les autres');if(/permis de construire/i.test(T)&&/(non purgé|en cours|dépôt)/i.test(T))fl.push('Permis de construire non purgé : à vérifier');if(rt&&n(rt)>12)fl.push('Taux > 12 % : risque proportionnel');
  return{name:f(/(?:[Pp]rojet|[Pp]rogramme|[Oo]pération|[Rr]ésidence)\s*[:«"]?\s*([A-ZÀ-Ý][^.,;:\n]{3,50})/),plat:Object.keys(PL).find(x=>new RegExp(x,'i').test(T)),prom:f(/(?:[Pp]romoteur|[Pp]orteur de projet|[Ee]mprunteur|[Ss]ociété emprunteuse)\s*[:«"]?\s*([A-ZÀ-Ý][A-Za-zÀ-ÿ0-9 &'-]{2,40})/),amount:am?n(am):null,rate:rt?n(rt):null,dur:mo?+mo:(yr?yr*12:null),g,fl}}
+
+/* ===================== Application Mac : réglages, verrouillage, sauvegardes, barre des menus ===================== */
+const MACST={maj:null,sauv:null,touch:false};
+const MAJTXT={rien:'',recherche:'Recherche d’une nouvelle version…','a-jour':'Vous avez la dernière version.',telechargement:'Téléchargement de la nouvelle version…',installation:'Préparation de la nouvelle version…',pret:'Nouvelle version prête.',erreur:'Mise à jour impossible pour le moment.',inactif:'Mises à jour automatiques désactivées sur cette copie.'};
+function macSetHTML(){
+  if(!MAC)return '';const m=MACST.maj||{},s=MACST.sauv||{};
+  let h=`<section class="card span2"><h3>Application Mac</h3><div class="macup mt" style="margin-top:8px"><div><b>Patrimoine AI ${esc(m.version||VER)}</b><div class="sm mut">${esc(m.etat==='telechargement'?MAJTXT.telechargement+' '+(m.progres||0)+' %':MAJTXT[m.etat]||'')}${m.etat==='erreur'&&m.erreur?' '+esc(m.erreur):''}</div></div>${m.etat==='pret'?`<button class="btn" data-act="majgo">Redémarrer pour installer ${esc(m.nouvelle||'')}</button>`:`<button class="btn sm sec" data-act="majchk">${ic('refresh',16)}Rechercher une mise à jour</button>`}</div>`;
+  h+=`<div class="set" style="margin-top:12px;border-top:1px solid var(--line)"><div><b>Verrouiller avec Touch ID</b><div class="hint">${MACST.touch?'Au lancement, après 5 minutes d’inactivité et quand le Mac se met en veille. Un écran de confidentialité : les données restent lisibles par votre session macOS.':'Touch ID n’est pas disponible sur ce Mac (ou n’est pas configuré dans Réglages Système).'}</div></div>${MACST.touch?sw('lock',D.set.lock,'Verrouiller avec Touch ID'):''}</div>`;
+  h+=`<div class="set"><div><b>Variation du jour dans la barre des menus</b><div class="hint">Affiche par exemple « ▲ 0,8 % » en haut de l’écran, sans aucun montant.</div></div>${sw('bar',D.set.bar,'Variation du jour dans la barre des menus')}</div>`;
+  h+=`<div class="set"><div><b>Sauvegardes automatiques</b><div class="hint">${s.n?s.n+' sauvegarde(s) sur ce Mac, la dernière le '+esc(fd(new Date(s.dernier||Date.now())))+'. Une par jour, gardées 60 jours.':'Une copie par jour est gardée 60 jours sur ce Mac.'}</div></div><button class="btn sm sec" data-act="sauvlist">Voir</button></div></section>`;
+  return h;
+}
+let MSAV=0;
+function macSave(){if(!MAC||!MAC.sauvegarder||!D.assets.length||D.assets.every(a=>a.demo))return;clearTimeout(MSAV);MSAV=setTimeout(()=>{MAC.sauvegarder(JSON.stringify(D)).then(s=>{MACST.sauv=s}).catch(()=>{})},4000)}
+async function openSauv(){
+  sheet('Sauvegardes du Mac','<p class="sm mut">Une copie de toutes vos données est faite chaque jour où vous utilisez l’application, dans le dossier de l’application sur ce Mac.</p><div id="sv" class="mt"><p class="hint">Chargement…</p></div><button class="btn sec blk mt" data-act="sauvdir">'+ic('folder',18)+'Ouvrir le dossier dans le Finder</button>');
+  try{const L=await MAC.sauvegardes();$('sv').innerHTML=L.length?L.map(x=>`<button class="item sm" data-act="sauvrest" data-f="${esc(x.nom)}"><div class="ir"><b>${esc(fd(new Date(x.date+'T12:00:00')))}</b><span class="mut xs">${nf(x.taille/1024,0)} Ko · Restaurer</span></div></button>`).join(''):'<p class="sm mut">Aucune sauvegarde pour le moment : la première sera faite dès que vous aurez saisi un placement.</p>'}
+  catch(e){$('sv').innerHTML=`<p class="sm neg">${esc(e.message)}</p>`}
+}
+async function sauvRest(f){
+  try{const t=await MAC.lireSauvegarde(f),d=JSON.parse(t);if(!d||!Array.isArray(d.assets))throw Error('fichier illisible');IMP.rest=d;
+    sheet('Restaurer cette sauvegarde',`<p>Elle contient <b>${d.assets.length}</b> élément(s). Que voulez-vous faire ?</p><div class="stack mt"><button class="btn" data-act="restmerge">Ajouter à mes données actuelles</button><button class="btn dng" data-act="restrep">Remplacer toutes mes données</button><button class="btn sec" data-act="closeM">Annuler</button></div>`)}
+  catch(e){toast('Restauration impossible : '+e.message)}
+}
+/* Verrouillage Touch ID */
+let LOCKT=0;
+function lockNow(){if(!MAC||!D.set.lock||!MACST.touch)return;closePal();document.body.classList.add('locked');$('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller avec Touch ID</button>`;setTimeout(()=>{const b=$('unl');if(b)b.focus()},50)}
+async function unlock(){try{const ok=await MAC.touchID('déverrouiller Patrimoine AI');if(ok){document.body.classList.remove('locked');lockArm()}}catch(e){toast('Touch ID : '+e.message)}}
+function lockArm(){clearTimeout(LOCKT);if(MAC&&D.set.lock&&MACST.touch)LOCKT=setTimeout(lockNow,5*60e3)}
+['pointerdown','keydown','wheel'].forEach(ev=>document.addEventListener(ev,()=>{if(!document.body.classList.contains('locked'))lockArm()},{passive:true}));
+/* Barre des menus */
+function macBar(){if(!MAC||!MAC.barre)return;if(!D.set.bar){MAC.barre('');return}const d=dayGain();MAC.barre(d&&d.pct!=null?(d.pct>=0?'▲ ':'▼ ')+nf(Math.abs(d.pct),2)+' %':'')}
+/* Commandes du menu de l'application */
+window.patCmd=c=>{
+  if(document.body.classList.contains('locked')&&c!=='lock')return;
+  const V={v1:'home',v2:'assets',v3:'budget',v4:'goals',v5:'mk',v6:'analyse',v7:'ai',v8:'tools'};
+  if(V[c]){if($('modal').classList.contains('open'))closeM();go(V[c]);return}
+  ({add:()=>openPick(),goal:()=>openGoalForm(''),imp:()=>openImport(),exp:()=>exp(),csv:()=>expCSV(),bilan:()=>bilan(),pal:()=>openPal(),set:()=>{closeM();go('set')},hide:()=>ACT.hide(),lock:()=>lockNow(),sauv:()=>openSauv(),
+    find:()=>{if(UI.view==='mk'){const i=document.querySelector('#v-mk input[type=search]');if(i){i.focus();return}}if(UI.view==='assets'&&$('q')){$('q').focus();return}openPal()},
+    ask:()=>{go('ai');setTimeout(()=>{const t=$('ai-q');if(t)t.focus()},60)}}[c]||(()=>{}))();
+};
+async function macInit(){
+  if(!MAC)return;document.body.classList.add('mac');
+  try{MACST.touch=!!(MAC.touchDispo&&await MAC.touchDispo())}catch(e){}
+  if(D.set.lock&&MACST.touch)lockNow();
+  try{MACST.maj=await MAC.maj.etat()}catch(e){}
+  if(MAC.maj&&MAC.maj.surChangement)MAC.maj.surChangement(e=>{const was=MACST.maj&&MACST.maj.etat;MACST.maj=e;if(UI.view==='set')renderSet();if(e.etat==='pret'&&was!=='pret')toast('Nouvelle version '+e.nouvelle+' prête',{l:'Redémarrer',fn:()=>MAC.maj.installer()})});
+  if(MAC.surVerrou)MAC.surVerrou(()=>lockNow());
+  if(MAC.surCommande)MAC.surCommande(c=>window.patCmd(c));
+  try{MACST.sauv=await MAC.etatSauvegardes()}catch(e){}
+  macIaEtat();renderSet();macBar();macSave();
+}
 
 /* ===================== Fenêtres, toasts, confirmation ===================== */
 function toast(m,act){
@@ -802,6 +1149,18 @@ function openForm(cat,id,pre){
     f+=`<div class="fld"><label for="f-tick">Ticker Yahoo<span class="opt">facultatif</span></label><div class="row2"><div class="inp"><input id="f-tick" type="text" value="${esc(a.tick||'')}" placeholder="Ex : CW8.PA" autocapitalize="characters" autocomplete="off" data-in="form"></div><button type="button" class="btn ghost" data-act="tsearch" style="min-height:46px">${ic('search',18)}Chercher</button></div><div class="hint">Le ticker permet d’actualiser le cours tout seul. Cherchez par nom ou code ISIN.</div><div id="ts-r"></div></div>`;
     f+=`<div class="g2">${F('qty','Quantité',a.qty,{t:'number'})}${F('pru','Prix de revient',a.pru,{t:'number',suf:'€',hint:'PRU, par unité'})}</div>`;
     f+=F('price','Cours actuel',a.price,{t:'number',suf:'€',opt:1,hint:'Laissez vide pour utiliser le prix de revient.'});
+    f+=`<div class="fld"><label for="f-env">Enveloppe<span class="opt">facultatif</span></label><select id="f-env" data-in="form"><option value="">Non précisée</option>${Object.entries(ENV).map(([k,v])=>`<option value="${k}"${a.env===k?' selected':''}>${v}</option>`).join('')}</select><div class="hint">PEA, compte-titres, assurance-vie… : sert au suivi du plafond du PEA et à la fiscalité.</div></div>`;
+  }else if(c==='bien'){
+    f+=F('name','Nom du bien',a.name,{ph:'Ex : Appartement de Lyon'});
+    f+=`<div class="fld"><div class="lbl">Usage</div>${seg('f-usage',Object.entries(USAGE),a.usage||'rp')}</div>`;
+    f+=`<div class="g2">${F('value','Valeur estimée',a.value,{t:'number',suf:'€',hint:'Prix auquel il se vendrait aujourd’hui.'})}${F('amount','Prix d’achat',a.amount,{t:'number',suf:'€',opt:1,hint:'Frais de notaire et travaux compris.'})}</div>`;
+    f+=F('rent','Loyer mensuel',a.rent,{t:'number',suf:'€',opt:1,hint:'Hors charges, pour un bien loué.'});
+    f+=F('date','Date d’achat',a.date,{t:'date',opt:1});
+  }else if(c==='credit'){
+    f+=F('name','Nom du crédit',a.name,{ph:'Ex : Prêt immobilier résidence principale'})+F('plat','Banque',a.plat,{opt:1});
+    f+=`<div class="g2">${F('amount','Montant emprunté',a.amount,{t:'number',suf:'€'})}${F('rate','Taux nominal',a.rate,{t:'number',suf:'%',hint:'Hors assurance.'})}</div>`;
+    f+=`<div class="g2">${F('dur','Durée',a.dur,{t:'number',suf:'mois',hint:'20 ans = 240 mois.'})}${F('date','Début du prêt',a.date,{t:'date',hint:'Déblocage des fonds.'})}</div>`;
+    f+=`<div class="g2">${F('ins','Assurance par mois',a.ins,{t:'number',suf:'€',opt:1})}${F('value','Capital restant dû',a.value,{t:'number',suf:'€',opt:1,hint:'Laissez vide : il est calculé chaque mois.'})}</div>`;
   }else if(r){
     f+=F('name','Nom du projet',a.name,{ph:'Ex : Résidence des Lilas'});
     f+=`<datalist id="plats">${Object.keys(PL).map(p=>`<option value="${esc(p)}">`).join('')}</datalist>`+F('plat','Plateforme',a.plat,{list:'plats',ph:'Choisissez ou saisissez'});
@@ -829,6 +1188,8 @@ function collect(){
 function formLive(){
   const el=$('f-live');if(!el)return;const o=collect();let t='';
   if(o.cat==='bourse'){const q=num(o.qty),p=num(o.price)||num(o.pru);if(q>0&&p>0){const v=q*p,i=q*num(o.pru);t=`Valeur estimée : <b>${eur(v)}</b>`+(i>0&&num(o.price)?`, soit <b class="${v>=i?'pos':'neg'}">${pct((v-i)/i*100)}</b> par rapport à votre prix de revient`:'')}}
+  else if(o.cat==='credit'){const x=Object.assign({},o),m=loanM(x);if(m>0){const k=loanK(x),n=Math.round(num(x.dur)),tot=m*n-num(x.amount);t=`Mensualité : <b>${eur(m+num(x.ins),2)}</b>${num(x.ins)?' assurance comprise':''}. Coût des intérêts sur toute la durée : <b>${eur(tot)}</b>.`;if(k!=null)t+=` Capital restant dû aujourd’hui : <b>${eur(crd(x))}</b>${k>=n?' (crédit terminé)':', encore '+(n-k)+' mensualités'}.`}}
+  else if(o.cat==='bien'){const v=num(o.value),p=num(o.amount),l=num(o.rent);if(v>0&&p>0)t=`Plus-value latente : <b class="${v>=p?'pos':'neg'}">${sgn(v-p)}</b> (${pct((v-p)/p*100)})`;if(l>0&&(p||v)>0)t+=(t?'. ':'')+`Rendement locatif brut : <b>${nf(l*12/(p||v)*100,1)}\u00a0%</b>`;if(t)t+='.'}
   else if(o.cat==='crowd'||o.cat==='immo'){const a=num(o.amount),r=num(o.rate),d=num(o.dur);if(a>0&&r>0&&d>0){t=`Intérêts bruts estimés : <b>${eur(a*r/100*d/12)}</b> sur ${d} mois`;if(o.date){const e=endDate({cat:'crowd',date:o.date,dur:d});if(e)t+=`. Échéance prévue en <b>${esc(fmy(e))}</b>`}t+='.'}}
   el.innerHTML=t;
 }
@@ -838,6 +1199,8 @@ function saveA(){
   const bad=(k,m)=>{const e=$('e-'+k),i=$('f-'+k);if(e)e.textContent=m;if(i){i.classList.add('bad');if(ok)i.focus()}ok=false};
   o.name=String(o.name||'').trim();if(!o.name)bad('name','Donnez un nom à ce placement.');
   if(o.cat==='bourse'){if(!(num(o.qty)>0))bad('qty','Indiquez une quantité.');if(o.pru===''||num(o.pru)<0)bad('pru','Indiquez le prix de revient.')}
+  else if(o.cat==='bien'){if(!(num(o.value)>0))bad('value','Indiquez la valeur estimée du bien.');if(o.amount!==''&&num(o.amount)<0)bad('amount','Le prix ne peut pas être négatif.')}
+  else if(o.cat==='credit'){if(!(num(o.amount)>0))bad('amount','Indiquez le montant emprunté.');if(o.value===''&&(!(num(o.dur)>0)||!o.date))bad(num(o.dur)>0?'date':'dur','Indiquez la durée et la première échéance, ou le capital restant dû.');if(num(o.rate)<0||num(o.rate)>25)bad('rate','Taux annuel entre 0 et 25 %.')}
   else{if(o.amount===''||num(o.amount)<0)bad('amount','Indiquez un montant.');if(o.value!==''&&num(o.value)<0)bad('value','La valeur ne peut pas être négative.')}
   if(!ok)return;
   if(o.tick)o.tick=String(o.tick).trim().toUpperCase();
@@ -855,10 +1218,23 @@ const kv=(k,v)=>`<div class="kv"><span>${k}</span><b>${v}</b></div>`;
 function openDetail(id){
   const a=D.assets.find(x=>x.id===id);if(!a)return;
   const c=cinfo(a),v=val(a),i=inv(a),g=v-i,r=isRisky(a),e=endDate(a);
-  let h=`<div class="row" style="align-items:flex-end"><div><div class="mut sm">${esc(a.plat||c.n)}</div><div class="big">${eur(v)}</div></div>${i>0?`<div class="rt ${g>=0?'pos':'neg'}"><b>${sgn(g)}</b><span class="xs">${pct(g/i*100)}</span></div>`:''}</div><div class="mt">`;
+  let h=isDebt(a)?`<div><div class="mut sm">${esc(a.plat||c.n)}, capital restant dû</div><div class="big neg">−\u00a0${eur(v)}</div></div><div class="mt">`:`<div class="row" style="align-items:flex-end"><div><div class="mut sm">${esc(a.cat==='bien'?(USAGE[a.usage]||c.n):a.plat||c.n)}</div><div class="big">${eur(v)}</div></div>${i>0&&(a.cat!=='bien'||i!==v)?`<div class="rt ${g>=0?'pos':'neg'}"><b>${sgn(g)}</b><span class="xs">${pct(g/i*100)}</span></div>`:''}</div><div class="mt">`;
   h+=kv('Type',esc(c.n));
   if(a.cat==='bourse'){
-    h+=kv('Quantité',nf(a.qty,num(a.qty)%1?2:0))+kv('Prix de revient',eur(a.pru,2))+kv('Cours actuel',eur(num(a.price)||num(a.pru),2)+(a.pxsrc?` <span class="mut xs">(${esc(a.pxsrc)})</span>`:''))+kv('Investi',eur(i))+(a.tick?kv('Ticker',esc(a.tick)):'');
+    h+=kv('Quantité',nf(a.qty,num(a.qty)%1?2:0))+kv('Prix de revient',eur(a.pru,2))+kv('Cours actuel',eur(num(a.price)||num(a.pru),2)+(a.pxsrc?` <span class="mut xs">(${esc(a.pxsrc)})</span>`:''))+kv('Investi',eur(i))+(a.tick?kv('Ticker',esc(a.tick)):'')+(a.env&&ENV[a.env]?kv('Enveloppe',ENV[a.env]):'');
+  }else if(isDebt(a)){
+    const m=loanM(a),n=Math.round(num(a.dur)),l=loanLeft(a),en=loanEnd(a);
+    h+=kv('Montant emprunté',eur(a.amount))+(num(a.rate)||a.rate===0?kv('Taux nominal',nf(a.rate,2)+'\u00a0%'):'')+(n?kv('Durée',n+' mois ('+nf(n/12,n%12?1:0)+' ans)'):'');
+    if(m>0)h+=kv('Mensualité',eur(m,2)+(num(a.ins)?` <span class="mut xs">+ ${eur(a.ins,2)} d’assurance</span>`:''));
+    if(en)h+=kv('Fin prévue',esc(fmy(en))+(l!=null?` <span class="mut xs">(${l?'encore '+l+' mensualités':'terminé'})</span>`:''));
+    if(m>0&&n){const left=l!=null?m*l-crd(a):null;h+=kv('Coût total des intérêts',eur(m*n-num(a.amount)));if(left!=null&&left>0)h+=kv('Intérêts restant à payer',eur(left))}
+    if(a.value!==''&&a.value!=null)h+=kv('Capital restant dû','saisi à la main');
+    if(num(a.amount)>0)h+=`<div class="prog" style="margin-top:10px" role="progressbar" aria-label="Part remboursée"><i style="width:${Math.min(100,Math.max(0,(1-v/num(a.amount))*100)).toFixed(1)}%"></i></div><div class="xs mut" style="margin-top:6px">${nf(Math.max(0,(1-v/num(a.amount))*100),0)} % du capital remboursé.</div>`;
+  }else if(a.cat==='bien'){
+    h+=kv('Valeur estimée',eur(v))+(a.amount!==''&&a.amount!=null?kv('Prix d’achat',eur(a.amount)):'');
+    if(num(a.rent))h+=kv('Loyer mensuel',eur(a.rent))+kv('Rendement locatif brut',nf(num(a.rent)*12/(i||v)*100,1)+'\u00a0%');
+    if(a.date){const d=new Date(a.date+'T12:00:00');if(!isNaN(d))h+=kv('Acheté le',esc(fd(d)))}
+    const lo=D.assets.filter(x=>isDebt(x)&&crd(x)>0);if(lo.length===1&&D.assets.filter(x=>x.cat==='bien').length===1)h+=kv('Valeur nette du crédit',eur(v-crd(lo[0]))+` <span class="mut xs">(${esc(lo[0].name)})</span>`);
   }else{
     h+=kv('Investi',eur(i));
     if(a.prom)h+=kv('Porteur',esc(a.prom));
@@ -1144,9 +1520,11 @@ function gen(parts,sys,history,prov){
 }
 function dossier(){
   const T=totals(),pf=portfolio();
-  return{date:today(),patrimoine_total:Math.round(T.tv),investi:Math.round(T.ti),objectif:D.goal||null,revenus_annuels_estimes:Math.round(yearly()),
+  return{date:today(),patrimoine_brut:Math.round(T.tv),dettes_capital_restant_du:Math.round(T.debt),patrimoine_net:Math.round(T.net),investi:Math.round(T.ti),objectif:D.goal||null,revenus_annuels_estimes:Math.round(yearly()),loyers_annuels_bruts:Math.round(rents())||undefined,mensualites_credits:Math.round(loanPay())||undefined,
     repartition_pct:T.tv>0?Object.fromEntries(byCat().map(([c,v])=>[CATS[c].n,Math.round(v/T.tv*100)])):{},
-    actifs:D.assets.map(a=>({type:cinfo(a).n,nom:a.name,plateforme:a.plat,porteur:a.prom,investi:Math.round(inv(a)),valeur:Math.round(val(a)),taux_pct:a.rate||undefined,duree_mois:a.dur||undefined,echeance:endDate(a)?endDate(a).toLocaleDateString('sv-SE'):undefined,statut:a.status,score:isRisky(a)&&live(a)?aScore(a):undefined,notes:a.notes?String(a.notes).slice(0,200):undefined})),
+    actifs:D.assets.map(a=>({type:cinfo(a).n,nom:a.name,plateforme:a.plat,porteur:a.prom,enveloppe:a.env?ENV[a.env]:undefined,usage:a.cat==='bien'?USAGE[a.usage]:undefined,loyer_mensuel:num(a.rent)||undefined,investi:isDebt(a)?undefined:Math.round(inv(a)),valeur:isDebt(a)?undefined:Math.round(val(a)),capital_restant_du:isDebt(a)?Math.round(crd(a)):undefined,montant_emprunte:isDebt(a)?Math.round(num(a.amount)):undefined,mensualite:isDebt(a)&&loanM(a)?Math.round(loanM(a)+num(a.ins)):undefined,taux_pct:a.rate||undefined,duree_mois:a.dur||undefined,echeance:endDate(a)?endDate(a).toLocaleDateString('sv-SE'):isDebt(a)&&loanEnd(a)?loanEnd(a).toLocaleDateString('sv-SE'):undefined,statut:isRisky(a)?a.status:undefined,score:isRisky(a)&&live(a)?aScore(a):undefined,notes:a.notes?String(a.notes).slice(0,200):undefined})),
+    budget_mensuel:(()=>{const b=budget();return b.R>0?{revenus:Math.round(b.R),depenses_fixes:Math.round(b.fixe),depenses_courantes:Math.round(b.cour),reste_a_vivre:Math.round(b.rav),epargne_possible:Math.round(b.cap),taux_epargne_pct:b.ts!=null?Math.round(b.ts):undefined,precaution_visee:Math.round(b.cible),liquidites:Math.round(b.cash),plan:{marge_imprevus:b.plan.marge,precaution:b.plan.prec,objectifs:b.plan.goals,investissement_long_terme:Math.round(b.plan.inv)},postes:D.budget.exp.filter(l=>num(l.v)>0).map(l=>({poste:l.n,montant:Math.round(num(l.v)),type:l.k==='courant'?'courante':'fixe'}))}:undefined})(),
+    objectifs:(D.goals||[]).map(g=>{const s=gState(g);return{nom:g.name,montant_vise:Math.round(s.t),deja_atteint:Math.round(s.cur),progression_pct:Math.round(s.p),echeance:g.date||undefined,mois_restants:s.m??undefined,effort_mensuel_necessaire:s.need!=null?Math.round(s.need):undefined,versement_prevu_par_mois:s.mo||undefined,rendement_estime_pct:num(g.rate)||undefined,etat:GST[s.k][0]}}),
     indice_fiabilite:pf?{score:pf.score,alertes:pf.notes}:null,points_de_vigilance:insights().filter(i=>i.lvl!=='good').map(i=>i.title)};
 }
 function chatHist(){const o=[],M=D.chat;for(let i=0;i<M.length-1;i++){if(M[i].r==='u'&&M[i+1].r==='m'&&!M[i+1].err){o.push({r:'u',t:M[i].t},{r:'m',t:M[i+1].t});i++}}return o.slice(-12)}
@@ -1157,6 +1535,10 @@ async function sendAI(q,force){
   const p=force||aiProv(),off=navigator.onLine===false;let msg;
   const local=note=>{const r=LAI.answer(q);return{r:'m',t:r.t,sug:r.sug,src:'local',note}};
   if(p==='local'){await sleep(180);msg=local('')}
+  else if(p==='mac'){
+    if(!MACIA.installee)msg=local('L’IA du Mac n’est pas encore installée (Réglages, Assistant IA) : l’IA locale a répondu.');
+    else try{msg=await macAnswer(q,h)}catch(e){msg=local('L’IA du Mac n’a pas pu répondre : '+String(e.message||e).split('\n')[0])}
+  }
   else if(!keyOf(p))msg=local('Aucune clé '+PROV[p].n+' enregistrée : l’IA locale a répondu.');
   else if(off)msg=local('Hors ligne : l’IA locale a répondu.');
   else{
@@ -1169,6 +1551,34 @@ async function sendAI(q,force){
   D.chat.push(msg);D.chat=D.chat.slice(-60);AIBUSY=false;save();renderAI();
 }
 function askAI(q){go('ai');sendAI(q)}
+/* IA du Mac : elle rédige à partir du dossier et des calculs exacts du programme ; une réponse qui cite un chiffre
+   absent de ces données est écartée au profit de la réponse calculée (pas de chiffre inventé). */
+const SYS_MAC='Tu es l’assistant patrimonial de l’application Patrimoine AI, sur le Mac de l’utilisateur. Tu réponds en français, avec chaleur et clarté, et tu vouvoies l’utilisateur. Tu t’appuies UNIQUEMENT sur le dossier JSON et sur les calculs exacts fournis : n’invente aucun chiffre, aucun taux, aucun nom de produit ; si une information manque, dis-le et indique quoi renseigner dans l’application. Pour les objectifs, propose un plan concret (montant mensuel, ordre de priorité, type de support adapté à l’horizon : livrets et fonds euros à moins de 3 ans). Reste honnête sur les risques de perte en capital et sur la fiscalité française (PFU 31,4 % en 2026). Tu n’es pas conseiller agréé : rappelle-le en une phrase courte quand tu donnes une recommandation. Réponds en 220 mots maximum. Mise en forme : paragraphes courts, listes à puces avec « - », gras avec **, titres avec ####.';
+const numsIn=t=>(String(t).match(/\d{1,3}(?:[\u00a0\u202f ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/g)||[]).map(x=>parseFloat(x.replace(/[\u00a0\u202f ]/g,'').replace(',','.'))).filter(isFinite);
+function unknownNums(t,sources){
+  const K=numsIn(sources.join('\n'));
+  return [...new Set(numsIn(t))].filter(v=>!(v<=31||(Number.isInteger(v)&&v>=1990&&v<=2100)||K.some(k=>Math.abs(v-k)<=Math.max(0.51,Math.abs(k)*0.006)||Math.abs(v-k/12)<=Math.max(0.51,k/12*0.006))));
+}
+async function macAnswer(q,h){
+  const loc=LAI.answer(q),dos=JSON.stringify(dossier());
+  const hist=(h||[]).slice(-6).map(m=>(m.r==='u'?'Utilisateur : ':'Assistant : ')+String(m.t).slice(0,700)).join('\n');
+  const dem=`Dossier de l’utilisateur (JSON, montants en euros) :\n${dos}\n\nCalculs exacts du programme pour cette question (fiables, à réutiliser) :\n${loc.t}\n\n${hist?'Conversation récente :\n'+hist+'\n\n':''}Question : ${q}`;
+  const raw=await MAC.ia.ecrire({systeme:SYS_MAC,demande:dem.slice(0,26000),maxTokens:900,temperature:0.3});
+  const t=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'').trim();
+  if(!t)throw Error('réponse vide');
+  const bad=unknownNums(t,[dos,loc.t,q,hist,new Date().toLocaleDateString('fr-FR')]);
+  if(bad.length)return{r:'m',t:loc.t,sug:loc.sug,src:'local',note:'L’IA du Mac a cité un chiffre absent de vos données ('+bad.slice(0,3).map(x=>nf(x,x%1?2:0)).join(', ')+') : voici la réponse calculée à la place.'};
+  return{r:'m',t,sug:loc.sug,src:'IA du Mac, hors ligne'};
+}
+async function macIaEtat(){if(!MAC||!MAC.ia)return;try{const e=await MAC.ia.etat();MACIA.installee=!!e.installee;MACIA.mo=e.mo||2500;if(MACIA.installee&&!D.set.provChosen&&aiProv()==='local'){D.set.prov='mac';save()}}catch(e){}if(!AIBUSY)renderAI();renderSet()}
+async function macIaInstaller(){
+  if(!MAC||!MAC.ia||MACIA.progres!=null)return;MACIA.progres=0;MACIA.erreur='';renderAI();renderSet();
+  try{await MAC.ia.installer(p=>{MACIA.progres=p;document.querySelectorAll('[data-iap]').forEach(e=>{e.textContent=Math.round(p*100)+' %'});document.querySelectorAll('[data-iab]').forEach(e=>{e.style.width=(p*100).toFixed(1)+'%'})});MACIA.installee=true;D.set.prov='mac';save();toast('IA du Mac installée : elle répond sans Internet.')}
+  catch(e){MACIA.erreur=e.message;toast('Installation impossible : '+e.message)}
+  MACIA.progres=null;renderAI();renderSet();
+}
+const macIaCard=()=>MACIA.progres!=null?`<div class="box mt"><b>Téléchargement de l’IA du Mac… <span data-iap>${Math.round(MACIA.progres*100)} %</span></b><div class="prog mt" style="margin-top:8px"><i data-iab style="width:${(MACIA.progres*100).toFixed(1)}%"></i></div><div class="hint">Environ ${nf(MACIA.mo/1000,1)} Go, une seule fois. Vous pouvez continuer à utiliser l’application.</div></div>`
+  :`<div class="box mt"><b>${MACIA.installee?'IA du Mac prête':'Installer l’IA du Mac'}</b><div class="sm mut" style="margin-top:4px">${MACIA.installee?'Elle tourne sur la puce du Mac, sans Internet : vos données ne quittent jamais l’ordinateur.':'Un vrai modèle de langage (Qwen3, licence libre) qui tourne sur la puce de votre Mac, sans Internet ni clé. Téléchargement unique d’environ '+nf(MACIA.mo/1000,1)+' Go, partagé avec les autres logiciels QuenTools.'}</div>${MACIA.erreur?`<div class="sm neg" style="margin-top:6px">${esc(MACIA.erreur)}</div>`:''}${MACIA.installee?'':`<button class="btn blk mt" data-act="iainst">${ic('download',18)}Télécharger l’IA du Mac</button>`}</div>`;
 
 /* ===================== IA locale (hors ligne, aucune donnée ne sort de l'appareil) =====================
    Moteur autonome : compréhension par intentions et entités (placements, plateformes, catégories, montants,
@@ -1176,11 +1586,11 @@ function askAI(q){go('ai');sendAI(q)}
 function metrics(){
   const T=totals(),A=D.assets,by={};byCat().forEach(([c,v])=>{by[c]=v});
   const sh=c=>T.tv>0?(by[c]||0)/T.tv*100:0;
-  const rated=A.filter(a=>a.cat!=='bourse'&&live(a)&&num(a.rate)>0&&a.status!=='defaut'),rb=rated.reduce((s,a)=>s+(isRisky(a)?inv(a):val(a)),0),y=yearly();
+  const RT=rated(),rb=RT.reduce((s,a)=>s+(isRisky(a)?inv(a):val(a)),0),y=yearly(),yi=interests();
   const risky=A.filter(a=>isRisky(a)&&live(a)),rv=risky.reduce((s,a)=>s+val(a),0);
   const trouble=A.filter(a=>a.status==='retard'||a.status==='defaut');
-  const top=A.slice().sort((x,y)=>val(y)-val(x))[0],w=Object.values(by).map(v=>T.tv>0?v/T.tv:0);
-  return{T,by,sh,y,wr:rb>0?y/rb*100:0,rv,rs:T.tv>0?rv/T.tv*100:0,trouble,tv2:trouble.reduce((s,a)=>s+inv(a),0),top,topS:top&&T.tv>0?val(top)/T.tv*100:0,
+  const top=A.filter(a=>!isDebt(a)&&a.cat!=='bien').sort((x,y)=>val(y)-val(x))[0],w=Object.values(by).map(v=>T.tv>0?v/T.tv:0);
+  return{T,by,sh,y,yi,rent:rents(),lp:loanPay(),wr:rb>0?yi/rb*100:0,rv,rs:T.tv>0?rv/T.tv*100:0,trouble,tv2:trouble.reduce((s,a)=>s+inv(a),0),top,topS:top&&T.tv>0?val(top)/T.tv*100:0,
     eff:w.length?1/w.reduce((s,x)=>s+x*x,0):0,ncat:Object.keys(by).length,pf:portfolio(),cash:by.cash||0};
 }
 const LAI=(()=>{
@@ -1225,7 +1635,7 @@ const LAI=(()=>{
     if(/(^| )mpb( |$)/.test(t))return 'Ma Première Brique';
     return L.find(p=>{const n=N(p);return n.length>=4&&t.includes(n)})||null;
   }
-  const CSYN={bourse:['bourse','actions','etf','compte titre','cto','trackers','portefeuille boursier','titres'],crowd:['crowdlending','crowdfunding','pret participatif','prets participatifs','financement participatif','crowd'],immo:['immobilier','briques','brique','immo','fractionne'],epargne:['assurance vie','assurances vie','per','epargne retraite','epargne salariale','pel'],cash:['livret','livrets','liquidite','liquidites','cash','compte courant','ldds','lep'],autre:['crypto','bitcoin','autre']};
+  const CSYN={credit:['credit','credits','pret immobilier','emprunt','emprunts','dette','dettes','capital restant'],bien:['residence principale','appartement','maison','locatif','bien immobilier','biens immobiliers','residence secondaire','terrain'],bourse:['bourse','actions','etf','compte titre','cto','trackers','portefeuille boursier','titres'],crowd:['crowdlending','crowdfunding','pret participatif','prets participatifs','financement participatif','crowd'],immo:['immobilier','briques','brique','immo','fractionne'],epargne:['assurance vie','assurances vie','per','epargne retraite','epargne salariale','pel'],cash:['livret','livrets','liquidite','liquidites','cash','compte courant','ldds','lep'],autre:['crypto','bitcoin','autre']};
   function findCat(t){for(const c in CSYN)if(CSYN[c].some(k=>W(t,k)))return c;return null}
 
   /* ---------- Intentions ---------- */
@@ -1243,12 +1653,14 @@ const LAI=(()=>{
     total:[['combien',2],['total',2],['montant',1],['valeur',1],['patrimoine',1],['vaut',2],['possede',2],['j ai',1]],
     tax:[['impot',3],['fiscal',3],['pfu',3],['flat tax',3],['bareme',3],['tmi',3],['tranche',2],['prelevement',2],['csg',2],['imposition',3],['taxe',2]],
     sim:[['simul',3],['projection',3],['projette',3],['si j investis',2],['si je place',2],['si je verse',3],['verse',1],['interets composes',2],['combien j aurai',3],['combien aurai je',3],['dans \\d+ ans',2]],
-    goal:[['objectif',3],['cible',2],['atteindre',2],['million',1]],
+    goal:[['objectif',3],['objectifs',3],['cible',2],['atteindre',2],['million',1],['projet de vie',3],['apport',2],['mettre de cote',2],['economiser',2],['epargner',2]],
     newproj:[['nouveau projet',3],['investir dans',2],['devrais je investir',3],['faut il investir',3],['je pense investir',3],['ce projet',2],['placer dans',2],['mettre dans',1],['je veux investir',2],['j hesite',2],['projet de',3],['j y vais',2],['ca vaut le coup',2]],
     liquid:[['liquidit',3],['precaution',3],['urgence',2],['disponible',2],['imprevu',2],['matelas',3],['tresorerie',2]],
     advice:[['conseil',3],['ameliorer',3],['optimis',3],['que faire',2],['que dois je',3],['recommand',3],['strategie',2],['priorite',3],['idee',1],['astuce',2],['suggest',2],['par quoi commencer',3]],
     market:[['le cours',3],['cours de',3],['cours d',3],['marches',3],['marche',2],['cac',3],['nasdaq',3],['dax',3],['s p',2],['stoxx',3],['wall street',3],['seance',2],['hausse du jour',3],['baisse du jour',3],['bourse aujourd hui',3],['comment va la bourse',3]],
-    list:[['liste',3],['mes placements',2],['quels placements',3],['inventaire',3],['tous mes',2],['detail de mes',2]]
+    list:[['liste',3],['mes placements',2],['quels placements',3],['inventaire',3],['tous mes',2],['detail de mes',2]],
+    budget:[['budget',3],['depenses',3],['depense',2],['reste a vivre',4],['combien investir',4],['dois investir',4],['investir chaque mois',4],['investir par mois',4],['epargner par mois',4],['mettre de cote chaque mois',4],['combien dois je investir',4],['combien placer',3],['combien epargner',3],['capacite d epargne',4],['taux d epargne',4],['fin de mois',3],['economies',2],['frais',2],['charges',2],['salaire',2],['revenus mensuels',3]],
+    debt:[['credit',2],['emprunt',3],['dette',3],['mensualite',3],['capital restant',3],['endettement',3],['rembourser mon pret',3],['reste a rembourser',4],['mon pret',3],['mon credit',3],['mes credits',3],['pret immo',3],['remboursement anticipe',2],['net',1]]
   };
   function scoreIn(t){
     return Object.keys(IN).map(id=>({id,s:IN[id].reduce((s,[k,w])=>s+((k.includes('\\')?new RegExp(k).test(t):W(t,k))?w:0),0)})).sort((a,b)=>b.s-a.s);
@@ -1283,6 +1695,12 @@ const LAI=(()=>{
     {k:['document','documents','verifier avant','avant d investir','due diligence','quoi verifier'],t:`#### Avant d’investir dans un projet\n1. **La plateforme** : agrément AMF (PSFP), ancienneté, taux de défaut publiés.\n2. **Le porteur** : comptes sur Pappers ou Infogreffe, historique, procédures (BODACC).\n3. **Le projet** : permis de construire purgé, taux de précommercialisation, apport du promoteur (au moins 10 %).\n4. **Les garanties** : rang de l’hypothèque, qui se porte caution, fiducie.\n5. **Le contrat** : in fine ou amortissable, possibilité de prolongation, subordination.\n6. **Votre exposition** : le projet ne devrait pas dépasser quelques pourcents de votre patrimoine.\n\nL’import de contrat (bouton « Importer ») repère automatiquement une partie de ces points.`},
     {k:['pea','assurance vie'],all:true,t:`#### PEA ou assurance-vie ?\n- **Contenu** : PEA pour les actions et ETF européens ou éligibles ; assurance-vie pour le fonds euros, les unités de compte, les SCPI.\n- **Plafond** : 150 000 € de versements sur le PEA ; pas de plafond en assurance-vie.\n- **Fiscalité** : PEA exonéré d’impôt sur le revenu après 5 ans ; assurance-vie avec abattement de 4 600 € par an (9 200 € en couple) après 8 ans.\n- **Frais** : souvent plus bas sur un PEA en ligne avec des ETF.\n- **Transmission** : avantage net pour l’assurance-vie.\n\nBeaucoup d’épargnants utilisent les deux : le PEA pour les actions à long terme, l’assurance-vie pour la sécurité (fonds euros) et la transmission.`}
   ];
+  KB.push(
+    {k:['endettement','taux d endettement','hcsf'],t:`#### Le taux d’endettement\nC’est la part de vos revenus consacrée aux mensualités de crédit, assurance comprise. Depuis 2022, les banques doivent en principe le limiter à **35 %**, sur une durée de **25 ans au plus** (27 ans avec un différé pour un achat dans le neuf), avec une marge de dérogation.\n\n- Calcul : mensualités ÷ revenus nets avant impôt × 100.\n- Le reste à vivre compte autant que le pourcentage.\n\nVos mensualités actuelles sont visibles dans l’onglet Placements, filtre Crédits.`,s:['Combien je rembourse par mois ?','Remboursement anticipé : ça vaut le coup ?']},
+    {k:['remboursement anticipe','rembourser par anticipation','solder mon pret','ira'],t:`#### Rembourser un crédit par anticipation\n- Des **indemnités** peuvent s’appliquer : au plus 3 % du capital remboursé et 6 mois d’intérêts (le plus faible des deux), sauf clause contraire ou cas d’exonération.\n- C’est intéressant quand le taux du crédit dépasse ce que rapporterait l’argent placé **après impôt**, sans risque.\n- Un crédit à 1,5 % vaut rarement d’être remboursé quand un livret rapporte davantage net d’impôt.\n- Gardez toujours votre épargne de précaution : l’argent remboursé n’est plus disponible.`,s:['Combien il me reste à rembourser ?','C’est quoi l’épargne de précaution ?']},
+    {k:['locatif','investissement locatif','lmnp','micro foncier','revenus fonciers','loyer','loyers'],t:`#### L’investissement locatif\n- **Location nue** : revenus fonciers imposés à votre TMI plus 17,2 % de prélèvements sociaux. Micro-foncier (abattement de 30 %) jusqu’à 15 000 € de loyers par an, sinon régime réel (charges et intérêts déductibles).\n- **Location meublée (LMNP)** : régime micro-BIC ou réel, avec amortissement du bien au réel. Les règles ont changé en 2025 (meublés de tourisme, plus-values) : faites vérifier votre cas.\n- Rendement brut = loyers annuels ÷ prix d’achat frais compris. Le rendement net retire charges, taxe foncière, vacance et impôts.`,s:['Quel est mon rendement locatif ?','Fais le bilan de mon patrimoine']},
+    {k:['patrimoine net','patrimoine brut'],t:`#### Patrimoine brut ou net\n- **Brut** : la valeur de tout ce que vous possédez (logement, placements, livrets…).\n- **Net** : le brut moins ce que vous devez encore (capital restant dû de vos crédits).\n\nC’est le patrimoine net qui mesure vraiment votre richesse : un logement de 300 000 € avec 200 000 € de crédit restant ne compte que pour 100 000 €.`}
+  );
   function scoreKB(t){
     let best=null,bs=0;
     KB.forEach(e=>{const h=e.k.filter(k=>W(t,k)).length;const s=e.all?(h===e.k.length?h*3:0):h*2;if(s>bs){bs=s;best=e}});
@@ -1309,8 +1727,9 @@ const LAI=(()=>{
   const NC='\n\nCeci est une aide à la réflexion, pas un conseil en investissement personnalisé.';
   function aGlobal(){
     const X=metrics(),T=X.T,A=D.assets,ins=insights(),f=[],r=[];
-    let s=`#### Votre patrimoine en bref\nVous suivez **${A.length} placement${A.length>1?'s':''}** pour **${E(T.tv)}**`;
+    let s=`#### Votre patrimoine en bref\nVous suivez **${A.length} élément${A.length>1?'s':''}** pour **${E(T.tv)}**`;
     if(T.ti>0)s+=`, contre ${E(T.ti)} investis : ${T.gain>=0?'un gain':'une perte'} de **${E(Math.abs(T.gain))}** (${pct(T.pct)})`;
+    if(T.debt>0)s+=`. Après déduction de ${E(T.debt)} de crédits, votre **patrimoine net est de ${E(T.net)}**`;
     s+='.\n\n'+(T.tv>0?'Répartition : '+byCat().map(([c,v])=>CATS[c].n+' '+P(v/T.tv*100,0)).join(', ')+'.':'');
     if(X.ncat>=3)f.push(`Bonne variété : ${X.ncat} types de placements, l’équivalent de ${nf(X.eff,1)} poches de même poids.`);
     if(X.sh('cash')>=10)f.push(`Liquidités confortables : ${E(X.cash)} disponibles immédiatement (${P(X.sh('cash'),0)}).`);
@@ -1378,10 +1797,10 @@ const LAI=(()=>{
     return s;
   }
   function aIncome(){
-    const X=metrics(),L=D.assets.filter(a=>a.cat!=='bourse'&&live(a)&&a.status!=='defaut'&&num(a.rate)>0).map(a=>[a,(isRisky(a)?inv(a):val(a))*num(a.rate)/100]).sort((a,b)=>b[1]-a[1]);
+    const X=metrics(),L=rated().map(a=>[a,(isRisky(a)?inv(a):val(a))*num(a.rate)/100,P(num(a.rate))]).concat(D.assets.filter(a=>a.cat==='bien'&&num(a.rent)>0).map(a=>[a,num(a.rent)*12,'loyers bruts'])).sort((a,b)=>b[1]-a[1]);
     if(!L.length)return 'Je n’ai pas de taux renseigné sur vos placements : ajoutez le taux annuel dans les fiches (livrets, crowdlending, assurance-vie) pour estimer vos revenus.';
-    let s=`#### Vos revenus estimés\n- **${E(X.y)} par an**, soit ${E(X.y/12)} par mois avant impôt.\n- Rendement moyen pondéré : **${P(X.wr)}**.\n- Après impôt (PFU de 31,4 % sur la partie imposable), il resterait environ ${E(X.y-L.filter(([a])=>a.cat!=='cash').reduce((t,x)=>t+x[1],0)*.314)} par an. Les livrets réglementés sont exonérés.\n\n#### Ce qui rapporte le plus\n`;
-    s+=L.slice(0,5).map(([a,v])=>`- ${a.name} : ${E(v)} par an (${P(num(a.rate))})`).join('\n');
+    let s=`#### Vos revenus estimés\n- **${E(X.y)} par an**, soit ${E(X.y/12)} par mois avant impôt.\n- Rendement moyen pondéré de vos placements à taux : **${P(X.wr)}**.\n`+(X.rent>0?`- Dont ${E(X.rent)} de loyers bruts par an, imposés comme revenus fonciers (votre TMI + 17,2 %), avant charges et taxe foncière.\n`:'')+`- Après impôt (PFU de 31,4 % sur les intérêts imposables), il resterait environ ${E(X.yi-rated().filter(a=>a.cat!=='cash').reduce((t,a)=>t+(isRisky(a)?inv(a):val(a))*num(a.rate)/100,0)*.314)} d’intérêts par an. Les livrets réglementés sont exonérés.\n`+(X.lp>0?`- En face, vos crédits coûtent ${E(X.lp)} par mois.\n`:'')+`\n#### Ce qui rapporte le plus\n`;
+    s+=L.slice(0,5).map(([a,v,t])=>`- ${a.name} : ${E(v)} par an (${t})`).join('\n');
     return s+'\n\nLes dividendes et plus-values de bourse ne sont pas comptés ici.';
   }
   function aPerf(cat){
@@ -1399,14 +1818,35 @@ const LAI=(()=>{
   }
   function aTotal(){
     const T=totals(),bc=byCat();
-    return `Votre patrimoine s’élève à **${E(T.tv)}**${T.ti>0?` pour ${E(T.ti)} investis (${sgn(T.gain)}, ${pct(T.pct)})`:''}.\n\n`+bc.map(([c,v])=>`- ${CATS[c].n} : ${E(v)} (${P(T.tv>0?v/T.tv*100:0,0)})`).join('\n')+(D.goal?`\n\nObjectif : ${P(Math.min(100,T.tv/D.goal*100),0)} des ${E(D.goal)} visés.`:'');
+    return (T.debt>0?`Votre patrimoine net s’élève à **${E(T.net)}** : ${E(T.tv)} de biens et placements, moins ${E(T.debt)} de crédits à rembourser.`:`Votre patrimoine s’élève à **${E(T.tv)}**${T.ti>0?` pour ${E(T.ti)} investis (${sgn(T.gain)}, ${pct(T.pct)})`:''}.`)+'\n\n'+bc.map(([c,v])=>`- ${CATS[c].n} : ${E(v)} (${P(T.tv>0?v/T.tv*100:0,0)})`).join('\n')+(D.goal?`\n\nObjectif : ${P(Math.max(0,Math.min(100,T.net/D.goal*100)),0)} des ${E(D.goal)} visés.`:'');
+  }
+  function aBudget(){
+    const b=budget(),PL=b.plan;
+    if(!(b.R>0))return 'Votre budget n’est pas encore rempli. Ouvrez l’écran **Budget** et notez vos revenus et vos dépenses du mois : je calculerai votre reste à vivre et combien investir chaque mois.';
+    let s=`#### Votre budget du mois\n- Revenus : **${E(b.R)}**\n- Dépenses : **${E(b.dep)}** (fixes ${E(b.fixe)}${b.lp>0?' dont '+E(b.lp)+' de crédits':''}, courantes ${E(b.cour)})\n- Reste à vivre après les charges fixes : **${E(b.rav)}**\n- Épargne possible : **${E(b.cap)}**${b.ts!=null?' ('+P(b.ts)+' de vos revenus)':''}\n`;
+    if(b.lp>0&&b.te!=null)s+=`- Taux d’endettement : ${P(b.te)}${b.te>35?', au-dessus du repère de 35 %':''}\n`;
+    if(b.cap<=0)return s+`\n**Vos dépenses dépassent vos revenus de ${E(-b.cap)} par mois.** Avant d’investir : listez vos abonnements, renégociez assurances et forfaits, et fixez un plafond pour les courses et les loisirs.`;
+    s+=`\n#### Combien investir chaque mois\n1. Marge pour les imprévus : ${E(PL.marge)}\n2. Épargne de précaution : ${E(PL.prec)}${b.gap>0?` (il manque ${E(b.gap)} pour atteindre ${b.mois} mois de dépenses)`:' (déjà constituée)'}\n`+PL.gl.map(([g,put],i)=>`${3+i}. ${g.name} : ${E(put)}`).join('\n')+(PL.gl.length?'\n':'')+`${3+PL.gl.length}. **À investir sur le long terme : ${E(PL.inv)}**`;
+    if(b.ts!=null&&b.ts<10)s+='\n\nVotre taux d’épargne est sous 10 % : regardez d’abord vos dépenses courantes, c’est souvent là que se trouve la marge.';
+    return s+'\n\nLa sécurité passe avant le rendement : un placement long terme peut baisser fortement en cours de route.';
+  }
+  function aDebt(){
+    const L=D.assets.filter(isDebt),T=totals();
+    if(!L.length)return 'Vous n’avez pas de crédit enregistré. Pour suivre un prêt immobilier ou un prêt auto, ajoutez-le (bouton +, type « Crédits ») : le capital restant dû est déduit de votre patrimoine net.';
+    let s=`#### Vos crédits\n- Capital restant dû : **${E(T.debt)}**\n- Mensualités : **${E(loanPay())}** par mois${L.some(a=>num(a.ins))?', assurance comprise':''}\n- Patrimoine net, crédits déduits : **${E(T.net)}** (${P(T.tv>0?T.debt/T.tv*100:0,0)} de votre patrimoine brut est financé à crédit)\n\n`;
+    s+=L.map(a=>{const l=loanLeft(a),m=loanM(a),e=loanEnd(a);return `- **${a.name}** : ${E(crd(a))} restants${num(a.rate)?' à '+P(num(a.rate),2):''}${m>0?', '+E(m)+' par mois':''}${e?', fin '+fmy(e):''}${l!=null&&l>0?' ('+l+' mensualités)':''}`}).join('\n');
+    const hi=L.filter(a=>num(a.rate)>=4&&crd(a)>0);
+    if(hi.length)s+=`\n\nUn taux de ${P(num(hi[0].rate),2)} sur ${hi[0].name} dépasse ce que rapportent en général les placements sans risque : un remboursement anticipé partiel peut valoir le coup, après vérification des indemnités.`;
+    return s+'\n\nCalcul selon un crédit amortissable classique à mensualités constantes : votre tableau d’amortissement fait foi.';
   }
   function aCat(c){
+    if(c==='credit')return aDebt();
     const L=D.assets.filter(a=>a.cat===c),T=totals();
     if(!L.length)return `Vous n’avez aucun placement de type ${CATS[c].n.toLowerCase()} pour le moment.`;
     const v=L.reduce((s,a)=>s+val(a),0),i=L.reduce((s,a)=>s+inv(a),0);
     let s=`#### ${CATS[c].n}\n**${E(v)}** sur ${L.length} placement${L.length>1?'s':''}, soit ${P(T.tv>0?v/T.tv*100:0,0)} de votre patrimoine`+(i>0?`, ${sgn(v-i)} (${pct((v-i)/i*100)}) par rapport aux ${E(i)} investis`:'')+'.\n\n';
     s+=L.slice().sort((a,b)=>val(b)-val(a)).slice(0,8).map(a=>`- **${a.name}** : ${E(val(a))}`+(num(a.rate)?`, ${P(num(a.rate))}`:'')+(a.status&&a.status!=='cours'?`, ${ST[a.status].toLowerCase()}`:'')).join('\n');
+    if(c==='bien'){const lo=L.filter(a=>num(a.rent)>0);if(lo.length)s+='\n\n'+lo.map(a=>`- Rendement locatif brut de ${a.name} : ${P(num(a.rent)*12/(inv(a)||val(a))*100)} (${E(num(a.rent)*12)} de loyers par an)`).join('\n');else s+='\n\nAjoutez le loyer mensuel dans la fiche d’un bien loué pour calculer son rendement.'}
     if(c==='bourse'){const nt=L.filter(a=>!a.tick).length;if(nt)s+=`\n\n${nt} ligne${nt>1?'s':''} sans ticker : leur cours ne s’actualise pas automatiquement.`}
     if(isRisky({cat:c})){const pf=portfolio();if(pf)s+=`\n\nIndice de fiabilité de vos placements participatifs : ${pf.score}/100.`}
     return s;
@@ -1446,7 +1886,7 @@ const LAI=(()=>{
   }
   function aSim(q){
     const T=totals();let cap=money(q),m=monthly(q),r=rate(q),y=years(q);const dflt=[];
-    if(cap==null){cap=T.tv;dflt.push('capital de départ = votre patrimoine actuel')}
+    if(cap==null){cap=T.fin;dflt.push('capital de départ = vos placements actuels, hors immobilier physique')}
     if(m==null){m=0;if(!money(q)){m=200;dflt.push('200 € par mois')}}
     if(r==null){r=5;dflt.push('5 % par an')}
     if(y==null){y=15;dflt.push('15 ans')}
@@ -1457,13 +1897,34 @@ const LAI=(()=>{
     if(dflt.length)s+=`\n\nHypothèses retenues faute de précision : ${dflt.join(', ')}.`+(dflt.length>1?' Vous pouvez écrire par exemple « 10 000 € plus 300 € par mois à 6 % pendant 20 ans ».':'');
     return s+'\n\nProjection théorique à rendement constant : les marchés ne progressent jamais en ligne droite.';
   }
+  function aGoals(){
+    const G=D.goals||[];
+    let s='#### Vos objectifs\n'+G.map(g=>{const x=gState(g);return `- **${g.name}** : ${E(x.cur)} sur ${E(x.t)} (${P(x.p,0)})`+(x.k==='done'?', atteint.':(x.need!=null?`, il faut **${E(x.need)} par mois**${g.date?' jusqu’en '+fmy(new Date(g.date+'T12:00:00')):''}`:'')+(x.k==='late'?(x.mo>0?` alors que ${E(x.mo)} sont prévus`:', aucun versement prévu'):x.k==='ok'?', en bonne voie':'')+'.')}).join('\n');
+    const S=G.map(gState),need=S.filter(x=>x.k!=='done'&&x.need!=null).reduce((t,x)=>t+x.need,0),late=G.filter((g,i)=>S[i].k==='late');
+    if(need>0)s+=`\n\nAu total, vos objectifs datés demandent **${E(need)} par mois**.`;
+    if(late.length){const g=late[0],x=gState(g);s+=`\n\n#### Pour « ${g.name} »\n- Repousser l’échéance réduit l’effort mensuel.\n- Un rendement plus élevé suppose plus de risque : pour un objectif à moins de 3 ans, mieux vaut des supports sans risque (livrets, fonds euros).\n- Automatisez un virement le jour de la paie pour tenir le rythme.`+(x.m!=null&&x.m>0&&x.m<36&&num(g.rate)>4?`\n- Attention : ${P(num(g.rate))} par an sur ${x.m} mois est optimiste sans prendre de risque.`:'')}
+    return s+'\n\nCes calculs supposent un rendement constant : ils donnent un ordre de grandeur.';
+  }
   function aGoal(q){
+    if((D.goals||[]).length&&!money(q)){const t=N(q),hit=D.goals.find(g=>{const n=N(g.name);return n.length>=4&&(t.includes(n)||n.split(' ').filter(w=>w.length>=5).some(w=>W(t,w)))});if(hit)return aGoalOne(hit);return aGoals()}
+    return aGoalMain(q);
+  }
+  function aGoalOne(g){
+    const x=gState(g);let s=`#### ${g.name}\nVous en êtes à **${E(x.cur)}** sur ${E(x.t)}, soit ${P(x.p,0)}.`;
+    if(x.k==='done')return s+'\n\nObjectif atteint : vous pouvez le clôturer, ou viser plus haut.';
+    if(x.need!=null)s+=`\n\nPour l’atteindre ${g.date?'en '+fmy(new Date(g.date+'T12:00:00')):'à temps'}, il faut mettre de côté **${E(x.need)} par mois**${num(g.rate)?' avec un rendement de '+P(num(g.rate))+' par an':''}.`;
+    if(x.mo>0)s+=` Avec les ${E(x.mo)} prévus, il serait atteint ${x.yrs===0?'tout de suite':x.yrs==null?'jamais à ce rythme':'en '+fmy(new Date(Date.now()+x.yrs*365.25*864e5))}.`;
+    if(x.m!=null&&x.m>0){const alt=[6,12].map(d=>[d,gNeed(x.t,x.cur,x.m+d,num(g.rate))]);s+='\n\n'+alt.map(([d,v])=>`- En repoussant de ${d} mois : ${E(v)} par mois`).join('\n')}
+    s+=g.src==='cats'?`\n\nSont comptés : ${(g.cats||[]).map(c=>(CATS[c]||{}).n).filter(Boolean).join(', ')}.`:g.src==='manual'?'\n\nAjoutez chaque versement depuis l’écran Objectifs pour suivre la progression.':'';
+    return s+(x.m!=null&&x.m<36?'\n\nÀ moins de 3 ans, privilégiez des supports sans risque de perte : livrets, fonds euros.':'');
+  }
+  function aGoalMain(q){
     const T=totals(),g=money(q)||D.goal;
     if(!g)return 'Vous n’avez pas encore d’objectif. Dites par exemple « objectif 100 000 € », ou fixez-le depuis l’accueil.';
-    const m=monthly(q)||200,r=rate(q)||5,yt=yearsToGoal(g,T.tv,m,r);
-    let s=`#### Objectif de ${E(g)}\nVous en êtes à **${E(T.tv)}**, soit ${P(Math.min(100,T.tv/g*100),0)}.\n\n`;
+    const m=monthly(q)||200,r=rate(q)||5,yt=yearsToGoal(g,Math.max(0,T.net),m,r);
+    let s=`#### Objectif de ${E(g)}\nVous en êtes à **${E(T.net)}**${T.debt>0?' de patrimoine net':''}, soit ${P(Math.max(0,Math.min(100,T.net/g*100)),0)}.\n\n`;
     s+=yt===0?'Il est déjà atteint.':yt==null?`Avec ${E(m)} par mois à ${P(r)}, il n’est pas atteignable en moins de 60 ans.`:`Avec ${E(m)} par mois à ${P(r)} par an, vous l’atteindriez dans environ **${nf(yt,1)} ans**.`;
-    if(yt){const alt=[[m*2,r],[m,r+2]].map(([mm,rr])=>[mm,rr,yearsToGoal(g,T.tv,mm,rr)]);s+='\n\n'+alt.map(([mm,rr,t])=>`- Avec ${E(mm)} par mois à ${P(rr)} : ${t==null?'hors de portée':nf(t,1)+' ans'}`).join('\n')}
+    if(yt){const alt=[[m*2,r],[m,r+2]].map(([mm,rr])=>[mm,rr,yearsToGoal(g,Math.max(0,T.net),mm,rr)]);s+='\n\n'+alt.map(([mm,rr,t])=>`- Avec ${E(mm)} par mois à ${P(rr)} : ${t==null?'hors de portée':nf(t,1)+' ans'}`).join('\n')}
     if(!D.goal&&money(q))s+='\n\nPour suivre cet objectif sur l’accueil, enregistrez-le avec le bouton « Définir ».';
     return s+'\n\nUn rendement plus élevé suppose davantage de risque.';
   }
@@ -1495,7 +1956,7 @@ const LAI=(()=>{
   function aAdvice(){const X=metrics();return '#### Mes suggestions, par ordre de priorité\n'+advList(X).map((x,i)=>(i+1)+'. '+x).join('\n')+NC}
   function aList(){
     const G={};D.assets.forEach(a=>{(G[a.cat]=G[a.cat]||[]).push(a)});
-    return '#### Vos placements\n'+Object.keys(G).map(c=>`**${CATS[c].n}**\n`+G[c].sort((a,b)=>val(b)-val(a)).slice(0,12).map(a=>`- ${a.name} : ${E(val(a))}`).join('\n')).join('\n\n');
+    return '#### Vos placements\n'+Object.keys(G).map(c=>`**${(CATS[c]||CATS.autre).n}**\n`+G[c].sort((a,b)=>val(b)-val(a)).slice(0,12).map(a=>`- ${a.name} : ${isDebt(a)?'−':''}${E(val(a))}`).join('\n')).join('\n\n');
   }
   function aMarket(t){
     if(!HOSTED)return 'Les cours en direct ne sont disponibles que lorsque l’application est en ligne (GitHub Pages).';
@@ -1529,9 +1990,9 @@ const LAI=(()=>{
   }
 
   /* ---------- Aiguillage ---------- */
-  const SUG={global:['Que me conseilles-tu en priorité ?','Quels sont mes principaux risques ?','Quand arrivent mes échéances ?'],risk:['Comment mieux diversifier ?','Explique mon indice de fiabilité','Que faire si un projet est en retard ?'],divers:['Que me conseilles-tu en priorité ?','Combien j’ai de liquidités ?'],score:['Quels sont mes principaux risques ?','Comment mieux diversifier ?'],due:['Combien je touche d’intérêts ?','Fais le bilan de mon patrimoine'],income:['Impôt avec une TMI à 11 %','Quand arrivent mes échéances ?'],perf:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],total:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],tax:['C’est quoi le PFU ?','Combien je touche d’intérêts ?'],sim:['Simule 500 € par mois à 7 % pendant 20 ans','Quand vais-je atteindre mon objectif ?'],goal:['Simule 300 € par mois à 6 % pendant 15 ans','Que me conseilles-tu en priorité ?'],newproj:['Quelles garanties regarder ?','Comment mieux diversifier ?'],liquid:['C’est quoi l’épargne de précaution ?','Fais le bilan de mon patrimoine'],advice:['Quels sont mes principaux risques ?','Simule 300 € par mois à 6 % pendant 15 ans'],list:['Fais le bilan de mon patrimoine'],help:['Fais le bilan de mon patrimoine','Simule 200 € par mois à 5 % pendant 10 ans']};
+  const SUG={budget:['Où en sont mes objectifs ?','Comment mieux diversifier ?'],debt:['Remboursement anticipé : ça vaut le coup ?','Fais le bilan de mon patrimoine'],global:['Que me conseilles-tu en priorité ?','Quels sont mes principaux risques ?','Quand arrivent mes échéances ?'],risk:['Comment mieux diversifier ?','Explique mon indice de fiabilité','Que faire si un projet est en retard ?'],divers:['Que me conseilles-tu en priorité ?','Combien j’ai de liquidités ?'],score:['Quels sont mes principaux risques ?','Comment mieux diversifier ?'],due:['Combien je touche d’intérêts ?','Fais le bilan de mon patrimoine'],income:['Impôt avec une TMI à 11 %','Quand arrivent mes échéances ?'],perf:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],total:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],tax:['C’est quoi le PFU ?','Combien je touche d’intérêts ?'],sim:['Simule 500 € par mois à 7 % pendant 20 ans','Quand vais-je atteindre mon objectif ?'],goal:['Simule 300 € par mois à 6 % pendant 15 ans','Que me conseilles-tu en priorité ?'],newproj:['Quelles garanties regarder ?','Comment mieux diversifier ?'],liquid:['C’est quoi l’épargne de précaution ?','Fais le bilan de mon patrimoine'],advice:['Quels sont mes principaux risques ?','Simule 300 € par mois à 6 % pendant 15 ans'],list:['Fais le bilan de mon patrimoine'],help:['Fais le bilan de mon patrimoine','Simule 200 € par mois à 5 % pendant 10 ans']};
   const FOL={global:'advice',risk:'divers',divers:'advice',score:'risk',due:'income',income:'tax',perf:'divers',total:'divers',advice:'risk',liquid:'advice'};
-  const DATA=['global','risk','divers','score','due','income','perf','total','liquid','advice','list'];
+  const DATA=['global','risk','divers','score','due','income','perf','total','liquid','advice','list','debt'];
   const DEF=/(c est quoi|qu est ce|definition|explique moi (le|la|les|l )|comment (ca )?(marche|fonctionne)|a quoi sert|difference entre|que choisir|avantages?|inconvenients?|c est quoi la difference)/;
   function run(id,q,o){
     const has=D.assets.length>0;
@@ -1556,6 +2017,8 @@ const LAI=(()=>{
       case 'advice':return aAdvice();
       case 'list':return o.cat?aCat(o.cat):aList();
       case 'market':return aMarket(N(q));
+      case 'debt':return aDebt();
+      case 'budget':return aBudget();
     }
     return null;
   }
@@ -1601,7 +2064,7 @@ const LAI=(()=>{
 })();
 
 /* ===================== Import : contrat & CSV ===================== */
-const CATAL={bourse:'bourse',crowd:'crowd',crowdlending:'crowd',immo:'immo',immobilier:'immo',epargne:'epargne','épargne':'epargne',cash:'cash',liquidites:'cash','liquidités':'cash',autre:'autre'};
+const CATAL={bourse:'bourse',crowd:'crowd',crowdlending:'crowd',immo:'immo',immobilier:'immo',epargne:'epargne','épargne':'epargne',cash:'cash',liquidites:'cash','liquidités':'cash',autre:'autre',bien:'bien','immobilier physique':'bien',residence:'bien','résidence':'bien',logement:'bien',credit:'credit','crédit':'credit',pret:'credit','prêt':'credit',emprunt:'credit'};
 const STAL={'':'cours',cours:'cours','en cours':'cours',rembourse:'rembourse','remboursé':'rembourse',retard:'retard','en retard':'retard',defaut:'defaut','défaut':'defaut'};
 const CSVT='catégorie;nom;plateforme;montant;valeur;taux;durée;statut;date;quantité;pru;ticker\ncrowd;Résidence des Lilas;Bienprêter;5000;5000;9,5;24;cours;2026-01-15;;;\nbourse;ETF Monde;;;;;;;;10;480;CW8.PA\ncash;Livret A;Ma banque;4500;4500;1,5;;;;;;\n';
 function parseCSV(t){
@@ -1674,6 +2137,86 @@ async function enquete(){
   }catch(e){b.style.color='var(--red)';b.textContent=e.message}
 }
 
+/* ===================== Bilan patrimonial (PDF) ===================== */
+function bilanHTML(){
+  const hid=HIDE;HIDE=false;
+  try{
+    const T=totals(),bc=byCat(),ins=insights().filter(i=>i.lvl!=='good'),X=metrics(),pts=histPts('365');
+    const row=(c)=>`<tr>${c.map((x,i)=>`<td${i?' class="r"':''}>${x}</td>`).join('')}</tr>`;
+    let h=`<header><div><h1>Bilan patrimonial</h1><p>Au ${esc(fd(new Date()))}${ID&&ID.user?' · '+esc(idName()):''}</p></div><div class="brand">Patrimoine AI<br><small>Produit par QuenTools</small></div></header>`;
+    h+=`<section class="kpi"><div><span>${T.debt>0?'Patrimoine net':'Patrimoine total'}</span><b>${eur(T.net)}</b></div>${T.debt>0?`<div><span>Patrimoine brut</span><b>${eur(T.tv)}</b></div><div><span>Crédits restant dus</span><b>${eur(T.debt)}</b></div>`:''}<div><span>Plus ou moins-value</span><b>${T.ti>0?sgn(T.gain)+' ('+pct(T.pct)+')':'–'}</b></div><div><span>Revenus estimés</span><b>${eur(X.y)} / an</b></div>${X.lp>0?`<div><span>Mensualités</span><b>${eur(X.lp)} / mois</b></div>`:''}</section>`;
+    if(bc.length)h+=`<h2>Répartition</h2><div class="rep"><div class="dn">${donut(bc,bc.reduce((s,x)=>s+x[1],0))}</div><table>${bc.map(([c,v])=>row([`<i style="background:${CATS[c].c}"></i>${esc(CATS[c].n)}`,eur(v),nf(v/T.tv*100,1)+' %'])).join('')}</table></div>`;
+    if(pts.length>=2)h+=`<h2>Évolution sur un an</h2>`+lineChart([{p:pts,c:'#047857',area:true}],{id:'b',aria:'Évolution du patrimoine'});
+    const G={};D.assets.forEach(a=>{(G[a.cat]=G[a.cat]||[]).push(a)});
+    h+=`<h2>Détail</h2>`;
+    Object.keys(CATS).filter(c=>G[c]).forEach(c=>{
+      const L=G[c].sort((a,b)=>val(b)-val(a));
+      h+=`<h3>${esc(CATS[c].n)}</h3><table class="dt"><tr><th>Nom</th><th class="r">${c==='credit'?'Emprunté':'Investi'}</th><th class="r">${c==='credit'?'Restant dû':'Valeur'}</th><th class="r">${c==='credit'?'Mensualité':'Évolution'}</th></tr>`+L.map(a=>{const v=val(a),i=inv(a),sub=[a.plat,a.env&&ENV[a.env],a.cat==='bien'&&USAGE[a.usage],num(a.rate)?nf(a.rate,isDebt(a)?2:1)+' %':'',isRisky(a)&&ST[a.status]&&a.status!=='cours'?ST[a.status]:''].filter(Boolean).join(' · ');
+        return row([`<b>${esc(a.name)}</b>${sub?`<br><small>${esc(sub)}</small>`:''}`,isDebt(a)?eur(a.amount):eur(i),eur(v),isDebt(a)?(loanM(a)?eur(loanM(a)+num(a.ins)):'–'):(i>0&&v!==i?pct((v-i)/i*100):'–')])}).join('')+`</table>`});
+    {const b=budget();if(b.R>0)h+=`<h2>Budget mensuel</h2><table class="dt">${row(['Revenus',eur(b.R),'',''])}${row(['Dépenses fixes'+(b.lp>0?' (dont crédits '+eur(b.lp)+')':''),eur(b.fixe),'',''])}${row(['Dépenses courantes',eur(b.cour),'',''])}${row(['<b>Épargne possible</b>','<b>'+eur(b.cap)+'</b>',b.ts!=null?nf(b.ts,1)+' %':'',''])}${b.cap>0?row(['Dont à investir sur le long terme',eur(b.plan.inv),'','']):''}</table>`}
+    if((D.goals||[]).length)h+=`<h2>Objectifs</h2><table class="dt"><tr><th>Objectif</th><th class="r">Atteint</th><th class="r">Visé</th><th class="r">Effort / mois</th></tr>`+D.goals.map(g=>{const s=gState(g);return row([`<b>${esc(g.name)}</b><br><small>${esc(GST[s.k][0]+(g.date?' · échéance '+fmy(new Date(g.date+'T12:00:00')):''))}</small>`,eur(s.cur)+' ('+nf(s.p,0)+' %)',eur(s.t),s.k==='done'?'–':s.need!=null?eur(s.need):'–'])}).join('')+'</table>';
+    if(ins.length)h+=`<h2>Points d’attention</h2><ul>${ins.map(i=>`<li><b>${esc(i.title)}</b> : ${esc(i.text)}</li>`).join('')}</ul>`;
+    const pf=portfolio();if(pf)h+=`<p>Indice de fiabilité des placements participatifs : <b>${pf.score}/100</b> (${esc(label(pf.score).toLowerCase())}).</p>`;
+    h+=`<footer>Document établi avec Patrimoine AI à partir des informations saisies par l’utilisateur. Les cours de bourse sont indicatifs, les valeurs immobilières et les capitaux restant dus sont des estimations. Ce bilan ne constitue pas un conseil en investissement.</footer>`;
+    return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Bilan patrimonial ${esc(today())}</title><style>
+:root{--pt:#047857;--line:#d9dfdb;--mut:#5b6961;--card2:#eceee9;--ok:#047857;--red:#dc2626}
+*{box-sizing:border-box}body{font:11pt/1.45 -apple-system,'Helvetica Neue',Arial,sans-serif;color:#16201b;margin:0;padding:28px 34px}
+header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #047857;padding-bottom:12px;margin-bottom:18px}
+h1{font:600 24pt Georgia,serif;margin:0}h2{font:600 14pt Georgia,serif;margin:22px 0 8px;break-after:avoid}h3{font-size:11pt;margin:14px 0 4px;color:#047857;break-after:avoid}
+header p{margin:4px 0 0;color:#5b6961}.brand{text-align:right;font-weight:700;color:#047857}.brand small{font-weight:400;color:#5b6961}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.kpi div{border:1px solid #d9dfdb;border-radius:8px;padding:8px 10px}.kpi span{display:block;font-size:9pt;color:#5b6961}.kpi b{font:600 14pt Georgia,serif}
+table{width:100%;border-collapse:collapse}.dt{table-layout:fixed}.dt td:first-child,.dt th:first-child{width:46%}td,th{padding:5px 6px;border-bottom:1px solid #e6e9e6;text-align:left;vertical-align:top}th{font-size:9pt;color:#5b6961;font-weight:600}.r{text-align:right;white-space:nowrap}
+tr{break-inside:avoid}small{color:#5b6961}td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.rep{display:flex;gap:22px;align-items:center}.dn{width:150px;flex:none}.dn svg{width:150px;height:150px}
+.chart{width:100%;max-height:200px}.chart text{fill:#5b6961;font-size:9px}ul{padding-left:18px}li{margin:4px 0}
+footer{margin-top:26px;padding-top:10px;border-top:1px solid #d9dfdb;font-size:8.5pt;color:#5b6961}
+@page{size:A4;margin:12mm}</style></head><body>${h}</body></html>`;
+  }finally{HIDE=hid}
+}
+async function bilan(){
+  if(!D.assets.length){toast('Ajoutez d’abord des placements.');return}
+  const html=bilanHTML(),name='Bilan-patrimoine-'+today()+'.pdf';
+  if(MAC&&MAC.pdf){try{const r=await MAC.pdf(html,name);if(r&&r.ok)toast('Bilan enregistré : '+r.nom);else if(r&&r.message)toast(r.message)}catch(e){toast('PDF impossible : '+e.message)}return}
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Impression impossible')}setTimeout(()=>f.remove(),60000)},250)};
+  f.srcdoc=html;toast('Choisissez « Enregistrer au format PDF » dans la fenêtre d’impression.');
+}
+
+/* ===================== Recherche rapide (⌘K) ===================== */
+let PALI=[],PALS=0;
+function palItems(q){
+  const n=N0(q.trim()),hit=t=>!n||N0(t).includes(n),out=[];
+  const add=(g,l,i,fn,x)=>{if(hit(l+' '+(x||'')))out.push({g,l,i,fn,x:x||''})};
+  const V={home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
+  Object.keys(V).forEach(v=>add('Aller à',V[v],({home:'home',assets:'list',budget:'wallet',goals:'target',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v)));
+  add('Actions','Ajouter un placement','plus',()=>openPick());
+  add('Actions','Nouvel objectif','target',()=>openGoalForm(''),'projet épargne');
+  add('Aller à','Budget : combien investir ce mois-ci','wallet',()=>go('budget'),'dépenses reste à vivre frais');
+  (D.goals||[]).forEach(g=>add('Objectifs',g.name,g.ic||'target',()=>openGoalForm(g.id)));
+  Object.keys(CATS).forEach(c=>add('Actions','Ajouter : '+CATS[c].n,CATS[c].ic,()=>openForm(c)));
+  add('Actions','Exporter le bilan en PDF','printer',()=>bilan(),'rapport imprimer');
+  add('Actions','Importer un contrat ou un CSV','upload',()=>openImport());
+  add('Actions','Exporter une sauvegarde (JSON)','download',()=>exp());
+  add('Actions','Exporter en CSV (tableur)','download',()=>expCSV(),'excel numbers');
+  add('Actions',HIDE?'Afficher les montants':'Masquer les montants',HIDE?'eye':'eyeoff',()=>ACT.hide());
+  add('Actions','Thème sombre','eye',()=>ACT.theme({v:'dark'}));add('Actions','Thème clair','eye',()=>ACT.theme({v:'light'}));
+  [['tax','Simulateur d’impôt'],['proj','Projection de patrimoine'],['new','Avant d’investir dans un projet'],['alloc','Répartition cible et rééquilibrage'],['loan','Simulateur de crédit']].forEach(t=>add('Outils',t[1],'calc',()=>{UI.tool=t[0];renderTools();go('tools')}));
+  if(MAC&&D.set.lock)add('Actions','Verrouiller maintenant','lock',()=>lockNow());
+  D.assets.forEach(a=>add('Mes placements',a.name||'Sans nom',cinfo(a).ic,()=>openDetail(a.id),[a.plat,a.tick,cinfo(a).n].join(' ')));
+  if(n.length>=2){const seen=new Set();Object.values(LISTS).flat().concat((D.watch||[]).map(s=>[s,NAMES[s]||MK.nm[s]||s])).forEach(([s,nm])=>{if(seen.has(s))return;seen.add(s);add('Marchés',nm,'trend',()=>mkPick(s,nm),s)})}
+  if(n.length>=3)out.push({g:'Assistant',l:'Demander : « '+q.trim()+' »',i:'spark',fn:()=>askAI(q.trim())});
+  const G={};return out.filter(x=>(G[x.g]=(G[x.g]||0)+1)<=(n?8:x.g==='Aller à'?8:4));
+}
+function palRender(){
+  const q=$('pal-q').value;PALI=palItems(q);PALS=Math.min(PALS,Math.max(0,PALI.length-1));let g='',h='';
+  PALI.forEach((x,i)=>{if(x.g!==g){g=x.g;h+=`<div class="palh">${esc(g)}</div>`}h+=`<button class="pali${i===PALS?' on':''}" role="option" aria-selected="${i===PALS}" data-act="palgo" data-i="${i}">${ic(x.i,18)}<span>${esc(x.l)}</span>${x.x&&x.g==='Marchés'?`<span class="xs">${esc(x.x)}</span>`:''}</button>`});
+  $('pal-l').innerHTML=h||'<p class="hint" style="padding:12px">Aucun résultat.</p>';
+  const on=$('pal-l').querySelector('.on');if(on)on.scrollIntoView({block:'nearest'});
+}
+function openPal(){if(document.body.classList.contains('locked'))return;$('pal').classList.add('open');const i=$('pal-q');i.value='';PALS=0;palRender();setTimeout(()=>i.focus(),20)}
+function closePal(){$('pal').classList.remove('open')}
+function palRun(i){const x=PALI[i];closePal();if(x){if($('modal').classList.contains('open')&&!/openForm|openPick|openDetail|openImport|mkPick/.test(String(x.fn)))closeM();x.fn()}}
+
 /* ===================== Données : export, restauration, réinitialisation ===================== */
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 function exp(){D.lastBackup=Date.now();save();dl('patrimoine-'+today()+'.json',JSON.stringify(D),'application/json');toast('Sauvegarde exportée');render()}
@@ -1710,18 +2253,20 @@ function demo(){
     mk({cat:'crowd',name:'Programme Horizon (exemple)',plat:'Ma Première Brique',prom:'Promoteur Exemple',amount:2000,value:2000,rate:8,dur:18,date:dt(17)}),
     mk({cat:'crowd',name:'Opération Centre-ville (exemple)',plat:'Bricks',amount:1500,value:1500,rate:11,dur:12,date:dt(10),status:'retard'}),
     mk({cat:'epargne',name:'Assurance-vie (exemple)',plat:'Ma banque',amount:8000,value:8600,rate:3}),
-    mk({cat:'cash',name:'Livret A (exemple)',plat:'Ma banque',amount:4500,rate:1.5})
+    mk({cat:'cash',name:'Livret A (exemple)',plat:'Ma banque',amount:4500,rate:1.5}),
+    mk({cat:'bien',name:'Appartement (exemple)',usage:'rp',value:245000,amount:212000,date:dt(62)}),
+    mk({cat:'credit',name:'Prêt immobilier (exemple)',plat:'Ma banque',amount:180000,rate:3.4,dur:240,date:dt(61),ins:22,value:''})
   );
   save();render();go('home');toast('Exemples ajoutés. Supprimez-les quand vous voulez.');
 }
 
 /* ===================== Actions & événements ===================== */
 const ACT={
-  go:d=>go(d.v),
+  go:d=>{if($('modal').classList.contains('open'))closeM();go(d.v)},
   add:d=>d.c?openForm(d.c):openPick(),
   pick:d=>openForm(d.c),
   cat:d=>openForm(d.c,CUR.id,collect()),
-  seg:(d,t)=>{$(d.t).value=d.v;t.parentNode.querySelectorAll('.chip').forEach(c=>{const on=c===t;c.classList.toggle('on',on);c.setAttribute('aria-checked',on)});if(d.t==='tm')tradeLive();formLive()},
+  seg:(d,t)=>{$(d.t).value=d.v;t.parentNode.querySelectorAll('.chip').forEach(c=>{const on=c===t;c.classList.toggle('on',on);c.setAttribute('aria-checked',on)});if(d.t==='tm')tradeLive();if(d.t==='f-gsrc')goalLive();else formLive()},
   save:()=>saveA(),
   detail:d=>openDetail(d.id),
   edit:d=>openForm(null,d.id),
@@ -1739,7 +2284,9 @@ const ACT={
   range:d=>{UI.range=d.r;renderHome()},
   tool:d=>{UI.tool=d.t;renderTools()},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
-  tog:d=>{if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync()},
+  tog:d=>{if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
+  unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
+  sauvlist:()=>openSauv(),sauvdir:()=>MAC&&MAC.ouvrirSauvegardes(),sauvrest:d=>sauvRest(d.f),
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
   refresh:()=>refresh(false),
   tsearch:()=>tsearch(),tpick:d=>tpick(d),
@@ -1748,7 +2295,8 @@ const ACT={
   aisend:()=>sendFromBox(),
   aiclear:()=>{D.chat=[];LAI.reset();save();renderAI()},
   askai:d=>askAI(d.q),
-  prov:d=>{D.set.prov=d.v;save();renderAI();renderSet();toast(d.v==='local'?'IA locale activée : fonctionne hors ligne':keyOf(d.v)?PROV[d.v].n+' activé':'Ajoutez une clé '+PROV[d.v].n+' pour l’activer')},
+  prov:d=>{D.set.prov=d.v;D.set.provChosen=1;save();renderAI();renderSet();toast(d.v==='local'?'IA locale activée : fonctionne hors ligne':d.v==='mac'?(MACIA.installee?'IA du Mac activée':'Installez l’IA du Mac pour l’activer'):keyOf(d.v)?PROV[d.v].n+' activé':'Ajoutez une clé '+PROV[d.v].n+' pour l’activer')},
+  iainst:()=>macIaInstaller(),
   glogin:()=>googleLogin(),
   ghdone:()=>ghLoginDone(),
   logout:async()=>{if(!await ask('Se déconnecter ?','Vos données restent sur cet appareil mais ne seront plus synchronisées tant que vous ne vous reconnectez pas. La copie chiffrée reste sur votre compte Google (Firebase).','Se déconnecter'))return;ghLogout()},
@@ -1759,6 +2307,7 @@ const ACT={
   mkre:()=>{MK.data[MK.tab]=null;MK.err[MK.tab]='';mkLoad('idx');mkLoad(MK.tab);liveSync();if(FEED)FEED._poll()},mkall:()=>{MK.all=true;mkList()},
   mkd:d=>openMk(d.s),mkr:d=>{MK.range=d.r;MK.pts=null;document.querySelectorAll('[data-act=mkr]').forEach(b=>b.classList.toggle('on',b.dataset.r===d.r));mkChart()},
   mkfav:()=>mkFav(),mkadd:()=>mkAdd(),
+  alset:()=>alertSet(),aldel:d=>{D.alerts=D.alerts.filter(a=>a.id!==d.id);save();liveSync();if($('mk-al')&&CUR.mk)$('mk-al').innerHTML=alertsOf(CUR.mk);if($('mk-als'))$('mk-als').innerHTML=alertsOf();toast('Alerte supprimée')},
   gload:async()=>{const k=localStorage.getItem(KK);if(!k)return;toast('Chargement des modèles…');try{const L=await gList(k,true);renderSet();toast(L.length+' modèle(s) disponibles')}catch(e){toast((GMSG[e.kind]||e.message).slice(0,160))}},
   copy:d=>{const m=D.chat[+d.i];if(!m)return;const t=m.t;const ok=()=>toast('Réponse copiée');if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,()=>fbCopy(t));else fbCopy(t)},
   showerr:d=>{const m=D.chat[+d.i];if(m&&m.cloudErr)sheet('Détail de l’erreur',`<div class="box sm" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(m.cloudErr)}</div><button class="btn sec blk mt" data-act="keytest">Lancer le test de connexion</button>`)},
@@ -1778,6 +2327,18 @@ const ACT={
   toastact:()=>{const f=TOASTACT;TOASTACT=null;$('toast').classList.remove('show');if(f)f()},
   airetry:()=>{const M=D.chat;let i=M.length-1;while(i>=0&&M[i].r!=='u')i--;if(i<0)return;const q=M[i].t;D.chat=M.slice(0,i);sendAI(q)},
   closeM:()=>closeM(),
+  more:()=>sheet('Plus',[['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Impôt, projection, crédit, répartition cible'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
+  bstart:()=>{const B=D.budget;B.inc=BTPL.inc.map(x=>({id:newId(),n:x[0],v:''}));B.exp=BTPL.exp.filter(x=>!(x[2]==='logement'&&loanPay()>0)).map(x=>({id:newId(),n:x[0],k:x[1],c:x[2],v:''}));save();renderBudget();setTimeout(()=>{const i=document.querySelector('#b-inc input[data-f=v]');if(i)i.focus()},50)},
+  bblank:()=>{const B=D.budget;B.inc=[{id:newId(),n:'Salaire net',v:''}];B.exp=[{id:newId(),n:'',k:'fixe',v:''}];save();renderBudget()},
+  badd:d=>{const l={id:newId(),n:'',v:''};if(d.t==='exp')l.k='fixe';D.budget[d.t].push(l);save();renderBudget();setTimeout(()=>{const i=document.querySelector('[data-id="'+l.id+'"][data-f=n]');if(i)i.focus()},40)},
+  bdel:d=>{D.budget[d.t]=D.budget[d.t].filter(x=>x.id!==d.id);save();renderBudget()},
+  gnew:d=>openGoalForm('',d.i!=null&&d.i!==''?GTPL[+d.i]:null),gedit:d=>openGoalForm(d.id),gsave:()=>goalSave(),
+  gdel:async d=>{if(!await ask('Supprimer cet objectif ?','Il disparaîtra de tous vos appareils synchronisés.','Supprimer',true))return;D.goals=D.goals.filter(g=>g.id!==d.id);save();render();toast('Objectif supprimé')},
+  gcat:(d,t)=>{t.classList.toggle('on');t.setAttribute('aria-pressed',t.classList.contains('on'));goalLive()},
+  gadd:d=>goalAdd(d.id),gaddok:()=>{const g=D.goals.find(x=>x.id===CUR.g),v=num($('ga-v').value);if(!g||!v)return;g.saved=Math.max(0,num(g.saved)+v);save();closeM();render();toast(gState(g).k==='done'?'Objectif atteint !':'Versement enregistré')},
+  palgo:d=>palRun(+d.i),bilan:()=>bilan(),pal:()=>openPal(),
+  alnow:()=>{const c=allocNow();ALLOC.forEach(k=>{const e=$('al-'+k);if(e)e.value=c.t>0&&c.v[k]?Math.round(c.p[k]):''});calcAlloc()},
+  alclear:()=>{D.target={};save();renderTools()},
   askok:()=>{const r=ASK;ASK=null;closeM();if(r)r(true)},
   askno:()=>closeM()
 };
@@ -1818,24 +2379,34 @@ async function openDiag(pv){
 function sendFromBox(){const t=$('ai-q');if(!t)return;const q=t.value;t.value='';sendAI(q)}
 document.addEventListener('click',e=>{
   if(e.target.id==='modal'){closeM();return}
+  if(e.target.id==='pal'){closePal();return}
   const t=e.target.closest('[data-act]');if(!t)return;const f=ACT[t.dataset.act];if(f)f(t.dataset,t,e);
 });
 const onIn=e=>{
   const t=e.target,k=t.dataset&&t.dataset.in;if(!k)return;
-  if(k==='q'){UI.q=t.value;renderList()}else if(k==='mkq'){MK.q=t.value;mkList()}else if(k==='form')formLive();else if(k==='calc')calc();else if(k==='trade')tradeLive();else if(k==='plat')platLive();
+  if(k==='q'){UI.q=t.value;renderList()}else if(k==='mkq'){MK.q=t.value;mkList()}else if(k==='form'){if(/^f-g/.test(t.id))goalLive();else formLive()}else if(k==='calc'){if(/^b-/.test(t.id))budIn(t);else calc()}else if(k==='trade')tradeLive();else if(k==='plat')platLive();
   else if(k==='aiq'){t.style.height='auto';t.style.height=Math.min(140,t.scrollHeight)+'px'}
+  else if(k==='pal'){PALS=0;palRender()}
+  else if(k==='bud')budIn(t);
 };
 document.addEventListener('input',onIn);
 document.addEventListener('change',e=>{
   const t=e.target,k=t.dataset&&t.dataset.ch;
   if(k==='sort'){UI.sort=t.value;renderList()}
   else if(k==='mksort'){MK.sort=t.value;mkList()}
+  else if(k==='bud')budIn(t);
   else if(k==='gmodel'){D.set.gmodel=t.value;save();toast(t.value?'Modèle '+t.value+' utilisé en priorité':'Choix automatique du modèle')}
   else if(k==='restore')restoreFile(t);
   else if(k==='csvfile'){const f=t.files[0];if(f){const r=new FileReader();r.onload=()=>{$('imp-c').value=r.result;csvCheck()};r.readAsText(f)}}
   else onIn(e);
 });
 document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&!e.altKey&&(e.key==='k'||e.key==='K')){e.preventDefault();$('pal').classList.contains('open')?closePal():openPal();return}
+  if($('pal').classList.contains('open')){
+    if(e.key==='Escape'){closePal();return}
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();PALS=(PALS+(e.key==='ArrowDown'?1:-1)+PALI.length)%Math.max(1,PALI.length);palRender();return}
+    if(e.key==='Enter'){e.preventDefault();palRun(PALS);return}
+  }
   if(e.key==='Escape'&&$('modal').classList.contains('open')){closeM();return}
   const t=e.target;
   if(t.dataset&&t.dataset.kd==='ai'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&window.matchMedia&&matchMedia('(min-width:900px)').matches){e.preventDefault();sendFromBox()}
@@ -1844,7 +2415,7 @@ window.addEventListener('popstate',()=>show(location.hash.slice(1)||'home'));
 ['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{if(!AIBUSY)renderAI();toast(ev==='offline'?'Hors ligne : l’IA locale prend le relais':'De nouveau en ligne')}));
 
 /* ===================== En ligne : compte Google, synchronisation, marchés ===================== */
-const HOSTED=/^https?:$/.test(location.protocol);
+const HOSTED=/^https?:$/.test(location.protocol)||!!MAC; /* l'application Mac a accès aux cours et au compte comme la version en ligne */
 const CFG=window.PATRIMOINE_CONFIG||{};
 const ID={user:null,ready:false};
 const DEV=(()=>{let d=localStorage.getItem('pat_dev');if(!d){d=(/Android/i.test(navigator.userAgent)?'Android':/iPhone|iPad/i.test(navigator.userAgent)?'iPhone':/Windows/i.test(navigator.userAgent)?'PC Windows':/Mac/i.test(navigator.userAgent)?'Mac':'Appareil')+' '+Math.random().toString(36).slice(2,6);localStorage.setItem('pat_dev',d)}return d})();
@@ -1970,7 +2541,15 @@ async function ghLoginDone(){
   let F;
   try{F=await fb();await F.auth.authStateReady()}catch(e){toast(e.message);return}
   let cred;
-  try{cred=F.auth.currentUser?{user:F.auth.currentUser}:await F.Au.signInWithPopup(F.auth,new F.Au.GoogleAuthProvider())} /* déjà connecté dans une autre app QuenTools : session réutilisée */
+  try{
+    if(F.auth.currentUser)cred={user:F.auth.currentUser}; /* déjà connecté dans une autre app QuenTools : session réutilisée */
+    else if(MAC&&MAC.connexionGoogle){ /* application Mac : Google refuse les fenêtres de connexion intégrées, la connexion se fait dans le navigateur du Mac */
+      toast('Terminez la connexion dans votre navigateur, puis revenez ici.');
+      const t=await MAC.connexionGoogle();if(!t||!t.id)throw Object.assign(Error(t&&t.message||'Connexion annulée'),{code:t&&t.annule?'auth/popup-closed-by-user':''});
+      cred=await F.Au.signInWithCredential(F.auth,F.Au.GoogleAuthProvider.credential(t.id,t.acces||null));
+    }
+    else cred=await F.Au.signInWithPopup(F.auth,new F.Au.GoogleAuthProvider());
+  }
   catch(e){const c=e&&e.code||'';
     toast(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request'?'Connexion annulée':c==='auth/popup-blocked'?'Autorisez les fenêtres pop-up pour ce site puis réessayez':c==='auth/unauthorized-domain'?'Domaine non autorisé : ajoutez-le dans Firebase → Authentication → Paramètres (voir README)':c==='auth/operation-not-allowed'?'Connexion Google non activée dans Firebase (voir README)':'Connexion impossible : '+(e.message||c));return}
   toast('Connexion…');
@@ -1992,7 +2571,7 @@ function onAuth(fresh){
 const idName=()=>ID.user?((ID.user.user_metadata&&(ID.user.user_metadata.full_name||ID.user.user_metadata.name))||ID.user.email):'';
 
 /* --- Suivi des modifications (fusion fine entre appareils) --- */
-const SF=['goal','plat','lastBackup','chat','watch'];
+const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target'];
 let SNAP=null;
 const ajson=a=>{const o=Object.assign({},a);delete o.u;return JSON.stringify(o)};
 const snapOf=()=>({a:Object.fromEntries(D.assets.map(a=>[a.id,ajson(a)])),f:Object.fromEntries(SF.map(f=>[f,JSON.stringify(D[f]===undefined?null:D[f])]))});
@@ -2005,7 +2584,7 @@ function track(){
   SF.forEach(f=>{if(SNAP.f[f]!==JSON.stringify(D[f]===undefined?null:D[f])){D.mt[f]=now;ch=true}});
   SNAP=snapOf();return ch;
 }
-const payload=()=>({v:3,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[]});
+const payload=()=>({v:3,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget});
 /* Fusion : chaque placement garde sa version la plus récente, les suppressions sont respectées, l'historique est réuni. */
 function mergeRemote(R){
   if(!R||typeof R!=='object')return false;
@@ -2028,7 +2607,7 @@ function mergeRemote(R){
   L.mt=mt;if(L.goal==null)delete L.goal;
   const H=new Map((R.hist||[]).map(h=>[h.d,h]));(L.hist||[]).forEach(h=>{if(!H.has(h.d)){H.set(h.d,h);localWins=true}else H.set(h.d,h)});
   L.hist=[...H.values()].sort((x,y)=>String(x.d).localeCompare(String(y.d))).slice(-1500);
-  if(!Array.isArray(L.chat))L.chat=[];if(!Array.isArray(L.watch))L.watch=[];if(!L.plat||typeof L.plat!=='object')L.plat={};
+  if(!Array.isArray(L.chat))L.chat=[];if(!Array.isArray(L.watch))L.watch=[];if(!Array.isArray(L.alerts))L.alerts=[];if(!Array.isArray(L.goals))L.goals=[];if(!L.budget||typeof L.budget!=='object'||!Array.isArray(L.budget.inc)||!Array.isArray(L.budget.exp))L.budget={inc:[],exp:[],loans:true,mois:6,marge:10,delai:12};if(!L.target||typeof L.target!=='object')L.target={};if(!L.plat||typeof L.plat!=='object')L.plat={};
   SNAP=snapOf();
   try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}
   return localWins;
@@ -2047,7 +2626,7 @@ async function syncNow(){
       const first=!localStorage.getItem('pat_rev')&&r.data&&(r.data.assets||[]).length&&D.assets.some(a=>!a.demo);
       let how=first?await firstChoice(r.data):'merge';
       if(how==='cancel')throw Error('synchronisation mise en pause, touchez « Synchroniser maintenant »');
-      if(how==='remote'){const set=D.set;D=Object.assign(load(),r.data);D.set=set;['assets','hist','chat','watch'].forEach(k=>{if(!Array.isArray(D[k]))D[k]=[]});SNAP=snapOf();try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}push=false;SY.dirty=false;changed=true}
+      if(how==='remote'){const set=D.set;D=Object.assign(load(),r.data);D.set=set;['assets','hist','chat','watch','alerts','goals'].forEach(k=>{if(!Array.isArray(D[k]))D[k]=[]});if(!D.target||typeof D.target!=='object')D.target={};{const L0=load();if(!D.budget||!Array.isArray(D.budget.inc))D.budget=L0.budget}SNAP=snapOf();try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}push=false;SY.dirty=false;changed=true}
       else if(how==='local'){const now=Date.now(),mine=new Set(D.assets.map(a=>a.id));D.del=D.del||{};(r.data.assets||[]).forEach(a=>{if(!mine.has(a.id))D.del[a.id]=now});D.assets.forEach(a=>{a.u=now});D.mt=D.mt||{};SF.forEach(f=>{D.mt[f]=now});SNAP=snapOf();push=true}
       else if(r.data){push=mergeRemote(r.data)||push;changed=true}
       else if(D.assets.length||D.hist.length)push=true;
@@ -2109,6 +2688,10 @@ const NAMES = Object.fromEntries(Object.values(LISTS).flat());
 const PROXIES=()=>[CFG.marketProxy?(String(CFG.marketProxy).replace(/\/$/,'')+'/?url='):'', 'https://corsproxy.io/?url=','https://api.allorigins.win/raw?url='].filter(Boolean);
 let PXI=0;
 async function yget(path){
+  if(MAC){ /* application Mac : Yahoo Finance est interrogé directement, sans relais tiers */
+    for(const host of ['query1','query2']){try{const r=await tfetch('https://'+host+'.finance.yahoo.com'+path,{},12000);if(r.ok)return await r.json()}catch(e){}}
+    return null;
+  }
   const P=PROXIES();
   for(let n=0;n<P.length;n++){const px=P[(PXI+n)%P.length];
     for(const host of ['query1','query2']){
@@ -2260,6 +2843,7 @@ function mkRender(){
   const W=D.watch||[];
   el.innerHTML=`<section class="card mkhead"><div class="row"><div><div class="lab">État des cours</div><div class="mklive" id="mk-st"></div></div><button class="ibtn" style="width:38px;height:38px" data-act="mkre" aria-label="Actualiser les cours">${ic('refresh',18)}</button></div><div class="sess" id="mk-sess"></div></section>
 <div class="chips mt" role="tablist">${Object.keys(MKT).map(k=>`<button class="chip${MK.tab===k?' on':''}" role="tab" aria-selected="${MK.tab===k}" data-act="mktab" data-t="${k}">${k==='fav'?'★ ':''}${MKT[k]}${k==='fav'&&W.length?` <span class="n">${W.length}</span>`:''}</button>`).join('')}</div>
+${D.alerts.length?`<details class="card mt" style="padding:12px 16px"${D.alerts.some(a=>a.hit&&Date.now()-a.hit<864e5)?' open':''}><summary>${ic('bell',16)}&nbsp;Mes alertes de cours (${D.alerts.length})</summary><div id="mk-als" class="mt" style="margin-top:6px">${alertsOf()}</div></details>`:''}
 <div class="tools" style="margin:8px 0"><input type="search" placeholder="Filtrer, ou chercher une valeur (nom, ISIN, ticker)" value="${esc(MK.q)}" data-in="mkq" aria-label="Filtrer ou chercher une valeur"><select data-ch="mksort" aria-label="Trier">${[['list','Tri : liste'],['up','Hausses'],['dn','Baisses'],['name','Nom']].map(o=>`<option value="${o[0]}"${MK.sort===o[0]?' selected':''}>${o[1]}</option>`).join('')}</select></div><div id="mkmv"></div><div id="mkl"></div>`;
   mkStatus();mkList();
 }
@@ -2313,6 +2897,7 @@ async function openMk(s){
   <div class="rng">${[['1d','Aujourd’hui'],['1mo','1 mois'],['6mo','6 mois'],['1y','1 an'],['5y','5 ans']].map(r=>`<button class="chip${MK.range===r[0]?' on':''}" data-act="mkr" data-r="${r[0]}">${r[1]}</button>`).join('')}</div><div id="mkc"><p class="hint mt">Chargement du graphique…</p></div>
   <div class="rowgrid" data-q="${esc(s)}" data-k="rng">${qHTML('rng',x)}</div>
   ${own?`<div class="box sm mt"><b>Ma position</b> : ${nf(own.qty,num(own.qty)%1?2:0)} × cours, soit <b data-own="${esc(own.id)}">${eur(val(own))}</b></div>`:''}
+  <details class="mt"${D.alerts.some(a=>a.s===s)?' open':''}><summary>${ic('bell',16)}&nbsp;Alerte de cours</summary><div id="mk-al">${alertsOf(s)}</div><div class="row2 mt"><div class="inp has"><input id="ma-p" type="number" inputmode="decimal" step="any" min="0" value="${x.p>0?+(x.p*1.05).toPrecision(4):''}" aria-label="Cours qui déclenche l’alerte"><span class="suf">${esc(x.c||'')}</span></div><button class="btn" data-act="alset">Créer</button></div><div class="hint">Vous êtes prévenu dès que le cours franchit ce seuil${MAC?' (notification du Mac)':', tant que l’application est ouverte'}.</div></details>
   <div class="stack mt"><button class="btn${fav?' sec':''}" data-act="mkfav">${fav?'★ Retirer des favoris':'☆ Ajouter aux favoris'}</button>${plainNum(s)||/=F$/.test(s)?'':own?`<button class="btn sec" data-act="detail" data-id="${esc(own.id)}">Voir ma position</button>`:`<button class="btn sec" data-act="mkadd">${ic('plus',18)}Ajouter à mes placements</button>`}</div>`);
   mkChart();
 }
@@ -2329,6 +2914,39 @@ async function mkChart(){
     if(CUR.mk!==s||!$('mkc'))return;
     MK.pts=d.pts.slice();mkDraw();
   }catch(e){MK.pts=null;if($('mkc'))$('mkc').innerHTML=`<p class="hint">${esc(e.message)}</p>`}
+}
+/* Alertes de cours : un seuil par alerte, à la hausse ou à la baisse selon le cours au moment de la création */
+const alertTxt=a=>(a.dir==='up'?'au-dessus de ':'en dessous de ')+pxfx({s:a.s,p:a.p,c:a.c});
+function alertsOf(s){
+  const L=D.alerts.filter(a=>!s||a.s===s);if(!L.length)return s?'':'<p class="sm mut">Aucune alerte. Ouvrez une valeur pour en créer une.</p>';
+  return L.map(a=>`<div class="alr"><span>${s?'':`<b>${esc(a.n||a.s)}</b> `}${esc(alertTxt(a))}${a.hit?` <span class="badge" style="--c:var(--ok)">déclenchée le ${esc(new Date(a.hit).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}))}</span>`:''}</span><button class="lnk" data-act="aldel" data-id="${esc(a.id)}">Supprimer</button></div>`).join('');
+}
+function alertSet(){
+  const s=CUR.mk,x=mkq(s),p=num($('ma-p')&&$('ma-p').value);if(!s||!(p>0)||!(x.p>0)){toast('Indiquez un cours de déclenchement.');return}
+  if(Math.abs(p/x.p-1)<0.0005){toast('Choisissez un seuil différent du cours actuel.');return}
+  D.alerts.push({id:newId(),s,n:x.n,p,c:x.c||'',dir:p>x.p?'up':'down',at:Date.now()});save();liveSync();
+  if(!MAC&&typeof Notification!=='undefined'&&Notification.permission==='default')try{Notification.requestPermission()}catch(e){}
+  $('mk-al').innerHTML=alertsOf(s);toast('Alerte créée : '+x.n+' '+alertTxt(D.alerts[D.alerts.length-1]));
+}
+function alertCheck(set){
+  let hit=false;
+  D.alerts.forEach(a=>{if(a.hit||!set.has(a.s))return;const q=FEED&&FEED.get(a.s);if(!q||!(q.p>0))return;
+    if(a.dir==='up'?q.p>=a.p:q.p<=a.p){a.hit=Date.now();hit=true;notify((a.n||a.s)+(a.dir==='up'?' a dépassé ':' est passé sous ')+pxfx({s:a.s,p:a.p,c:a.c}),'Cours actuel : '+pxfx({s:a.s,p:q.p,c:q.c||a.c})+'.')}});
+  if(hit){save();liveSync();if($('mk-al')&&CUR.mk)$('mk-al').innerHTML=alertsOf(CUR.mk);if($('mk-als'))$('mk-als').innerHTML=alertsOf()}
+}
+/* Notification du système (Mac, ou navigateur si autorisée), toujours doublée d'un message dans l'application */
+function notify(title,body){
+  toast(title);
+  try{if(MAC&&MAC.notifier){MAC.notifier(title,body);return}if(typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification(title,{body,icon:'icon-192.png'})}catch(e){}
+}
+/* Échéances des 7 prochains jours : prévenir une seule fois par projet */
+function dueNotify(){
+  if(!MAC&&!(typeof Notification!=='undefined'&&Notification.permission==='granted'))return;
+  let seen={};try{seen=JSON.parse(lsGet('pat_notif')||'{}')}catch(e){}
+  const now=Date.now();
+  D.assets.filter(a=>isRisky(a)&&a.status==='cours'&&endDate(a)).forEach(a=>{const e=endDate(a),dd=(e-now)/864e5;
+    if(dd<=7&&dd>-3&&!seen[a.id+'@'+e.toISOString().slice(0,10)]){seen[a.id+'@'+e.toISOString().slice(0,10)]=now;notify('Échéance '+(dd<0?'passée':'proche')+' : '+a.name,'Prévue le '+fd(e)+'. Pensez à vérifier le remboursement sur la plateforme.')}});
+  lsSet('pat_notif',JSON.stringify(seen));
 }
 function mkFav(){const s=CUR.mk;D.watch=Array.isArray(D.watch)?D.watch:[];const i=D.watch.indexOf(s);if(i>=0)D.watch.splice(i,1);else D.watch.push(s);save();toast(i>=0?'Retiré des favoris':'Ajouté aux favoris');if(MK.tab==='fav')mkLoad('fav');openMk(s);mkRender();liveSync()}
 function mkAdd(){const x=mkq(CUR.mk);if(!(x.p>0))return;const f=fxEur(x),pe=f||x.p;openForm('bourse','',{name:x.n,tick:x.s,price:Math.round(pe*100)/100})}
@@ -2362,6 +2980,7 @@ function liveSync(){
   FEED.watch('idx',tabSyms('idx'));
   FEED.watch('mk',UI.view==='mk'?tabSyms(MK.tab).slice(0,60):[]);
   FEED.watch('sheet',$('modal').classList.contains('open')&&CUR.mk?[CUR.mk]:[]);
+  FEED.watch('alerts',D.alerts.filter(a=>!a.hit).map(a=>a.s));
 }
 function liveTick(L){
   let fxNew=false,pf=false;
@@ -2377,6 +2996,7 @@ function liveTick(L){
     a.pxsrc='Direct';a.pxts=q.t&&q.t>Date.now()-864e5?Math.max(q.t,a.pxts||0):Date.now();
   });
   if(pf&&!LSAVE)LSAVE=setTimeout(()=>{LSAVE=0;save()},60000);
+  if(D.alerts.length)alertCheck(set);
   if(fxNew)liveSync();
   liveRepaint(set,pf);
 }
@@ -2395,6 +3015,7 @@ function liveRepaint(set,pf){
     if(q){if(Date.now()-last[0]>240000)MK.pts.push([Date.now(),q.p]);else last[1]=q.p;mkDraw()}
   }
   mkStatus();
+  if(pf&&D.set.bar&&typeof macBar==='function'){clearTimeout(liveRepaint.b);liveRepaint.b=setTimeout(macBar,2000)}
 }
 setInterval(()=>{if(UI.view==='mk')mkStatus()},1000);
 
@@ -2403,7 +3024,7 @@ function init(){
   applyTheme();$('gear').innerHTML=ic('sliders',22);$('fab').innerHTML=ic('plus',26);renderNav();render();renderAI();show(location.hash.slice(1)||'home');
   if(D.assets.length)save();
   if(D.set.auto!==false&&navigator.onLine!==false&&D.assets.some(a=>a.cat==='bourse'&&a.tick&&(!a.pxts||Date.now()-a.pxts>6*36e5)))refresh(true);
-  SNAP=snapOf();syncUI();idLoad();
+  SNAP=snapOf();syncUI();idLoad();macInit();setTimeout(dueNotify,6000);
   if(HOSTED){mkLoad('idx',true);mkLoad(MK.tab,true);setInterval(mkRefresh,10*60e3);liveSync();mkStatus();
     setInterval(()=>{if(!document.hidden&&syncOn())syncNow()},90e3);
     let LHID=0;
@@ -2412,7 +3033,7 @@ function init(){
       else{clearTimeout(LHID);if(syncOn())syncNow();mkRefresh();liveSync();if(FEED)FEED._poll()}
     });
     window.addEventListener('online',()=>{if(syncOn())syncNow()});
-    if('serviceWorker' in navigator){
+    if(!MAC&&'serviceWorker' in navigator){
       const had=!!navigator.serviceWorker.controller;let reloaded=false;
       navigator.serviceWorker.register('sw.js').then(r=>{setInterval(()=>r.update().catch(()=>{}),30*60e3)}).catch(()=>{});
       navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had||reloaded)return;reloaded=true;if($('modal').classList.contains('open')||($('ai-q')&&$('ai-q').value)){toast('Nouvelle version prête',{l:'Recharger',fn:()=>location.reload()})}else location.reload()});

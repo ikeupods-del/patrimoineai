@@ -44,7 +44,7 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(await pg.evaluate(() => /direct/.test(document.getElementById('lp').className) && !document.getElementById('lp').hidden), 'pastille Direct');
   await pg.evaluate(() => window.scrollTo(0, 0)); if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'accueil.png') });
   /* écran Marchés */
-  await pg.click('.tab[data-nav=mk]'); await pg.waitForSelector('#mkl .mkr'); await pg.waitForTimeout(300);
+  await pg.click('#tmore'); await pg.click('.tile[data-v=mk]'); await pg.waitForSelector('#mkl .mkr'); await pg.waitForTimeout(300);
   ok(await pg.locator('#mkl .mkr').count() >= 10, 'liste crypto affichée (' + await pg.locator('#mkl .mkr').count() + ')');
   const btc = pg.locator('#mkl .mkr', { hasText: 'Bitcoin' }); ok((await btc.textContent()).replace(/\s/g, '').includes('62000'), 'Bitcoin à 62 000 € dans la liste');
   await pg.evaluate(() => { const w = window.__ws.find(x => /binance/.test(x.url)); w.onmessage({ data: JSON.stringify({ stream: 'btceur@ticker', data: { s: 'BTCEUR', c: '63500', o: '59000', E: Date.now() } }) }); });

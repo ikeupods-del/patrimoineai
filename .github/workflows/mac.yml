@@ -1,0 +1,84 @@
+name: Patrimoine AI — application Mac
+
+# Construit l'application Mac (.dmg) sur un vrai Mac de GitHub, l'essaie (cours en direct réels, bilan PDF, sauvegardes, IA du Mac),
+# puis la publie dans « Releases » (étiquette patrimoine-mac-vX.Y.Z). Nouvelle version = changer « version » dans mac/package.json
+# et ajouter sa section dans mac/NOUVEAUTES.md. Une version déjà publiée n'est pas republiée.
+on:
+  workflow_dispatch:
+  push:
+    paths: ['index.html', 'config.js', 'marches.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
+
+concurrency:
+  group: patrimoine-mac
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Contrôler le moteur de cours
+        run: node tests/marches.test.js
+      - name: Installer les dépendances
+        working-directory: mac
+        env:
+          NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
+        run: npm ci
+      - name: Construire l'application
+        working-directory: mac
+        run: npm run dist
+      - name: Lancer l'application construite et l'essayer
+        working-directory: mac
+        run: |
+          PATRIMOINE_AUTOTEST="$PWD/autotest.json" "dist/mac-arm64/Patrimoine AI.app/Contents/MacOS/Patrimoine AI" || true
+          cat autotest.json
+          node -e '
+            const r = require("./autotest.json"), ko = [];
+            if (r.erreur) ko.push("erreur : " + r.erreur);
+            if (r.erreursConsole) ko.push("console : " + r.erreursConsole.join(" | "));
+            if (r.erreursPage && r.erreursPage.length) ko.push("page : " + r.erreursPage.join(" | "));
+            const p = r.page || {};
+            if (!p.mac || !p.hosted || !p.classe) ko.push("pont Mac absent");
+            if (!(p.net > 0) || !(p.dettes > 0) || !(p.budget > 0) || p.objectifs !== 1) ko.push("calculs : " + JSON.stringify(p));
+            if (!r.marches || !(r.marches.n >= 4)) ko.push("cours Yahoo directs : " + JSON.stringify(r.marches));
+            if (!r.graphique || !(r.graphique.points >= 5)) ko.push("historique Yahoo : " + JSON.stringify(r.graphique));
+            if (!r.direct || !(r.direct.coursEnDirect > 0 || r.direct.yahoo === "open" || r.direct.binance === "open")) ko.push("cours en direct (flux) : " + JSON.stringify(r.direct));
+            if (!r.ia || !r.ia.pont || !r.ia.provider) ko.push("IA du Mac : " + JSON.stringify(r.ia));
+            if (!r.sauvegarde || !(r.sauvegarde.n >= 1)) ko.push("sauvegarde : " + JSON.stringify(r.sauvegarde));
+            if (!r.pdf || !r.pdf.ok || !(r.pdf.taille > 20000)) ko.push("bilan PDF : " + JSON.stringify(r.pdf));
+            if (!r.maj || !r.maj.version) ko.push("mises à jour : " + JSON.stringify(r.maj));
+            if (ko.length) { console.log("Échecs :", ko.join(" ; ")); process.exit(1); } else console.log("Application : tout fonctionne");'
+      - name: Contrôler que tous les fichiers sont dans l'application
+        working-directory: mac
+        run: |
+          npx --yes @electron/asar list "dist/mac-arm64/Patrimoine AI.app/Contents/Resources/app.asar" > contenu.txt
+          for f in main.js preload.js maj.js ia-locale.js ia-worker.js app/index.html app/marches.js app/config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
+      - name: Contrôler que l'application tourne sur puce Apple
+        working-directory: mac
+        run: |
+          a=$(lipo -archs "dist/mac-arm64/Patrimoine AI.app/Contents/MacOS/Patrimoine AI")
+          echo "Architectures : $a"; case " $a " in *" arm64 "*) ;; *) exit 1;; esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Patrimoine-AI-mac
+          path: mac/dist/*.dmg
+      - name: Publier la version
+        working-directory: mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qx "patrimoine-mac-v$VERSION"; then
+            echo "La version $VERSION est déjà publiée : rien à faire (changer la version dans mac/package.json pour publier)."
+            exit 0
+          fi
+          awk -v v="## $VERSION" '$0==v{f=1;next} /^## /{f=0} f' NOUVEAUTES.md > notes.md
+          printf '\n%s\n' "Installation : ouvrir le .dmg et glisser Patrimoine AI dans Applications. Au premier lancement : clic droit sur l'application → Ouvrir. Les versions suivantes s'installent toutes seules." >> notes.md
+          gh release create "patrimoine-mac-v$VERSION" "dist/Patrimoine-AI-$VERSION-arm64.dmg" \
+            --title "Patrimoine AI pour Mac $VERSION" --notes-file notes.md --target "${{ github.sha }}"

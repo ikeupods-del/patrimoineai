@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connexion de l’application Mac · Patrimoine AI</title><meta name="robots" content="noindex"><link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="config.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:#f3f4f1;--card:#fff;--tx:#16201b;--mut:#5b6961;--p:#047857;--line:rgba(20,30,25,.12)}
+@media(prefers-color-scheme:dark){:root{--bg:#151311;--card:#211e1b;--tx:#f4f2ee;--mut:#a59f95;--p:#10b981;--line:rgba(255,255,255,.1)}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;padding:20px}
+main{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px;max-width:440px;width:100%;text-align:center}
+h1{font-size:21px;margin:10px 0 6px}p{color:var(--mut);margin:6px 0 18px}
+button{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:48px;border-radius:12px;background:#fff;color:#1f1f1f;border:1px solid #dadce0;font:600 16px system-ui,sans-serif;cursor:pointer}
+button[disabled]{opacity:.6;cursor:wait}#m{min-height:24px;margin-top:14px;font-size:14px}.ok{color:var(--p)}.ko{color:#dc2626}small{display:block;margin-top:18px;color:var(--mut)}
+</style></head><body><main>
+<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/></svg>
+<h1>Connecter l’application Mac</h1><p>Choisissez votre compte Google : Patrimoine AI sur votre Mac sera connecté, puis vous pourrez fermer cet onglet.</p>
+<button id="go"><svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7A14.5 14.5 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continuer avec Google</button>
+<div id="m" role="status"></div><small>Produit par QuenTools · Seul un jeton de connexion temporaire est transmis à votre Mac, jamais votre mot de passe.</small>
+</main>
+<script>
+'use strict';
+/* Connexion de l'application Mac (méthode « adresse de retour locale ») : l'application attend sur 127.0.0.1:port.
+   Cette page ne renvoie que vers 127.0.0.1, avec le code « etat » fourni par l'application. */
+const P=new URLSearchParams(location.hash.slice(1)),port=+P.get('port'),etat=P.get('etat')||'',m=document.getElementById('m'),b=document.getElementById('go');
+const valide=Number.isInteger(port)&&port>=1024&&port<=65535&&/^[A-Za-z0-9_-]{16,80}$/.test(etat);
+if(!valide){m.className='ko';m.textContent='Lien incomplet : relancez la connexion depuis l’application Mac (Réglages, Continuer avec Google).';b.disabled=true}
+const retour=q=>{location.replace('http://127.0.0.1:'+port+'/retour?'+new URLSearchParams(Object.assign({etat},q)).toString())};
+b.onclick=async()=>{
+  if(!valide)return;b.disabled=true;m.className='';m.textContent='Ouverture de Google…';
+  try{
+    const B='https://www.gstatic.com/firebasejs/10.14.1/',[A,Au]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js')]);
+    const auth=Au.getAuth(A.initializeApp(window.PATRIMOINE_CONFIG.firebase)),pr=new Au.GoogleAuthProvider();pr.setCustomParameters({prompt:'select_account'});
+    const res=await Au.signInWithPopup(auth,pr),c=Au.GoogleAuthProvider.credentialFromResult(res);
+    if(!c||!c.idToken)throw Error('jeton absent');
+    m.className='ok';m.textContent='Connecté. Retour à l’application…';retour({id:c.idToken,acces:c.accessToken||''});
+  }catch(e){const c=e&&e.code||'';b.disabled=false;m.className='ko';
+    if(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request'){m.textContent='Connexion annulée.';return}
+    m.textContent=c==='auth/popup-blocked'?'Autorisez les fenêtres pop-up pour ce site, puis réessayez.':'Connexion impossible : '+(e.message||c);}
+};
+</script></body></html>
