@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('patrimoineMac', {
   notifier: (titre, corps) => ipcRenderer.invoke('notif', titre, corps),
   pdf: (html, nom) => ipcRenderer.invoke('pdf', html, nom),
   barre: texte => ipcRenderer.invoke('barre', texte),
+  cleCoffre: () => ipcRenderer.invoke('coffre:cle'),
+  ouvrirDocument: (nom, octets) => ipcRenderer.invoke('coffre:ouvrir', nom, octets),
   connexionGoogle: () => ipcRenderer.invoke('google'),
   surVerrou: cb => { surVerrou = cb; },
   surCommande: cb => { surCommande = cb; }

@@ -6,7 +6,7 @@ name: Patrimoine AI — application Mac
 on:
   workflow_dispatch:
   push:
-    paths: ['index.html', 'config.js', 'marches.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
+    paths: ['index.html', 'config.js', 'marches.js', 'calculs.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
 
 concurrency:
   group: patrimoine-mac
@@ -23,8 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Contrôler le moteur de cours
-        run: node tests/marches.test.js
+      - name: Contrôler le moteur de cours et les calculs
+        run: node tests/marches.test.js && node tests/calculs.test.js
       - name: Installer les dépendances
         working-directory: mac
         env:
@@ -66,6 +66,9 @@ jobs:
             if (!r.direct || !(r.direct.coursEnDirect > 0 || r.direct.yahoo === "open" || r.direct.binance === "open")) ko.push("cours en direct (flux) : " + JSON.stringify(r.direct));
             if (!r.actualites || !(r.actualites.n >= 5)) ko.push("actualités : " + JSON.stringify(r.actualites));
             if (!r.ia || !r.ia.pont || !r.ia.provider) ko.push("IA du Mac : " + JSON.stringify(r.ia));
+            if (!r.coffre || !r.coffre.ok || !r.coffre.ouvert || !r.coffre.ouvert.ok) ko.push("coffre à documents : " + JSON.stringify(r.coffre));
+            const v = r.v63 || {};
+            if (v.ops !== 3 || v.dep !== 93.49 || v.cat !== "revenu,abonnement,alimentation" || v.fire !== 750000 || v.passifs !== "string") ko.push("budget réel et simulations : " + JSON.stringify(v));
             const q = r.iaReponse || {};
             if (!q.installee || q.erreur || !(String(q.texte || "").length > 80)) ko.push("réponse de l’IA du Mac : " + JSON.stringify(q));
             if (!r.sauvegarde || !(r.sauvegarde.n >= 1)) ko.push("sauvegarde : " + JSON.stringify(r.sauvegarde));
@@ -76,7 +79,7 @@ jobs:
         working-directory: mac
         run: |
           npx --yes @electron/asar list "dist/mac-arm64/Patrimoine AI.app/Contents/Resources/app.asar" > contenu.txt
-          for f in main.js preload.js maj.js ia-locale.js ia-worker.js app/index.html app/marches.js app/config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
+          for f in main.js preload.js maj.js ia-locale.js ia-worker.js app/index.html app/marches.js app/calculs.js app/config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
       - name: Contrôler que l'application tourne sur puce Apple
         working-directory: mac
         run: |

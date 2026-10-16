@@ -2,7 +2,7 @@
 // l'accès direct aux cours (sans relais), l'IA du Mac, le verrouillage Touch ID, les sauvegardes automatiques,
 // les notifications, le bilan PDF et les mises à jour automatiques. Produit par QuenTools.
 'use strict';
-const { app, BrowserWindow, Menu, shell, ipcMain, protocol, net, session, dialog, Notification, systemPreferences, powerMonitor, Tray, nativeImage, nativeTheme } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, protocol, net, session, dialog, Notification, systemPreferences, powerMonitor, Tray, nativeImage, nativeTheme, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -113,6 +113,32 @@ ipcMain.handle('notif', garde((e, titre, corps) => {
   n.on('click', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
   n.show(); return true;
 }));
+
+/* ---------- Coffre à documents : clé de chiffrement protégée par le trousseau du Mac ----------
+   Les documents sont chiffrés dans la page (AES-256) ; leur clé est gardée ici, chiffrée par le trousseau (safeStorage). */
+const FICHIER_CLE = () => path.join(app.getPath('userData'), 'coffre.cle');
+ipcMain.handle('coffre:cle', garde(() => {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('trousseau indisponible');
+  const f = FICHIER_CLE();
+  if (fs.existsSync(f)) return safeStorage.decryptString(fs.readFileSync(f));
+  const cle = crypto.randomBytes(32).toString('base64');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, safeStorage.encryptString(cle), { mode: 0o600 });
+  return cle;
+}));
+// Un document ouvert est déchiffré dans un dossier temporaire privé, effacé après 10 minutes et à la fermeture
+const DOSSIER_OUVERTS = () => path.join(os.tmpdir(), 'patrimoine-ai-documents');
+ipcMain.handle('coffre:ouvrir', garde(async (e, nom, octets) => {
+  const d = path.join(DOSSIER_OUVERTS(), crypto.randomBytes(6).toString('hex'));
+  fs.mkdirSync(d, { recursive: true, mode: 0o700 });
+  const f = path.join(d, String(nom || 'document').replace(/[\/\\:*?"<>|\x00-\x1f]/g, '_').replace(/^\.+/, '').slice(0, 120) || 'document');
+  fs.writeFileSync(f, Buffer.from(octets), { mode: 0o600 });
+  setTimeout(() => fs.rmSync(d, { recursive: true, force: true }), 10 * 60000);
+  if (AUTOTEST) return { ok: true, taille: fs.statSync(f).size };
+  const err = await shell.openPath(f); if (err) throw new Error(err);
+  return { ok: true };
+}));
+app.on('will-quit', () => { try { fs.rmSync(DOSSIER_OUVERTS(), { recursive: true, force: true }); } catch (e) { /* rien à effacer */ } });
 
 /* ---------- Bilan PDF ---------- */
 ipcMain.handle('pdf', garde(async (e, html, nom) => {
@@ -286,6 +312,8 @@ function autotest() {
       res.touch = await js(`MAC.touchDispo()`);
       res.maj = await js(`MAC.maj.etat()`);
       res.notif = await js(`MAC.notifier('Patrimoine AI','Essai automatique')`);
+      res.coffre = await js(`Promise.race([new Promise(ok=>setTimeout(()=>ok({erreur:'délai'}),30000)),(async()=>{try{const id=await cofAjouter(new File([new TextEncoder().encode('essai du coffre')],'essai.txt',{type:'text/plain'}),'','autre');const b=await cofLire(id),m=D.docs.find(x=>x.id===id),o=await MAC.ouvrirDocument(m.nom,new Uint8Array(b));return{ok:new TextDecoder().decode(b)==='essai du coffre',cle:m.k,ouvert:o}}catch(e){return{erreur:String(e.message||e)}}})()])`);
+      res.v63 = await js(`(()=>{D.ops=CL.fusionnerOps([],CL.lireReleve('Date;Libellé;Montant\\n01/09/2026;VIR SALAIRE;2500,00\\n05/09/2026;PRLV NETFLIX.COM;-13,49\\n06/09/2026;CB CARREFOUR;-80,00').ops,{});const r=CL.reelDuMois(D.ops,'2026-09');const f=CL.independance({age:40,capital:100000,epargne:500,depenses:2500});return{ops:D.ops.length,dep:r.dep,cat:D.ops.map(o=>o.cat).join(','),fire:f.cible,passifs:typeof passifsHTML()}})()`);
       res.iaReponse = await js(`(async()=>{await macIaEtat();if(!MACIA.installee)return{installee:false};const t0=Date.now();
         try{const m=await macAnswer('Combien dois-je investir chaque mois ?',[],{max:200});return{installee:true,src:m.src,note:m.note||'',texte:String(m.t).slice(0,1200),ms:Date.now()-t0}}
         catch(e){return{installee:true,erreur:String(e.message||e),ms:Date.now()-t0}}})()`);
