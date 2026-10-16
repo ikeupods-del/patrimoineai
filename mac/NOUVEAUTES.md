@@ -1,5 +1,9 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.1.1
+- Avec le verrouillage Touch ID, l’écran est masqué dès l’ouverture, avant tout affichage des montants.
+- Message clair si la connexion Google n’est pas encore disponible.
+
 ## 6.1.0
 - **Interface repensée** : barre latérale façon Mac avec raccourcis (⌘1 à ⌘8), recherche toujours visible, montants plus lisibles, graphiques qui affichent la valeur au survol.
 - Le budget ne se redessine plus pendant la saisie ; le bouton « + » s’adapte à l’écran (nouvel objectif sur Objectifs).
