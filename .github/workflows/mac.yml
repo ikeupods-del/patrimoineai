@@ -43,6 +43,10 @@ jobs:
           mkdir -p ~/ia-modele; f=~/ia-modele/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
           [ -s "$f" ] || curl -L --fail --retry 3 -o "$f" "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
           ls -la ~/ia-modele
+      - name: Diagnostic des sources (cours et actualités) depuis ce Mac
+        run: |
+          for u in "https://news.google.com/rss/search?q=bourse&hl=fr&gl=FR&ceid=FR:fr" "https://query1.finance.yahoo.com/v1/finance/search?q=petrole&quotesCount=0&newsCount=3"; do
+            echo "$(curl -s -o /dev/null -w '%{http_code}' -A 'Mozilla/5.0 (Macintosh) Chrome/150 Safari/537.36' "$u") $u"; done
       - name: Lancer l'application construite et l'essayer
         working-directory: mac
         timeout-minutes: 30

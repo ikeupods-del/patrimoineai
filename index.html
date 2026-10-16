@@ -3143,18 +3143,30 @@ function newsParse(xml){
   });
   return out.sort((a,b)=>b.ts-a.ts).slice(0,40);
 }
-const NCACHE=new Map();
-async function newsFetch(q){
-  const hit=NCACHE.get(q);if(hit&&Date.now()-hit.at<10*60e3)return hit.items;
-  const items=newsParse(await newsGet(newsUrl(q)));NCACHE.set(q,{at:Date.now(),items});return items;
+/* Source de secours si Google Actualités ne répond pas : la recherche de Yahoo Finance (titres en anglais) */
+const NEN={une:'economy markets',marches:'stock market',tech:'technology stocks',energie:'oil prices OPEC',matieres:'gold commodities',taux:'ECB Fed interest rates',immo:'real estate housing market',crypto:'bitcoin crypto',banques:'banks insurers',industrie:'automakers industry',conso:'luxury retail',sante:'pharma',emploi:'jobs economy',epargne:'savings',mes:''};
+const NREN={monde:'',france:'France',europe:'Europe',usa:'US',asie:'Asia',chine:'China',japon:'Japan',moyen:'Middle East',latam:'Latin America',afrique:'Africa'};
+async function newsYahoo(text){
+  const d=await yget('/v1/finance/search?q='+encodeURIComponent(text.slice(0,80))+'&quotesCount=0&newsCount=20');
+  const L=(d&&d.news||[]).filter(n=>n.title&&/^https:\/\//.test(n.link||'')).map(n=>({t:n.title,u:n.link,s:n.publisher||'Yahoo Finance',ts:(n.providerPublishTime||0)*1000,en:1}));
+  if(!L.length)throw Error('Actualités indisponibles pour le moment.');return L.sort((a,b)=>b.ts-a.ts);
 }
+const NCACHE=new Map();
+async function newsFetch(q,alt){
+  const hit=NCACHE.get(q);if(hit&&Date.now()-hit.at<10*60e3)return hit.items;
+  let items;
+  try{items=newsParse(await newsGet(newsUrl(q)))}
+  catch(e){if(!alt)throw e;try{items=await newsYahoo(alt)}catch(x){throw e}}
+  NCACHE.set(q,{at:Date.now(),items});return items;
+}
+const newsAlt=(th,rg,free)=>free?free:th==='mes'?D.assets.filter(a=>a.cat==='bourse'&&a.name).map(a=>a.name).slice(0,2).join(' '):[NEN[th]||NEN.une,NREN[rg]||''].join(' ').trim();
 async function newsLoad(force){
   if(!HOSTED){NW.err='file';renderNews();return}
   const q=newsQuery(D.set.nth||'une',D.set.nrg||'monde',NW.q.trim());
   if(!q){NW.items=[];NW.err='';NW.key='';renderNews();return}
   if(!force&&NW.key===q&&Date.now()-NW.at<10*60e3)return;
   if(force)NCACHE.delete(q);NW.busy=true;NW.key=q;renderNews();
-  try{const items=await newsFetch(q);if(NW.key!==q)return;NW.items=items;NW.at=Date.now();NW.err='';try{localStorage.setItem('pat_news',JSON.stringify({q,at:NW.at,items:items.slice(0,20)}))}catch(e){}}
+  try{const items=await newsFetch(q,newsAlt(D.set.nth||'une',D.set.nrg||'monde',NW.q.trim()));if(NW.key!==q)return;NW.items=items;NW.at=Date.now();NW.err='';try{localStorage.setItem('pat_news',JSON.stringify({q,at:NW.at,items:items.slice(0,20)}))}catch(e){}}
   catch(e){if(NW.key!==q)return;NW.err=e.message;let old=null;try{old=JSON.parse(localStorage.getItem('pat_news')||'null')}catch(x){}if(old&&old.q===q){NW.items=old.items;NW.at=old.at;NW.err+=' Dernières nouvelles enregistrées affichées.'}}
   finally{if(NW.key===q){NW.busy=false;renderNews();newsMini();setTitle()}}
 }
@@ -3171,7 +3183,7 @@ function renderNews(){
   else if(NW.busy&&!NW.items.length)h+=`<div class="mt">${'<div class="mkr sk" style="min-height:74px"></div>'.repeat(6)}</div>`;
   else{
     if(NW.err&&NW.err!=='file')h+=`<p class="sm ${NW.items.length?'mut':'neg'} mt">${esc(NW.err)}</p>`;
-    if(NW.items.length){const [f,...rest]=NW.items;h+=`<div class="nwg mt">${newsRow(f,true)}${rest.map(n=>newsRow(n)).join('')}</div><p class="hint">Titres et liens fournis par Google Actualités, en français. L’article s’ouvre sur le site du journal${MAC?' dans votre navigateur':''}. Les actualités ne sont pas des conseils d’investissement.</p>`}
+    if(NW.items.length){const [f,...rest]=NW.items;h+=`<div class="nwg mt">${newsRow(f,true)}${rest.map(n=>newsRow(n)).join('')}</div><p class="hint">${f.en?'Google Actualités ne répond pas pour le moment : titres de Yahoo Finance (en anglais) en attendant.':'Titres et liens fournis par Google Actualités, en français.'} L’article s’ouvre sur le site du journal${MAC?' dans votre navigateur':''}. Les actualités ne sont pas des conseils d’investissement.</p>`}
     else if(!NW.err&&NW.key)h+=`<section class="card mt"><p class="sm mut">Aucun article sur cette période. Essayez « 7 jours » ou une autre région.</p></section>`;
   }
   el.innerHTML=h;
@@ -3186,7 +3198,7 @@ function newsMini(){
 /* Fiche d'une valeur : ses dernières actualités */
 async function mkNews(s,name){
   const o=$('mk-nw');if(!o||!name)return;
-  try{const L=await newsFetch('"'+String(name).replace(/"/g,'')+'" when:7d');if(CUR.mk!==s||!$('mk-nw'))return;o.innerHTML=L.length?`<div class="lbl" style="margin-top:16px">Actualités</div><div class="nwg">${L.slice(0,4).map(n=>newsRow(n)).join('')}</div>`:''}
+  try{const L=await newsFetch('"'+String(name).replace(/"/g,'')+'" when:7d',String(name));if(CUR.mk!==s||!$('mk-nw'))return;o.innerHTML=L.length?`<div class="lbl" style="margin-top:16px">Actualités</div><div class="nwg">${L.slice(0,4).map(n=>newsRow(n)).join('')}</div>`:''}
   catch(e){if($('mk-nw'))$('mk-nw').innerHTML=''}
 }
 

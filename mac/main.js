@@ -47,9 +47,14 @@ function servir() {
 const YAHOO = /^(https|wss):\/\/([a-z0-9-]+\.)*finance\.yahoo\.com(:\d+)?\//i;
 function reseau() {
   const s = session.defaultSession;
-  s.webRequest.onBeforeSendHeaders({ urls: ['https://*.finance.yahoo.com/*', 'wss://*.finance.yahoo.com/*'] }, (d, cb) => {
+  const UA = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
+  s.webRequest.onBeforeSendHeaders({ urls: ['https://*.finance.yahoo.com/*', 'wss://*.finance.yahoo.com/*', 'https://news.google.com/*'] }, (d, cb) => {
     const h = d.requestHeaders;
     if (YAHOO.test(d.url)) { h.Origin = 'https://finance.yahoo.com'; h.Referer = 'https://finance.yahoo.com/'; }
+    else { // Google Actualités : requête présentée comme une simple lecture du flux par le navigateur
+      for (const k of Object.keys(h)) if (/^(origin|referer|sec-fetch-.*|sec-ch-ua.*)$/i.test(k)) delete h[k];
+      h['User-Agent'] = UA; h['Accept-Language'] = 'fr-FR,fr;q=0.9';
+    }
     cb({ requestHeaders: h });
   });
   s.webRequest.onHeadersReceived({ urls: ['https://*.finance.yahoo.com/*', 'https://news.google.com/rss/*'] }, (d, cb) => {
@@ -273,7 +278,8 @@ function autotest() {
       res.marches = await js(`(async()=>{const r=await marketApi('/api/market?list=idx');return{n:(r.items||[]).length,erreur:r.error||'',exemple:(r.items||[])[0]||null}})()`);
       res.graphique = await js(`(async()=>{const r=await marketApi('/api/market?chart=%5EFCHI&range=1mo');return{points:(r.pts||[]).length,erreur:r.error||''}})()`);
       res.direct = await js(`new Promise(ok=>{const t0=Date.now(),f=()=>{const s=FEED?FEED.status():{},n=FEED?Object.values(FEED.Q).filter(q=>q.src==='direct').length:0;if((n>0)||Date.now()-t0>40000)ok({yahoo:s.yahoo,binance:s.binance,mode:s.mode,coursEnDirect:n});else setTimeout(f,500)};f()})`);
-      res.actualites = await js(`(async()=>{try{const L=await newsFetch(newsQuery('energie','europe'));return{n:L.length,exemple:L[0]?L[0].t+' — '+L[0].s:''}}catch(e){return{n:0,erreur:e.message}}})()`);
+      res.actualites = await js(`(async()=>{const r={};try{const L=newsParse(await newsGet(newsUrl(newsQuery('energie','europe'))));r.google=L.length;r.exemple=L[0]?L[0].t+' — '+L[0].s:''}catch(e){r.google=0;r.erreurGoogle=e.message}
+        try{const L=await newsYahoo(newsAlt('energie','europe'));r.yahoo=L.length;r.exempleYahoo=L[0]?L[0].t:''}catch(e){r.yahoo=0;r.erreurYahoo=e.message}r.n=Math.max(r.google,r.yahoo);return r})()`);
       res.ia = await js(`(async()=>{const e=await MAC.ia.etat();return{pont:true,installee:e.installee,mo:e.mo,provider:!!PROV.mac}})()`);
       res.sauvegarde = await js(`(async()=>{D.assets.forEach(a=>delete a.demo);const s=await MAC.sauvegarder(JSON.stringify(D));return s})()`);
       res.pdf = await js(`MAC.pdf(bilanHTML(),'Bilan-essai.pdf')`);
