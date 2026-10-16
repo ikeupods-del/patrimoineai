@@ -146,8 +146,10 @@ ipcMain.handle('barre', garde((e, texte) => {
 /* ---------- Connexion Google : dans le navigateur du Mac (Google refuse les fenêtres intégrées) ----------
    L'application attend la réponse sur 127.0.0.1 (port choisi au hasard), avec un code à usage unique. */
 let connexion = null;
-ipcMain.handle('google', garde(() => {
+ipcMain.handle('google', garde(async () => {
   if (connexion) connexion.annuler();
+  try { const t = await net.fetch(PAGE_CONNEXION, { method: 'HEAD', cache: 'no-store' }); if (t.status === 404) return { message: 'La page de connexion n’est pas encore en ligne : publiez la nouvelle version du site, puis réessayez.' }; }
+  catch (e) { return { message: 'Pas de connexion Internet : la synchronisation demande d’être en ligne.' }; }
   return new Promise(ok => {
     const etat = crypto.randomBytes(24).toString('base64url');
     let fini = false, minuteur = null;

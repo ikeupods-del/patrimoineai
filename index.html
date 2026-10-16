@@ -1202,7 +1202,7 @@ async function sauvRest(f){
 }
 /* Verrouillage Touch ID */
 let LOCKT=0;
-function lockNow(){if(!MAC||!D.set.lock||!MACST.touch)return;closePal();document.body.classList.add('locked');$('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller avec Touch ID</button>`;setTimeout(()=>{const b=$('unl');if(b)b.focus()},50)}
+function lockNow(force){if(!MAC||!D.set.lock||(!MACST.touch&&!force))return;closePal();document.body.classList.add('locked');$('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller avec Touch ID</button>`;setTimeout(()=>{const b=$('unl');if(b)b.focus()},50)}
 async function unlock(){try{const ok=await MAC.touchID('déverrouiller Patrimoine AI');if(ok){document.body.classList.remove('locked');lockArm()}}catch(e){toast('Touch ID : '+e.message)}}
 function lockArm(){clearTimeout(LOCKT);if(MAC&&D.set.lock&&MACST.touch)LOCKT=setTimeout(lockNow,5*60e3)}
 ['pointerdown','keydown','wheel'].forEach(ev=>document.addEventListener(ev,()=>{if(!document.body.classList.contains('locked'))lockArm()},{passive:true}));
@@ -1219,8 +1219,9 @@ window.patCmd=c=>{
 };
 async function macInit(){
   if(!MAC)return;document.body.classList.add('mac');
+  if(D.set.lock)lockNow(true); /* verrouillé avant tout affichage, puis confirmé si Touch ID est disponible */
   try{MACST.touch=!!(MAC.touchDispo&&await MAC.touchDispo())}catch(e){}
-  if(D.set.lock&&MACST.touch)lockNow();
+  if(D.set.lock&&!MACST.touch)document.body.classList.remove('locked');else if(D.set.lock)lockArm();
   try{MACST.maj=await MAC.maj.etat()}catch(e){}
   if(MAC.maj&&MAC.maj.surChangement)MAC.maj.surChangement(e=>{const was=MACST.maj&&MACST.maj.etat;MACST.maj=e;if(UI.view==='set')renderSet();if(e.etat==='pret'&&was!=='pret')toast('Nouvelle version '+e.nouvelle+' prête',{l:'Redémarrer',fn:()=>MAC.maj.installer()})});
   if(MAC.surVerrou)MAC.surVerrou(()=>lockNow());
