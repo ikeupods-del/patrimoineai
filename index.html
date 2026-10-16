@@ -351,6 +351,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 <section class="view on" id="v-home"></section>
 <section class="view" id="v-assets"></section>
 <section class="view" id="v-goals"></section>
+<section class="view" id="v-bank"></section>
 <section class="view" id="v-budget"></section>
 <section class="view" id="v-mk"></section>
 <section class="view" id="v-news"></section>
@@ -372,7 +373,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
-const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.3';
+const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.4';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
 const UI={view:'home',filter:'all',q:'',sort:'val',tool:'tax',range:'all'};
 let HIDE=false,CUR={id:''},IMP={},AIBUSY=false,RFB=false,ASK=null,TOASTACT=null,toastT=null;
@@ -386,6 +387,9 @@ const fd=d=>d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'nume
 const fmy=d=>d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
 
 /* ===================== Données ===================== */
+/* Rappels de paiement proposés au premier lancement : Bricks le 8 et BienPrêter le 5 de chaque mois */
+const RAP_DEF=[['Bricks',8,'bricks'],['BienPrêter',5,'bienpreter|bien preter|lemonway']];
+const rapDefaut=()=>RAP_DEF.map(([nom,jour,motif])=>({id:newId(),nom,jour,attendu:'',aid:'',dest:'plateforme',cpt:'',motif,cree:today(),hist:{},actif:true}));
 function load(){
   let d;try{d=JSON.parse(localStorage.getItem(K))}catch(e){}
   d=d&&typeof d==='object'&&!Array.isArray(d)?d:{};
@@ -401,6 +405,8 @@ function load(){
   d.ops=Array.isArray(d.ops)?d.ops.filter(o=>o&&o.id&&o.d&&isFinite(o.m)):[];d.regles=d.regles&&typeof d.regles==='object'&&!Array.isArray(d.regles)?d.regles:{};
   d.fx=d.fx&&typeof d.fx==='object'&&!Array.isArray(d.fx)?d.fx:{};d.fire=d.fire&&typeof d.fire==='object'&&!Array.isArray(d.fire)?d.fire:{};d.docs=Array.isArray(d.docs)?d.docs.filter(x=>x&&x.id):[];
   d.alerts=Array.isArray(d.alerts)?d.alerts.filter(x=>x&&x.s&&num(x.p)>0):[];d.target=d.target&&typeof d.target==='object'&&!Array.isArray(d.target)?d.target:{};
+  d.bank=d.bank&&typeof d.bank==='object'&&!Array.isArray(d.bank)?d.bank:null; /* banque liée : noms des comptes et soldes (la session reste sur le serveur) */
+  d.rappels=d.rappels===undefined?rapDefaut():Array.isArray(d.rappels)?d.rappels.filter(r=>r&&typeof r==='object'&&r.id):[];
   d.set=Object.assign({theme:'auto',hide:false,auto:true,prov:localStorage.getItem(KK)?'gemini':'local',fb:true,gmodel:'',gsrc:'key',mtab:'etf'},d.set||{});
   return d;
 }
@@ -575,6 +581,8 @@ function insights(){
   if(st)add('info','Cours à actualiser','Le cours de '+st+' position(s) date de plus de 7 jours.',{l:'Actualiser',a:'refresh'});
   {const pea=B.filter(a=>a.env==='pea').reduce((s,a)=>s+inv(a),0);if(pea>135000)add(pea>150000?'warn':'info','Plafond du PEA bientôt atteint','Vos achats sur le PEA représentent environ '+eur(pea)+' pour un plafond de versements de 150 000 €. Les versements comptent, pas la valeur : vérifiez le montant exact chez votre courtier.')}
   if(A.length>=3&&!A.some(a=>a.cat==='cash'))add('info','Aucune liquidité renseignée','Ajoutez vos livrets et comptes pour voir la part de votre patrimoine disponible immédiatement.',{l:'Ajouter un livret',a:'add',c:'cash'});
+  rapDus().filter(x=>x.statut==='retard').forEach(x=>add('warn','Paiement à confirmer : '+x.r.nom,'Prévu le '+rapDate(x.date)+', toujours pas confirmé au bout de '+x.jours+' jours. Vérifiez sur la plateforme, puis confirmez-le depuis l’accueil.',{l:'Mes rappels',a:'go',v:'bank'}));
+  if(bqLie()){const j=bqJours(),nm=D.bank.banque||'votre banque';if(D.bank.statut==='expire'||(j!=null&&j<0))add('warn','Accès à '+nm+' expiré','Les soldes ne sont plus mis à jour. Renouvelez l’accord en vous identifiant de nouveau sur le site de la banque.',{l:'Renouveler',a:'go',v:'bank'});else if(j!=null&&j<=14)add('info','Accès à '+nm+' : plus que '+j+' jour'+(j>1?'s':''),'Renouvelez l’accord pour que vos soldes restent à jour.',{l:'Renouveler',a:'go',v:'bank'})}
   if(A.length>=3&&!MAC&&!syncOn()&&!A.every(a=>a.demo)&&(!D.lastBackup||Date.now()-D.lastBackup>30*864e5))add('info','Pensez à sauvegarder','Vos données ne sont que sur cet appareil. Un export régulier évite de tout perdre en cas de changement de téléphone ou d’effacement du navigateur.',{l:'Exporter maintenant',a:'exp'});
   if(!out.some(o=>o.lvl==='bad'||o.lvl==='warn'))out.push({lvl:'good',title:'Rien d’alarmant',text:'Aucun point de vigilance détecté sur vos données actuelles.'});
   const ord={bad:0,warn:1,info:2,good:3};return out.sort((x,y)=>ord[x.lvl]-ord[y.lvl]);
@@ -710,13 +718,13 @@ const keyOf=p=>p==='local'?'local':p==='mac'?(MACIA.installee?'mac':null):p==='g
 const hasAIKey=()=>!!keyOf(aiProv());
 
 /* ===================== Navigation ===================== */
-const TITLES={news:'Actualités',home:'Mon patrimoine',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',mk:'Marchés',analyse:'Analyse',ai:'Assistant IA',tools:'Simulateurs',set:'Réglages'};
-const NAV=[['home','Accueil','home'],['assets','Placements','list'],['budget','Budget','wallet'],['goals','Objectifs','target'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['ai','Assistant','spark'],['tools','Outils','calc'],['news','Actualités','news']];
+const TITLES={news:'Actualités',home:'Mon patrimoine',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant IA',tools:'Simulateurs',set:'Réglages'};
+const NAV=[['home','Accueil','home'],['assets','Placements','list'],['budget','Budget','wallet'],['goals','Objectifs','target'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['ai','Assistant','spark'],['tools','Outils','calc'],['news','Actualités','news'],['bank','Banques','bank']];
 const NAVM=['home','assets','budget','goals','ai']; /* barre du bas sur téléphone ; le reste est dans « Plus » */
 function renderNav(){
   $('tabs').innerHTML=NAV.filter(n=>NAVM.includes(n[0])).map(n=>`<button class="tab" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],22)}<span>${n[1]}</span></button>`).join('')+`<button class="tab" data-act="more" id="tmore">${ic('grid',22)}<span>Plus</span></button>`;
-  const K=MAC?'⌘':'',G=[['Patrimoine',['home','assets','budget','goals']],['Marchés et analyse',['mk','news','analyse','tools']],['Assistant',['ai']]],nm=v=>NAV.find(n=>n[0]===v);
-  $('side').innerHTML=G.map(([t,L])=>`<div class="navg">${t}</div>`+L.map(v=>{const n=nm(v),i=NAV.indexOf(n)+1;return `<button class="navi" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],18)}${({ai:'Assistant IA',tools:'Simulateurs'})[n[0]]||n[1]}${K?`<span class="kbd">${K}${i}</span>`:''}</button>`}).join('')).join('')
+  const K=MAC?'⌘':'',G=[['Patrimoine',['home','assets','budget','goals','bank']],['Marchés et analyse',['mk','news','analyse','tools']],['Assistant',['ai']]],nm=v=>NAV.find(n=>n[0]===v);
+  $('side').innerHTML=G.map(([t,L])=>`<div class="navg">${t}</div>`+L.map(v=>{const n=nm(v),i=NAV.indexOf(n)+1;return `<button class="navi" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],18)}${({ai:'Assistant IA',tools:'Simulateurs',bank:'Mes banques'})[n[0]]||n[1]}${K&&i<10?`<span class="kbd">${K}${i}</span>`:''}</button>`}).join('')).join('')
     +`<button class="btn mt" data-act="add" style="margin:16px 2px 4px;white-space:nowrap;padding:0 12px">${ic('plus',18)}Ajouter un placement</button><div class="sp"></div><div id="sacc"></div><button class="navi" data-act="go" data-v="set" data-nav="set">${ic('sliders',18)}Réglages${K?'<span class="kbd">⌘,</span>':''}</button><div class="xs mut" style="padding:8px 12px 0">Produit par QuenTools</div>`;
   $$hs();
 }
@@ -734,6 +742,7 @@ const SUBT=()=>{const v=UI.view,A=D.assets;
   if(v==='goals'){const n=(D.goals||[]).length;return n?n+' objectif'+(n>1?'s':''):''}
   if(v==='ai')return PROV[aiProv()]?PROV[aiProv()].n:'';
   if(v==='news')return newsLabel();
+  if(v==='bank')return bqLie()?D.bank.banque||'':'';
   return '';};
 function setTitle(){$('ttl').textContent=TITLES[UI.view];const s=$('sttl');if(s){const t=SUBT();s.textContent=t?t.charAt(0).toUpperCase()+t.slice(1):'';s.hidden=!t}}
 function show(v){
@@ -745,6 +754,7 @@ function show(v){
   if(v==='ai')scrollChat();
   if(v==='mk'&&typeof liveSync==='function'){liveSync();mkLoad(MK.tab,true)}
   if(v==='news'&&typeof newsLoad==='function')newsLoad();
+  if(v==='bank')bqVue();
 }
 function go(v){try{if(location.hash!=='#'+v)history.pushState(null,'','#'+v)}catch(e){}show(v)}
 function syncEye(){const b=$('eye');b.innerHTML=ic(HIDE?'eyeoff':'eye',22);b.setAttribute('aria-label',HIDE?'Afficher les montants':'Masquer les montants')}
@@ -754,7 +764,7 @@ function applyTheme(){
   const light=t==='light'||(t==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches);
   const m=document.querySelector('meta[name=theme-color]');if(m)m.content=light?'#f3f4f1':'#151311';
 }
-function render(){renderHome();renderAssets();renderBudget();renderGoals();mkRender();renderNews();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc()}
+function render(){renderHome();renderAssets();renderBudget();renderGoals();renderBank();mkRender();renderNews();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc()}
 
 /* ===================== Accueil ===================== */
 const actBtn=a=>`<button class="btn sm sec" data-act="${a.a}"${a.id?` data-id="${esc(a.id)}"`:''}${a.v?` data-v="${a.v}"`:''}${a.c?` data-c="${a.c}"`:''}>${esc(a.l)}</button>`;
@@ -774,7 +784,7 @@ function renderHome(){
   const A=D.assets,el=$('v-home');
   if(!A.length){el.innerHTML=onboarding()+'<section class="card" id="mkmini" style="margin-top:14px"></section>';mkMini();return}
   const T=totals(),bc=byCat(),ins=insights(),dem=A.some(a=>a.demo),pts=histPts(UI.range);
-  let h='<div class="grid2">'+recapHTML();
+  let h='<div class="grid2">'+recapHTML()+rapHTML();
   if(dem)h+=`<section class="card span2" style="border-color:var(--warn)"><b>Vous regardez des données d’exemple</b><div class="sm mut">Supprimez-les quand vous voulez pour commencer avec vos vrais placements.</div><div class="g2 mt"><button class="btn sec sm" data-act="democlear">Supprimer les exemples</button><button class="btn sm" data-act="add">Ajouter mon placement</button></div></section>`;
   h+=`<section class="card hero span2"><div class="lab" id="h-lab">${T.debt>0?'Patrimoine net':'Patrimoine total'}</div><div class="tot" id="h-tot">${eur(T.net)}</div>`;
   if(T.ti>0)h+=`<div class="delta ${T.gain>=0?'pos':'neg'}" id="h-gain">${gainHTML(T)}</div>`;
@@ -1270,6 +1280,215 @@ function recapNotif(){
   MAC.notifier('Votre bilan de '+moisNom(pm),HIDE?'Votre résumé du mois est prêt dans Patrimoine AI.':`Patrimoine net : ${nf(R.fin)} € (${R.ecart>=0?'+':'−'}${nf(Math.abs(R.ecart))} € sur le mois).`+(R.reel?` Dépenses : ${nf(R.reel.dep)} €${R.prevu>0?' pour '+nf(R.prevu)+' € prévus':''}.`:'')).catch(()=>{});
 }
 
+/* ===================== Mes banques : comptes liés par Enable Banking (open banking DSP2) =====================
+   Les échanges avec la banque passent par les fonctions Netlify (netlify/functions) : la clé de l'application et la session
+   bancaire ne sont jamais dans la page. Ici ne restent que le nom des comptes, leurs soldes (comptés dans le patrimoine) et
+   les opérations du compte courant, rangées dans le budget réel comme un relevé importé. Mode d'emploi : docs/BANQUE.md. */
+const BQ={busy:false,err:'',code:'',conf:null,sim:false,vu:0,manque:[]};
+const BQTYPE={CACC:'Compte courant',SVGS:'Compte d’épargne',CARD:'Carte',LOAN:'Crédit',CASH:'Compte espèces',TRAN:'Compte de transactions',OTHR:'Autre compte'};
+/* Adresse du serveur : config.js (banqueApi), sinon le site lui-même quand il est hébergé avec ses fonctions (Netlify) */
+const bqBase=()=>{const c=(window.PATRIMOINE_CONFIG||{}).banqueApi;if(c)return String(c).replace(/\/+$/,'');return !MAC&&/^https?:$/.test(location.protocol)&&!/\.github\.io$/.test(location.hostname)?location.origin:''};
+const bqLie=()=>!!(D.bank&&D.bank.liee);
+const bqJours=()=>D.bank&&D.bank.valid?Math.floor((Date.parse(D.bank.valid)-Date.now())/864e5):null;
+const bqExpire=()=>bqLie()&&(D.bank.statut==='expire'||(bqJours()!=null&&bqJours()<0));
+async function bqApi(ch,opt){
+  const base=bqBase();if(!base)throw Object.assign(Error('La liaison bancaire n’est pas encore installée pour cette version.'),{code:'non_configure'});
+  if(navigator.onLine===false)throw Object.assign(Error('Hors ligne : la banque sera synchronisée au retour de la connexion.'),{code:'hors_ligne'});
+  let tok;try{const{u}=await fbUser();tok=await u.getIdToken()}catch(e){throw Object.assign(Error('Connectez-vous avec Google (Réglages) pour utiliser la liaison bancaire.'),{code:'connexion_requise'})}
+  opt=opt||{};const r=await tfetch(base+'/api/banque/'+ch,{method:opt.method||'GET',headers:Object.assign({authorization:'Bearer '+tok},opt.body?{'content-type':'application/json'}:{}),body:opt.body?JSON.stringify(opt.body):undefined},30000),d=await rjson(r);
+  if(!r.ok)throw Object.assign(Error(d.message||'Service bancaire indisponible (erreur '+r.status+').'),{code:d.code||'erreur',st:r.status});
+  return d;
+}
+/* Réponse du serveur → D.bank (comptes retrouvés par leur empreinte, stable d'un accord à l'autre) */
+function bqApplique(s){
+  if(!s)return;if(s.configure===false){BQ.conf=false;BQ.manque=s.manque||[];return}
+  BQ.conf=true;BQ.sim=!!s.simulation;
+  if(!s.lie){if(bqLie())bqOublier();return}
+  const B=D.bank=Object.assign({comptes:[],depuis:{}},D.bank||{}),old=new Map((B.comptes||[]).map(k=>[k.ref,k]));
+  Object.assign(B,{banque:s.banque,valid:s.valid,statut:s.statut,liee:s.liee});
+  B.comptes=(s.comptes||[]).map(k=>Object.assign({inclus:k.type!=='CARD'&&k.type!=='LOAN'},old.get(k.ref)||{},k));
+  if(s.soldes)B.comptes.forEach(k=>{const x=s.soldes[k.uid];if(x&&x.montant!=null){k.solde=x.montant;k.soldeAt=s.at||Date.now();k.soldeDev=x.devise||'EUR';delete k.err}else if(x&&x.erreur)k.err=x.erreur});
+}
+/* Chaque compte compté devient une ligne « Livrets et liquidités » du patrimoine, mise à jour à chaque synchronisation */
+function bqActifs(){
+  const B=D.bank;if(!B||!Array.isArray(B.comptes))return;
+  B.comptes.forEach(k=>{const id='bq-'+k.ref,i=D.assets.findIndex(x=>x.id===id);
+    if(!k.inclus||k.solde==null){if(i>=0&&!k.inclus)D.assets.splice(i,1);return}
+    const a=i>=0?D.assets[i]:{id,cat:'cash'};if(i<0){D.assets.push(a);if(D.del)delete D.del[id]}
+    Object.assign(a,{name:(B.banque||'Banque')+' · '+k.nom,plat:B.banque||'',amount:k.solde,bq:k.ref,bqAt:k.soldeAt});
+    if(k.soldeDev&&k.soldeDev!=='EUR'&&DEVISES[k.soldeDev])a.dev=k.soldeDev;else delete a.dev;delete a.demo});
+}
+function bqOublier(){D.assets.forEach(a=>{if(a.bq){delete a.bq;delete a.bqAt}});D.bank=null}
+function bqInclus(ref){const k=D.bank&&(D.bank.comptes||[]).find(x=>x.ref===ref);if(!k)return;k.inclus=!k.inclus;bqActifs();save();render();toast(k.inclus?'Compte compté dans le patrimoine':'Compte retiré du patrimoine')}
+/* Opérations des comptes courants depuis la dernière fois (90 jours au premier passage), page après page */
+async function bqOps(){
+  const B=D.bank,iso0=d=>d.toLocaleDateString('sv-SE');B.depuis=B.depuis||{};let n=0;
+  for(const k of B.comptes.filter(k=>!k.type||k.type==='CACC'||k.type==='TRAN')){
+    const d0=new Date();d0.setDate(d0.getDate()-90);let suite='',L=[],i=0;const dep=B.depuis[k.ref]||iso0(d0);
+    do{const r=await bqApi('operations?compte='+encodeURIComponent(k.uid)+'&depuis='+dep+(suite?'&suite='+encodeURIComponent(suite):''));L=L.concat(r.operations||[]);suite=r.suite||''}while(suite&&++i<20);
+    const neuves=CL.fusionnerOps(D.ops,CL.opsBanque(L,k.ref,D.ops),D.regles,B.banque||'Banque');if(neuves.length){D.ops=D.ops.concat(neuves);n+=neuves.length}
+    const der=L.filter(o=>o.etat!=='PDNG').map(o=>o.d).sort().pop();if(der){const x=new Date(der+'T12:00:00');x.setDate(x.getDate()-5);B.depuis[k.ref]=iso0(x)}
+  }
+  if(n){opsTrim();UI.bm=''}return n;
+}
+async function bqSync(force,auto){
+  if(BQ.busy||!bqLie())return;BQ.busy=true;BQ.err='';BQ.code='';renderBank();let n=0;
+  try{bqApplique(await bqApi('comptes'+(force?'?force=1':'')));bqActifs();if(bqLie()&&D.bank.statut==='actif')n=await bqOps();if(D.bank)D.bank.sync=Date.now();save();render();
+    if(!auto)toast('Banque synchronisée'+(n?' : '+n+' nouvelle'+(n>1?'s':'')+' opération'+(n>1?'s':''):''))}
+  catch(e){BQ.err=e.message;BQ.code=e.code||'';if(e.code==='consentement_expire'&&D.bank)D.bank.statut='expire';if(e.code==='non_lie')bqOublier();save();render();if(!auto)toast(e.message)}
+  BQ.busy=false;renderBank();
+}
+/* Synchronisation automatique à l'ouverture : au plus toutes les 6 heures (la banque limite les consultations) */
+function bqAuto(){if(bqLie()&&D.bank.statut==='actif'&&!bqExpire()&&bqBase()&&ID.user&&navigator.onLine!==false&&Date.now()-(D.bank.sync||0)>6*36e5)bqSync(false,true)}
+async function bqEtat(){
+  if(!bqBase()||!ID.user||BQ.busy)return;BQ.vu=Date.now();
+  try{bqApplique(await bqApi('etat'));save();if(BQ.code!=='banque_indisponible'){BQ.err='';BQ.code=''}}catch(e){BQ.err=e.message;BQ.code=e.code||''}
+  renderBank();
+}
+function bqVue(){if(bqBase()&&ID.user&&!BQ.busy&&Date.now()-BQ.vu>5*60e3)bqEtat().then(bqAuto)}
+async function bqLier(){
+  if(BQ.busy)return;BQ.busy=true;BQ.err='';BQ.code='';renderBank();
+  try{const r=await bqApi('demarrer',{method:'POST'});
+    if(MAC){window.open(r.url,'_blank');sheet('Terminez dans le navigateur',`<p class="sm">La connexion à ${esc(r.banque||'votre banque')} s’est ouverte dans votre navigateur. Après votre accord, la page en ligne de Patrimoine AI s’ouvre : connectez-vous-y avec le même compte Google si besoin, la banque est alors liée à votre compte.</p><p class="sm mut mt">Revenez ensuite ici.</p><button class="btn blk mt" data-act="bqetat">J’ai terminé</button>`)}
+    else{toast('Ouverture de '+(r.banque||'votre banque')+'…');location.assign(r.url);return}}
+  catch(e){BQ.err=e.message;BQ.code=e.code||'';toast(e.message)}
+  BQ.busy=false;renderBank();
+}
+/* Retour de la banque : l'adresse de l'application reçoit ?code=…&state=… (ou ?error=…), lue une seule fois puis effacée */
+const BQRET=(()=>{try{const q=new URLSearchParams(location.search);if(!q.get('state')||!(q.get('code')||q.get('error')))return null;const r={code:q.get('code')||'',state:q.get('state'),err:q.get('error')?(q.get('error_description')||q.get('error')):''};history.replaceState(null,'',location.pathname+'#bank');return r}catch(e){return null}})();
+async function bqFinir(){
+  const R=BQRET;if(!R)return;
+  if(R.err){BQ.err='Liaison annulée : '+R.err+'. Vous pouvez recommencer quand vous voulez.';renderBank();return}
+  BQ.busy=true;renderBank();toast('Finalisation de la liaison bancaire…');
+  try{const s=await bqApi('retour',{method:'POST',body:{code:R.code,state:R.state}});bqApplique(s);if(D.bank)D.bank.sync=0;save();BQ.busy=false;BQ.vu=Date.now();toast((s.banque||'Banque')+' liée : '+(s.comptes||[]).length+' compte'+((s.comptes||[]).length>1?'s':''));await bqSync(true,true)}
+  catch(e){BQ.busy=false;BQ.err=e.message;BQ.code=e.code||'';renderBank()}
+}
+async function bqDeco(){
+  if(!await ask('Déconnecter la banque ?','L’accès de Patrimoine AI à '+((D.bank&&D.bank.banque)||'votre banque')+' sera retiré. Les soldes déjà importés restent dans vos placements comme des comptes saisis à la main, et vos opérations restent dans le budget.','Déconnecter',true))return;
+  BQ.busy=true;renderBank();
+  try{await bqApi('deconnecter',{method:'POST'});bqOublier();save();render();toast('Banque déconnectée')}catch(e){BQ.err=e.message;BQ.code=e.code||'';toast(e.message)}
+  BQ.busy=false;renderBank();
+}
+function renderBank(){
+  const el=$('v-bank');if(!el||typing(el))return;
+  const B=D.bank,lie=bqLie(),j=bqJours(),base=bqBase(),cnx=typeof ID!=='undefined'&&!!ID.user;
+  let h=`<div class="grid2"><section class="card span2"><div class="ct"><h3 style="display:flex;align-items:center;gap:8px">${ic('bank',18)}Ma banque</h3>${BQ.sim?'<span class="badge" style="--c:var(--blue)">Démonstration</span>':''}</div>`;
+  if(!HOSTED)h+='<p class="sm mut">La liaison bancaire fonctionne quand l’application est ouverte en ligne.</p>';
+  else if(!base)h+='<p class="sm mut">La liaison bancaire n’est pas encore installée pour cette version : elle passe par un petit serveur (fonctions Netlify) qui garde la clé de l’application à l’abri. Son adresse se renseigne dans config.js (banqueApi) ; le mode d’emploi est dans docs/BANQUE.md.</p>';
+  else if(!cnx)h+=`<p class="sm mut">La liaison bancaire est rattachée à votre compte Google : connectez-vous d’abord dans les réglages.</p><button class="btn blk mt" data-act="go" data-v="set">${ic('cloud',18)}Se connecter</button>`;
+  else if(BQ.conf===false)h+=`<p class="sm mut">Le serveur bancaire répond, mais sa configuration est incomplète (${esc(BQ.manque.join(', '))}). Voir docs/BANQUE.md.</p>`;
+  else if(!lie)h+=`<p class="sm mut">Aucun compte lié. Reliez votre compte Boursorama par Enable Banking, prestataire agréé d’accès aux comptes (DSP2) : vous vous identifiez sur le site de votre banque, jamais dans Patrimoine AI, et l’accès, en lecture seule, vaut 90 jours.</p><ul class="sm mut" style="padding-left:18px;margin-top:8px"><li>Lu : le nom des comptes, leurs soldes et leurs opérations.</li><li>Jamais : vos identifiants, ni aucun virement.</li></ul><button class="btn blk mt" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('bank',18)}${BQ.busy?'Connexion…':'Lier ma banque'}</button>`;
+  else{
+    const exp=bqExpire(),warn=!exp&&j!=null&&j<=14;
+    h+=`<div class="row"><div style="min-width:0"><b style="font-size:17px">${esc(B.banque||'Banque')}</b><div class="sm mut">${exp?'Accord expiré':'Accès en lecture seule'}${B.valid?` · ${exp?'depuis le':'jusqu’au'} ${esc(fd(new Date(B.valid)))}${!exp&&j!=null?` (${j} jour${j>1?'s':''})`:''}`:''}</div><div class="xs mut">${B.sync?'Dernière synchronisation : '+esc(new Date(B.sync).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})):'Pas encore synchronisée'}</div></div><span class="badge" style="--c:${exp?'var(--red)':warn?'var(--warn)':'var(--ok)'}">${exp?'Expiré':warn?'À renouveler':'Actif'}</span></div>`;
+    if(exp||warn)h+=`<div class="box mt" style="border-color:${exp?'var(--red)':'var(--warn)'}"><b>${exp?'Votre accord avec la banque a expiré':'Votre accord avec la banque expire bientôt'}</b><div class="sm mut">La DSP2 limite l’accès à 90 jours : renouvelez-le en vous identifiant de nouveau sur le site de la banque. Les soldes déjà importés restent affichés.</div></div>`;
+    h+=`<div class="g2 mt"><button class="btn${exp?' sec':''}" data-act="bqsync"${BQ.busy||exp?' disabled':''}>${ic('refresh',18)}${BQ.busy?'Synchronisation…':'Synchroniser'}</button>${exp||warn?`<button class="btn${exp?'':' sec'}" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('key',18)}Renouveler</button>`:`<button class="btn dng" data-act="bqdeco"${BQ.busy?' disabled':''}>Déconnecter</button>`}</div>${exp||warn?'<button class="btn dng blk mt" data-act="bqdeco">Déconnecter</button>':''}`;
+  }
+  if(BQ.err)h+=`<div class="box mt" style="border-color:var(--red)"><b class="neg">${esc(BQ.err)}</b>${/banque_indisponible|delai|reseau/.test(BQ.code)?'<div class="sm mut">C’est en général passager (maintenance de la banque) : réessayez plus tard.</div>':''}</div>`;
+  h+='</section>';
+  if(lie&&B.comptes&&B.comptes.length){const tot=B.comptes.filter(k=>k.inclus&&k.solde!=null).reduce((s,k)=>s+k.solde,0);
+    h+=`<section class="card"><div class="ct"><h3>Comptes liés</h3><b>${eur(tot)}</b></div>${B.comptes.map(k=>`<div class="set"><div style="min-width:0"><b>${esc(k.nom)}</b><div class="xs mut">${esc(BQTYPE[k.type]||k.produit||'Compte')}${k.iban4?' · •••• '+esc(k.iban4):''}${k.soldeAt?' · solde du '+esc(fd(new Date(k.soldeAt))):''}</div>${k.err?`<div class="xs neg">${esc(k.err)}</div>`:''}<div class="xs mut">${k.inclus?'Compté dans le patrimoine':'Non compté dans le patrimoine'}</div></div><div style="display:flex;align-items:center;gap:10px"><b style="white-space:nowrap">${k.solde!=null?eur(k.solde,2):'–'}</b>${sw('bq:'+k.ref,k.inclus,'Compter '+k.nom+' dans le patrimoine')}</div></div>`).join('')}<p class="hint">Un compte compté apparaît dans vos placements (Livrets et liquidités) avec son solde, mis à jour à chaque synchronisation.</p></section>`}
+  h+=`<section class="card"><h3>PEA et compte-titres</h3><p class="sm mut" style="margin-top:6px">L’open banking (DSP2) ne couvre que les comptes de paiement : si votre PEA ou votre compte-titres n’apparaît pas ${lie?'dans les comptes liés':'après la liaison'}, c’est que la banque ne le transmet pas. Leurs positions se suivent à la main (type Bourse, avec le ticker pour les cours en direct) ou par import d’un fichier CSV.</p><div class="g2 mt"><button class="btn sec" data-act="add" data-c="bourse">${ic('plus',16)}Ajouter une ligne</button><button class="btn sec" data-act="imp">${ic('upload',16)}Importer</button></div></section>`;
+  if(lie){const ops=D.ops.filter(o=>/^eb:/.test(o.fid||'')).sort((a,b)=>b.d.localeCompare(a.d)).slice(0,15);
+    h+=`<section class="card span2"><div class="ct"><h3>Dernières opérations</h3>${ops.length?'<button class="btn sm sec" data-act="go" data-v="budget">Budget réel</button>':''}</div>${ops.length?ops.map(o=>`<div class="trow" style="grid-template-columns:minmax(0,1fr) 128px 92px"><div style="min-width:0"><b class="sm" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(o.lib)}">${esc(o.lib)}</b><span class="xs mut">${esc(fd(new Date(o.d+'T12:00:00')))}</span></div><select aria-label="Catégorie" data-ch="opcat" data-id="${esc(o.id)}" style="min-height:34px;padding:4px 6px">${Object.entries(CL.CATEGORIES).map(([c,nm])=>`<option value="${c}"${c===o.cat?' selected':''}>${esc(nm)}</option>`).join('')}</select><b class="${o.m>0?'pos':''}" style="text-align:right">${o.m>0?'+':'−'}${eur(Math.abs(o.m),2)}</b></div>`).join('')+'<p class="hint">Classées automatiquement ; changez une catégorie, elle est retenue pour ce libellé. Ces opérations alimentent aussi le budget réel et les abonnements repérés.</p>':'<p class="sm mut">Les opérations du compte courant (90 derniers jours) apparaîtront ici après la première synchronisation.</p>'}</section>`}
+  el.innerHTML=h+rapListeHTML()+'</div>';
+}
+
+/* ===================== Rappels de paiement : versements attendus des plateformes (Bricks le 8, BienPrêter le 5…) =====================
+   Le jour prévu, l'application demande si le paiement est arrivé (Oui / Non / Montant différent) ; sans réponse au bout de
+   3 jours, il passe « en retard ». Un paiement validé est inscrit dans l'historique du placement et ajouté au patrimoine.
+   Si la banque est liée, le virement correspondant est cherché dans ses opérations. Calculs : CL.rappelsDus, CL.rapprocher. */
+const RAPST={a_valider:['À confirmer','var(--blue)'],retard:['En retard','var(--warn)']};
+const rapDus=()=>CL.rappelsDus(D.rappels,today());
+const rapDate=s=>fd(new Date(s+'T12:00:00'));
+const plKey=s=>N0(s).replace(/[^a-z0-9]/g,'');
+function rapUtilises(){const s=new Set();(D.rappels||[]).forEach(r=>Object.values(r.hist||{}).forEach(h=>{if(h&&h.tx)s.add(h.tx)}));return s}
+const rapMatch=x=>bqLie()&&D.ops.length?CL.rapprocher(x.r,x.mois,D.ops,rapUtilises()):null;
+/* Placement concerné : celui choisi, sinon les placements en cours de la plateforme du même nom */
+function rapPlacements(r){if(r.aid){const a=D.assets.find(x=>x.id===r.aid);return a?[a]:[]}const k=plKey(r.nom);return k?owned().filter(a=>a.cat!=='cash'&&a.plat&&plKey(a.plat)===k&&live(a)):[]}
+function rapLigne(x){
+  const r=x.r,m=rapMatch(x),st=RAPST[x.statut],q=`data-id="${esc(r.id)}" data-m="${esc(x.mois)}"`,non=r.non&&r.non[x.mois];
+  return `<div class="ins"><span style="color:${st[1]}">${ic(x.statut==='retard'?'alert':'bell',22)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)} : paiement reçu ?</b><span class="badge" style="--c:${st[1]}">${st[0]}</span></div><div class="sm mut">Prévu le ${esc(rapDate(x.date))}${num(r.attendu)>0?', environ '+eur(r.attendu,2):''}${x.statut==='retard'?', '+x.jours+' jours sans confirmation':''}${non?'. Signalé non reçu le '+esc(rapDate(non)):''}.</div>`
+    +(m?`<div class="box sm" style="margin-top:8px"><div style="display:flex;gap:8px;align-items:flex-start"><span style="margin-top:2px">${ic('bank',14)}</span><span>Sur votre compte : <b>${esc(m.lib)}</b>, ${eur(m.m,2)} le ${esc(rapDate(m.d))}.</span></div><div class="acts2"><button class="btn sm" data-act="rapok" ${q} data-tx="${esc(m.id)}">${ic('check',15)}Valider avec cette opération</button></div></div>`:'')
+    +`<div class="acts2"><button class="btn sm${m?' sec':''}" data-act="rapoui" ${q}>Oui</button><button class="btn sm sec" data-act="rapnon" ${q}>Non</button><button class="btn sm sec" data-act="rapautre" ${q}>Montant différent</button></div></div></div>`;
+}
+function rapHTML(){const L=rapDus();if(!L.length)return '';
+  return `<section class="card span2" id="rap-card" style="border-color:${L.some(x=>x.statut==='retard')?'var(--warn)':'var(--pt)'}"><div class="ct"><h3>Paiement${L.length>1?'s':''} à confirmer</h3><button class="btn sm sec" data-act="go" data-v="bank">Mes rappels</button></div>${L.map(rapLigne).join('')}</section>`}
+/* Où ajouter la somme reçue : le portefeuille de la plateforme (créé au besoin), un compte choisi, ou nulle part.
+   Un compte synchronisé avec la banque n'est jamais modifié : son solde inclut déjà le virement. */
+function rapDest(r){
+  if(r.dest==='aucun')return null;
+  if(r.dest==='compte')return D.assets.find(x=>x.id===r.cpt&&x.cat==='cash')||null;
+  const id='pf-'+(plKey(r.nom)||r.id);let w=D.assets.find(x=>x.id===id);
+  if(!w){w={id,cat:'cash',name:'Portefeuille '+r.nom,plat:r.nom,amount:0,notes:'Sommes versées par '+r.nom+' et pas encore retirées de la plateforme. Diminuez ce montant quand vous les virez vers votre banque.'};D.assets.push(w)}
+  return w;
+}
+function rapValider(id,mois,mt,o){
+  const r=D.rappels.find(x=>x.id===id);mt=Math.round(num(mt)*100)/100;if(!r||!(mt>0))return;o=o||{};
+  const avant=JSON.stringify({a:D.assets,r:D.rappels}),d=o.d||today(),c=Math.max(0,Math.min(mt,Math.round(num(o.c)*100)/100)),cand=rapPlacements(r);
+  const a=o.aid!==undefined?D.assets.find(x=>x.id===o.aid)||null:cand.length===1?cand[0]:null;
+  r.hist=Object.assign({},r.hist,{[mois]:{s:'recu',m:mt,c:c||undefined,d,tx:o.tx||undefined,aid:a?a.id:undefined}});if(r.non)delete r.non[mois];
+  if(a){ /* historique du placement, versements datés (rendement réel), capital remboursé déduit */
+    a.paie=(a.paie||[]).concat([{d,m:mt,c:c||undefined,r:r.id,mois}]).slice(-120);
+    if((!Array.isArray(a.mv)||!a.mv.length)&&a.date&&num(a.amount)>0)a.mv=[{d:a.date,m:num(a.amount)}];
+    if(Array.isArray(a.mv)&&a.mv.length)a.mv.push({d,m:-mt});
+    if(c>0){a.amount=Math.max(0,Math.round((num(a.amount)-c)*100)/100);if(a.value!==''&&a.value!=null)a.value=Math.max(0,Math.round((num(a.value)-c)*100)/100)}
+    delete a.demo}
+  const w=o.tx?null:rapDest(r);if(w&&!w.bq)w.amount=Math.round((num(w.amount)+mt)*100)/100;
+  save();closeM();render();
+  toast(eur(mt,2)+' de '+r.nom+' enregistrés'+(o.tx||(w&&w.bq)?', déjà comptés dans le solde de la banque':w?' dans « '+w.name+' »':''),{l:'Annuler',fn:()=>{const b=JSON.parse(avant);D.assets=b.a;D.rappels=b.r;save();render()}});
+}
+function rapMontant(id,mois){
+  const r=D.rappels.find(x=>x.id===id);if(!r)return;const cand=rapPlacements(r);
+  sheet('Paiement de '+r.nom,`<p class="sm mut">Prévu le ${esc(rapDate(CL.echeance(mois,r.jour)))}. Indiquez la somme réellement reçue.</p><div class="g2"><div class="fld"><label for="rv-m">Montant reçu</label><div class="inp has"><input id="rv-m" type="number" inputmode="decimal" step="any" min="0" value="${num(r.attendu)||''}"><span class="suf">€</span></div></div><div class="fld"><label for="rv-d">Reçu le</label><input id="rv-d" type="date" value="${today()}"></div></div>
+  <div class="fld"><label for="rv-c">Dont capital remboursé<span class="opt">facultatif</span></label><div class="inp has"><input id="rv-c" type="number" inputmode="decimal" step="any" min="0"><span class="suf">€</span></div><div class="hint">Pour un prêt remboursé chaque mois (BienPrêter…) : la part de capital réduit le montant encore investi ; le reste, ce sont les intérêts.</div></div>
+  ${cand.length>1?`<div class="fld"><label for="rv-a">Placement concerné</label><select id="rv-a"><option value="">Plusieurs projets (non réparti)</option>${cand.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select></div>`:cand.length?`<p class="hint">Inscrit dans l’historique de « ${esc(cand[0].name)} ».</p>`:''}<div class="err" id="rv-e"></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="rapsave" data-id="${esc(id)}" data-m="${esc(mois)}">Valider</button></div>`);
+}
+function rapNon(id,mois){
+  const r=D.rappels.find(x=>x.id===id);if(!r)return;const q=`data-id="${esc(id)}" data-m="${esc(mois)}"`;
+  sheet('Paiement non reçu',`<p class="sm mut">${esc(r.nom)}, prévu le ${esc(rapDate(CL.echeance(mois,r.jour)))}.</p><div class="stack mt"><button class="btn" data-act="rapattente" ${q}>Pas encore reçu : me le rappeler</button><div class="hint" style="margin-top:-4px">Le rappel reste affiché ; il passe « en retard » 3 jours après la date prévue.</div><button class="btn sec" data-act="rapabsent" ${q}>Pas de paiement ce mois-ci</button><div class="hint" style="margin-top:-4px">Ferme le rappel de ce mois sans rien enregistrer.</div></div>`);
+}
+function rapListeHTML(){
+  const R=D.rappels||[],perm=!MAC&&typeof Notification!=='undefined'?Notification.permission:'';
+  let h=`<section class="card span2"><div class="ct"><h3 style="display:flex;align-items:center;gap:8px">${ic('bell',18)}Rappels de paiement</h3><button class="btn sm sec" data-act="rapnew">${ic('plus',15)}Ajouter</button></div><p class="sm mut">Le jour prévu, l’application vous demande si le paiement est arrivé ; sans réponse au bout de 3 jours, il passe en retard.${bqLie()?' Le virement est cherché dans les opérations de votre banque.':''}</p>`;
+  if(perm==='default')h+=`<button class="btn sm sec mt" data-act="rapnotif">${ic('bell',15)}Recevoir aussi une notification du navigateur</button>`;
+  else if(perm==='denied')h+='<p class="hint">Notifications du navigateur bloquées : les rappels s’affichent dans l’application.</p>';
+  h+=R.length?R.map(r=>{const p=CL.prochaineEcheance(r,today()),H=Object.entries(r.hist||{}).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4),cand=rapPlacements(r),libre=[moisCourant(),moisDecale(moisCourant(),-1)].find(m=>!(r.hist&&r.hist[m]));
+    return `<div class="ins"><span class="ico" style="--c:${r.actif===false?'var(--mut)':'var(--pt)'};width:36px;height:36px">${ic('cal',18)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)}</b><span class="sm mut">le ${esc(r.jour)} de chaque mois</span></div><div class="xs mut">${r.actif===false?'Désactivé':p?'Prochain : '+esc(rapDate(p)):''}${num(r.attendu)>0?' · environ '+eur(r.attendu,2):''}${cand.length?' · '+esc(cand.length===1?cand[0].name:cand.length+' placements'):''}</div>${H.length?`<div class="xs mut" style="margin-top:2px">${H.map(([m,x])=>esc(moisNom(m))+' : '+(x.s==='recu'?eur(x.m,2):'aucun')).join(' · ')}</div>`:''}<div class="acts2"><button class="btn sm sec" data-act="rapedit" data-id="${esc(r.id)}">${ic('edit',15)}Modifier</button>${libre?`<button class="btn sm sec" data-act="rapautre" data-id="${esc(r.id)}" data-m="${libre}">Enregistrer le paiement de ${esc(moisNom(libre))}</button>`:''}</div></div></div>`}).join(''):'<p class="sm mut mt">Aucun rappel.</p>';
+  return h+'</section>';
+}
+function openRap(id){
+  const r=id?D.rappels.find(x=>x.id===id):null,o=r||{nom:'',jour:'',attendu:'',aid:'',dest:'plateforme',cpt:'',motif:'',actif:true};CUR.rap=r?r.id:'';
+  const pl=owned().filter(a=>a.cat!=='cash'&&a.cat!=='bien'),cs=owned().filter(a=>a.cat==='cash');
+  let f=F('rnom','Plateforme ou placement',o.nom,{ph:'Ex : Bricks'});
+  f+=`<div class="g2">${F('rjour','Jour du paiement',o.jour,{t:'number',hint:'De 1 à 31 (dernier jour du mois s’il n’existe pas).'})}${F('ratt','Montant habituel',o.attendu,{t:'number',suf:'€',opt:1,hint:'Pour confirmer d’un seul « Oui ».'})}</div>`;
+  f+=`<div class="fld"><label for="f-raid">Placement concerné</label><select id="f-raid"><option value="">Automatique : les placements de la même plateforme</option>${pl.map(a=>`<option value="${esc(a.id)}"${a.id===o.aid?' selected':''}>${esc(a.name)}</option>`).join('')}</select><div class="hint">Le paiement est inscrit dans son historique et compte dans son rendement réel.</div></div>`;
+  f+=`<div class="fld"><div class="lbl">Où arrive l’argent ?</div>${seg('f-rdest',[['plateforme','Sur la plateforme'],['compte','Sur un compte'],['aucun','Ne pas l’ajouter']],o.dest||'plateforme')}<div class="hint">Sur la plateforme : ajouté à un compte « Portefeuille » dans vos liquidités. Un compte synchronisé avec la banque n’est jamais modifié : son solde inclut déjà le virement.</div></div>`;
+  f+=`<div class="fld" id="r-cpt"${o.dest==='compte'?'':' hidden'}><label for="f-rcpt">Compte crédité</label><select id="f-rcpt">${cs.length?cs.map(a=>`<option value="${esc(a.id)}"${a.id===o.cpt?' selected':''}>${esc(a.name)}</option>`).join(''):'<option value="">Aucun compte : ajoutez-en un dans vos placements</option>'}</select></div>`;
+  f+=F('rmotif','Mot du libellé du virement',o.motif,{opt:1,hint:'Pour le retrouver sur votre compte lié (ex. BRICKS ; plusieurs mots séparés par |). Par défaut, le nom.'});
+  f+=`<div class="set" style="margin-top:10px"><div><b>Rappel actif</b><div class="hint">Désactivé, il ne demande plus rien.</div></div><button type="button" class="sw" role="switch" id="f-ractif" aria-checked="${o.actif!==false}" aria-label="Rappel actif" data-act="rapactif"><i></i></button></div>`;
+  f+=`<div class="err" id="r-e"></div><div class="g2 mt" style="margin-top:20px">${r?`<button class="btn dng" data-act="rapdel" data-id="${esc(r.id)}">${ic('trash',18)}Supprimer</button>`:'<button class="btn sec" data-act="closeM">Annuler</button>'}<button class="btn" data-act="rapenr">Enregistrer</button></div>`;
+  sheet(r?'Modifier le rappel':'Nouveau rappel de paiement',f);
+}
+function rapEnr(){
+  const v=id=>{const e=$('f-'+id);return e?e.value:''},nom=v('rnom').trim(),j=Math.round(num(v('rjour'))),dest=v('rdest')||'plateforme';
+  document.querySelectorAll('#sheet .err').forEach(e=>e.textContent='');
+  if(!nom){$('e-rnom').textContent='Indiquez la plateforme ou le placement.';return}
+  if(!(j>=1&&j<=31)){$('e-rjour').textContent='Un jour entre 1 et 31.';return}
+  if(dest==='compte'&&!v('rcpt')){$('r-e').textContent='Choisissez le compte crédité.';return}
+  const o={nom:nom.slice(0,60),jour:j,attendu:v('ratt')===''?'':Math.max(0,num(v('ratt'))),aid:v('raid'),dest,cpt:dest==='compte'?v('rcpt'):'',motif:v('rmotif').trim().slice(0,80),actif:$('f-ractif').getAttribute('aria-checked')==='true'};
+  const r=CUR.rap&&D.rappels.find(x=>x.id===CUR.rap);
+  if(r)Object.assign(r,o);else D.rappels.push(Object.assign({id:newId(),cree:today(),hist:{}},o));
+  save();closeM();render();toast(r?'Rappel modifié':'Rappel créé : le '+j+' de chaque mois');
+}
+/* Notification du jour J (et des jours suivants tant que ce n'est pas confirmé), une fois par jour et par paiement */
+function rapNotifier(){
+  const L=rapDus();if(!L.length)return;let vu={};try{vu=JSON.parse(lsGet('pat_rap_notif')||'{}')}catch(e){}
+  const j=today(),nv={};let n=0;
+  L.forEach(x=>{const k=x.r.id+'@'+x.mois;nv[k]=vu[k];if(vu[k]===j)return;nv[k]=j;n++;notify((x.statut==='retard'?'Paiement en retard : ':'Paiement attendu : ')+x.r.nom,'Prévu le '+rapDate(x.date)+'. Ouvrez Patrimoine AI pour confirmer s’il est arrivé.')});
+  if(n)lsSet('pat_rap_notif',JSON.stringify(nv));
+}
+
 /* ===================== Coffre à documents : fichiers chiffrés sur l'appareil (contrats, relevés, avis d'imposition) ===================== */
 const DOCT={contrat:'Contrat',releve:'Relevé',impots:'Impôts',facture:'Facture',autre:'Autre'},DOC_MAX=25e6;
 const COF={db:null,cles:{}};
@@ -1662,8 +1881,10 @@ function saveA(){
   if(a.cat==='bourse'&&a.tick&&!num(a.price)&&D.set.auto!==false)refresh(true);
 }
 function delA(id){
-  const i=D.assets.findIndex(x=>x.id===id);if(i<0)return;const a=D.assets[i];D.assets.splice(i,1);save();closeM();render();
-  toast('Placement supprimé',{l:'Annuler',fn:()=>{D.assets.splice(Math.min(i,D.assets.length),0,a);save();render()}});
+  const i=D.assets.findIndex(x=>x.id===id);if(i<0)return;const a=D.assets[i];D.assets.splice(i,1);
+  const k=a.bq&&D.bank&&(D.bank.comptes||[]).find(x=>x.ref===a.bq);if(k)k.inclus=false; /* compte de la banque : n'est plus recréé à la synchronisation */
+  save();closeM();render();
+  toast('Placement supprimé',{l:'Annuler',fn:()=>{D.assets.splice(Math.min(i,D.assets.length),0,a);if(k)k.inclus=true;save();render()}});
 }
 
 /* ===================== Fiche détail ===================== */
@@ -1700,6 +1921,9 @@ function openDetail(id){
     if(r)h+=kv('Statut',ST[a.status]||'En cours');
   }
   h+='</div>'+rendHTML(a);
+  if(a.bq)h+=`<div class="box mt sm" style="display:flex;gap:8px;align-items:flex-start"><span style="margin-top:2px">${ic('bank',14)}</span><span>Solde lu chez ${esc(a.plat||'votre banque')}${a.bqAt?' le '+esc(new Date(a.bqAt).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})):''}. Il est mis à jour à chaque synchronisation (écran Mes banques) : une modification à la main serait remplacée.</span></div>`;
+  {const rl=(D.rappels||[]).filter(r=>r.actif!==false&&rapPlacements(r).some(x=>x.id===a.id)),P=a.paie||[];
+   if(rl.length||P.length)h+=`<details${P.length?' open':''}><summary>Paiements reçus (${P.length})</summary><div class="mt">${rl.map(r=>`<p class="xs mut">Rappel : le ${esc(r.jour)} de chaque mois (${esc(r.nom)}).</p>`).join('')}${P.slice().reverse().slice(0,24).map(p=>kv(esc(fd(new Date(p.d+'T12:00:00'))),eur(p.m,2)+(p.c?` <span class="xs mut">dont ${eur(p.c,2)} de capital</span>`:''))).join('')||'<p class="sm mut">Aucun paiement enregistré pour l’instant.</p>'}${P.length?kv('Total reçu',eur(P.reduce((s,p)=>s+num(p.m),0),2)):''}</div></details>`}
   if(r&&live(a)){const d=aDetail(a);h+=`<div class="box mt"><div class="row"><b>Indice de fiabilité</b>${chip(d.score)}</div><div class="mt" style="margin-top:6px">${d.parts.map(p=>`<div class="kv"><span>${esc(p[0])}</span><b>${p[2]?p[1]+'/100':(p[1]>0?'+':'−')+Math.abs(p[1])}</b></div>`).join('')}</div></div>`}
   if(a.notes)h+=`<div class="box mt"><div class="sm mut">Notes</div><div class="md sm">${md(a.notes)}</div></div>`;
   if(a.analysis)h+=`<details><summary>Analyse du contrat</summary><div class="md sm">${md(a.analysis)}</div></details>`;
@@ -1986,6 +2210,7 @@ function dossier(){
     depenses_reelles:(()=>{if(!D.ops.length)return undefined;const m=moisDecale(moisCourant(),-1),r=CL.reelDuMois(D.ops,m);if(r.n<5)return undefined;const c=CL.comparer(catPrevu(),r),ab=CL.abonnements(D.ops).filter(a=>!a.arrete);return{mois:moisTxt(m),revenus:Math.round(r.rev),depenses:Math.round(r.dep),mis_de_cote:Math.round(r.epargne),par_categorie:Object.fromEntries(Object.entries(r.cat).filter(([k,v])=>v>=1).map(([k,v])=>[ccat(k),Math.round(v)])),depassements:c.depasse.map(x=>ccat(x.cat)+' : +'+Math.round(x.ecart)+' €'),abonnements_par_an:Math.round(ab.reduce((s,a)=>s+a.parAn,0)),abonnements:ab.slice(0,10).map(a=>a.nom+' ('+Math.round(a.montant)+' € '+a.freq+')')}})(),
     rendement_reel:(()=>{const P=perfData();return P&&P.R.tri!=null?{taux_annuel_pct:Math.round(P.R.tri*1000)/10,verse:Math.round(P.R.verse),valeur:Math.round(P.V),livret_a_meme_versements:Math.round(CL.aTauxFixe(P.F,livretA()))}:undefined})(),
     revenus_passifs_12_mois:(()=>{const S=sourcesPassives();return S.length?Math.round(CL.revenusPassifs(S).total):undefined})(),
+    paiements_a_confirmer:(()=>{const L=rapDus();return L.length?L.map(x=>x.r.nom+' (prévu le '+x.date+(x.statut==='retard'?', en retard':'')+')'):undefined})(),
     actualites_recentes:NW.items.length?{theme:newsLabel(),titres:NW.items.slice(0,8).map(n=>n.t+' ('+n.s+')')}:undefined,
     indice_fiabilite:pf?{score:pf.score,alertes:pf.notes}:null,points_de_vigilance:insights().filter(i=>i.lvl!=='good').map(i=>i.title)};
 }
@@ -2684,8 +2909,9 @@ let PALI=[],PALS=0;
 function palItems(q){
   const n=N0(q.trim()),hit=t=>!n||N0(t).includes(n),out=[];
   const add=(g,l,i,fn,x)=>{if(hit(l+' '+(x||'')))out.push({g,l,i,fn,x:x||''})};
-  const V={news:'Actualités économiques',home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
-  Object.keys(V).forEach(v=>add('Aller à',V[v],({news:'news',home:'home',assets:'list',budget:'wallet',goals:'target',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v)));
+  const V={news:'Actualités économiques',home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
+  Object.keys(V).forEach(v=>add('Aller à',V[v],({news:'news',home:'home',assets:'list',budget:'wallet',goals:'target',bank:'bank',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v),v==='bank'?'boursorama compte courant solde synchroniser rappels paiement':''));
+  add('Actions','Nouveau rappel de paiement','bell',()=>openRap(''),'bricks bienpreter versement mensuel');
   add('Actions','Ajouter un placement','plus',()=>openPick());
   add('Actions','Nouvel objectif','target',()=>openGoalForm(''),'projet épargne');
   add('Aller à','Budget : combien investir ce mois-ci','wallet',()=>go('budget'),'dépenses reste à vivre frais');
@@ -2765,7 +2991,7 @@ const ACT={
   add:d=>d.c?openForm(d.c):(UI.view==='goals'&&d.fab!=null)?openGoalForm(''):openPick(),
   pick:d=>openForm(d.c),
   cat:d=>openForm(d.c,CUR.id,collect()),
-  seg:(d,t)=>{$(d.t).value=d.v;t.parentNode.querySelectorAll('.chip').forEach(c=>{const on=c===t;c.classList.toggle('on',on);c.setAttribute('aria-checked',on)});if(d.t==='tm')tradeLive();if(d.t==='f-gsrc')goalLive();else formLive()},
+  seg:(d,t)=>{$(d.t).value=d.v;t.parentNode.querySelectorAll('.chip').forEach(c=>{const on=c===t;c.classList.toggle('on',on);c.setAttribute('aria-checked',on)});if(d.t==='tm')tradeLive();if(d.t==='f-rdest'&&$('r-cpt'))$('r-cpt').hidden=d.v!=='compte';if(d.t==='f-gsrc')goalLive();else formLive()},
   save:()=>saveA(),
   detail:d=>openDetail(d.id),
   edit:d=>openForm(null,d.id),
@@ -2783,7 +3009,7 @@ const ACT={
   range:d=>{UI.range=d.r;renderHome()},
   tool:d=>{UI.tool=d.t;renderTools(true)},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
-  tog:d=>{if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
+  tog:d=>{if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
   sauvlist:()=>openSauv(),sauvdir:()=>MAC&&MAC.ouvrirSauvegardes(),sauvrest:d=>sauvRest(d.f),
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
@@ -2829,7 +3055,7 @@ const ACT={
   nth:d=>{D.set.nth=d.v;NW.q='';save();NW.items=[];renderNews();newsLoad();setTitle()},
   nrg:d=>{D.set.nrg=d.v;save();NW.items=[];renderNews();newsLoad();setTitle()},
   nre:()=>newsLoad(true),
-  more:()=>sheet('Plus',[['news','Actualités','news','Économie, marchés, énergie, tech… par région'],['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Retraite, impôts, vente, succession, crédit'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
+  more:()=>sheet('Plus',[['bank','Mes banques','bank','Comptes liés, soldes, rappels de paiement'],['news','Actualités','news','Économie, marchés, énergie, tech… par région'],['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Retraite, impôts, vente, succession, crédit'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
   bstart:()=>{const B=D.budget;B.inc=BTPL.inc.map(x=>({id:newId(),n:x[0],v:''}));B.exp=BTPL.exp.filter(x=>!(x[2]==='logement'&&loanPay()>0)).map(x=>({id:newId(),n:x[0],k:x[1],c:x[2],v:''}));save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('#b-inc input[data-f=v]');if(i&&!typing($('v-budget')))i.focus()},50)},
   bblank:()=>{const B=D.budget;B.inc=[{id:newId(),n:'Salaire net',v:''}];B.exp=[{id:newId(),n:'',k:'fixe',v:''}];save();renderBudget(true)},
   badd:d=>{const l={id:newId(),n:'',v:''};if(d.t==='exp')l.k='fixe';D.budget[d.t].push(l);save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('[data-id="'+l.id+'"][data-f=n]');if(i)i.focus()},40)},
@@ -2848,6 +3074,17 @@ const ACT={
   recapok:()=>{D.set.recapVu=moisDecale(moisCourant(),-1);save();renderHome()},
   docs:()=>openDocs(),docadd:()=>{const i=$('doc-f');if(i)i.click()},docopen:d=>docOuvrir(d.id),docdl:d=>docTelecharger(d.id),docdel:d=>docSuppr(d.id),
   barm:d=>{D.set.barMode=d.v;save();renderSet();macBar()},
+  bqlier:()=>bqLier(),bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},
+  rapoui:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;if(num(r.attendu)>0&&rapPlacements(r).length<=1)rapValider(r.id,d.m,r.attendu);else rapMontant(r.id,d.m)},
+  rapok:d=>{const o=D.ops.find(x=>x.id===d.tx);if(o)rapValider(d.id,d.m,o.m,{tx:o.id,d:o.d})},
+  rapautre:d=>rapMontant(d.id,d.m),rapnon:d=>rapNon(d.id,d.m),
+  rapsave:d=>{const m=num($('rv-m').value),dt=$('rv-d').value;if(!(m>0)||!dt){$('rv-e').textContent='Indiquez le montant reçu et sa date.';return}rapValider(d.id,d.m,m,{d:dt,c:$('rv-c').value,aid:$('rv-a')?$('rv-a').value:undefined})},
+  rapattente:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;r.non=Object.assign({},r.non,{[d.m]:today()});save();closeM();render();toast('D’accord : le rappel reste affiché')},
+  rapabsent:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;const old=r.hist;r.hist=Object.assign({},r.hist,{[d.m]:{s:'absent',d:today()}});save();closeM();render();toast('Aucun paiement en '+moisTxt(d.m),{l:'Annuler',fn:()=>{r.hist=old;save();render()}})},
+  rapnew:()=>openRap(''),rapedit:d=>openRap(d.id),rapenr:()=>rapEnr(),
+  rapactif:(d,t)=>t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true'),
+  rapdel:async d=>{if(!await ask('Supprimer ce rappel ?','Les paiements déjà enregistrés restent dans l’historique de vos placements.','Supprimer',true))return;D.rappels=D.rappels.filter(r=>r.id!==d.id);save();render();toast('Rappel supprimé')},
+  rapnotif:()=>{try{Promise.resolve(Notification.requestPermission()).then(p=>{toast(p==='granted'?'Notifications activées':'Notifications non autorisées par le navigateur');renderBank()})}catch(e){toast('Notifications indisponibles dans ce navigateur')}},
   askok:()=>{const r=ASK;ASK=null;closeM();if(r)r(true)},
   askno:()=>closeM()
 };
@@ -3083,12 +3320,12 @@ function ghLogout(){[KPW,KGU].forEach(k=>lsSet(k,null));localStorage.removeItem(
 function onAuth(fresh){
   if(fresh&&ID.user)toast('Connecté : '+ID.user.email);
   syncUI();renderSet();if(!AIBUSY)renderAI();
-  if(ID.user)syncNow();
+  if(ID.user){syncNow();setTimeout(bqAuto,5000)}
 }
 const idName=()=>ID.user?((ID.user.user_metadata&&(ID.user.user_metadata.full_name||ID.user.user_metadata.name))||ID.user.email):'';
 
 /* --- Suivi des modifications (fusion fine entre appareils) --- */
-const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target','ops','regles','fire'];
+const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target','ops','regles','fire','bank','rappels'];
 let SNAP=null;
 const ajson=a=>{const o=Object.assign({},a);delete o.u;return JSON.stringify(o)};
 const snapOf=()=>({a:Object.fromEntries(D.assets.map(a=>[a.id,ajson(a)])),f:Object.fromEntries(SF.map(f=>[f,JSON.stringify(D[f]===undefined?null:D[f])]))});
@@ -3101,7 +3338,7 @@ function track(){
   SF.forEach(f=>{if(SNAP.f[f]!==JSON.stringify(D[f]===undefined?null:D[f])){D.mt[f]=now;ch=true}});
   SNAP=snapOf();return ch;
 }
-const payload=()=>({v:3,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget,ops:(D.ops||[]).slice(-OPS_MAX).map(o=>[o.id,o.d,String(o.lib||'').slice(0,60),o.m,o.cat,o.fid||'']),regles:D.regles||{},fire:D.fire||{}}); /* opérations en format compact : la sauvegarde chiffrée reste sous 1 Mo */
+const payload=()=>({v:3,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget,ops:(D.ops||[]).slice(-OPS_MAX).map(o=>[o.id,o.d,String(o.lib||'').slice(0,60),o.m,o.cat,o.fid||'']),regles:D.regles||{},fire:D.fire||{},bank:D.bank||null,rappels:D.rappels||[]}); /* opérations en format compact : la sauvegarde chiffrée reste sous 1 Mo */
 /* Fusion : chaque placement garde sa version la plus récente, les suppressions sont respectées, l'historique est réuni. */
 function mergeRemote(R){
   if(!R||typeof R!=='object')return false;
@@ -3125,6 +3362,7 @@ function mergeRemote(R){
   const H=new Map((R.hist||[]).map(h=>[h.d,h]));(L.hist||[]).forEach(h=>{if(!H.has(h.d)){H.set(h.d,h);localWins=true}else H.set(h.d,h)});
   L.hist=[...H.values()].sort((x,y)=>String(x.d).localeCompare(String(y.d))).slice(-1500);
   if(!Array.isArray(L.chat))L.chat=[];if(!Array.isArray(L.watch))L.watch=[];if(!Array.isArray(L.alerts))L.alerts=[];if(!Array.isArray(L.goals))L.goals=[];if(!L.budget||typeof L.budget!=='object'||!Array.isArray(L.budget.inc)||!Array.isArray(L.budget.exp))L.budget={inc:[],exp:[],loans:true,mois:6,marge:10,delai:12};if(!L.target||typeof L.target!=='object')L.target={};L.ops=Array.isArray(L.ops)?L.ops.map(o=>Array.isArray(o)?{id:o[0],d:o[1],lib:o[2],m:o[3],cat:o[4],fid:o[5]||undefined}:o).filter(o=>o&&o.id&&o.d&&isFinite(o.m)):[];if(!L.regles||typeof L.regles!=='object')L.regles={};if(!L.fire||typeof L.fire!=='object')L.fire={};if(!L.plat||typeof L.plat!=='object')L.plat={};
+  if(!Array.isArray(L.rappels))L.rappels=[];if(!L.bank||typeof L.bank!=='object'||Array.isArray(L.bank))L.bank=null;
   SNAP=snapOf();
   try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}
   return localWins;
@@ -3651,13 +3889,14 @@ function init(){
   if(D.assets.length)save();
   if(D.set.auto!==false&&navigator.onLine!==false&&D.assets.some(a=>a.cat==='bourse'&&a.tick&&(!a.pxts||Date.now()-a.pxts>6*36e5)))refresh(true);
   SNAP=snapOf();syncUI();idLoad();macInit();setTimeout(dueNotify,6000);setTimeout(fxRefresh,3000);
+  bqFinir();setTimeout(rapNotifier,7000);setInterval(rapNotifier,3600e3);
   if(HOSTED){try{const o=JSON.parse(localStorage.getItem('pat_news')||'null');if(o&&Array.isArray(o.items)){NW.items=o.items;NW.at=0;newsMini()}}catch(e){}setTimeout(()=>newsLoad(),2500)}
   if(HOSTED){mkLoad('idx',true);mkLoad(MK.tab,true);setInterval(mkRefresh,10*60e3);liveSync();mkStatus();
     setInterval(()=>{if(!document.hidden&&syncOn())syncNow()},90e3);
     let LHID=0;
     document.addEventListener('visibilitychange',()=>{
       if(document.hidden){clearTimeout(LHID);LHID=setTimeout(()=>{if(FEED)FEED.close();mkStatus()},60e3);if(LSAVE){clearTimeout(LSAVE);LSAVE=0;save()}}
-      else{clearTimeout(LHID);if(syncOn())syncNow();mkRefresh();liveSync();if(FEED)FEED._poll()}
+      else{clearTimeout(LHID);if(syncOn())syncNow();mkRefresh();liveSync();if(FEED)FEED._poll();rapNotifier();if(UI.view==='home')renderHome()}
     });
     window.addEventListener('online',()=>{if(syncOn())syncNow()});
     if(!MAC&&'serviceWorker' in navigator){

@@ -1,7 +1,7 @@
 /* Patrimoine AI — calculs sans affichage (produit par QuenTools).
    Relevés bancaires (CSV, OFX, QIF), catégories des dépenses, abonnements, budget réel, rendement réel (TRI),
    simulation de l'indépendance financière, fiscalité (vente, plus-value immobilière, succession, donation, IFI),
-   revenus passifs. Fonctions pures, testées par tests/calculs.test.js ; l'interface est dans index.html. */
+   revenus passifs, rappels de paiement et rapprochement avec les opérations de la banque. Fonctions pures, testées par tests/calculs.test.js ; l'interface est dans index.html. */
 (function (root) {
   'use strict';
   const num = x => { const n = typeof x === 'number' ? x : parseFloat(String(x ?? '').replace(/\s/g, '').replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -409,8 +409,65 @@
     return out.map(r2);
   }
 
+  /* ===================== Rappels de paiement mensuels (Bricks le 8, BienPrêter le 5…) ===================== */
+  /* Un rappel : { jour, cree: 'AAAA-MM-JJ', hist: { 'AAAA-MM': { s: 'recu'|'absent', m, tx } }, actif, motif, attendu } */
+  const ajoutJours = (s, k) => { const d = jour(s); d.setDate(d.getDate() + k); return iso(d); };
+  const ecartJours = (a, b) => Math.round((jour(b) - jour(a)) / 864e5);
+  const moisDecale = (m, k) => { const d = jour(m + '-15'); d.setMonth(d.getMonth() + k); return iso(d).slice(0, 7); };
+  /* Date du paiement d'un mois ; un jour absent du mois (31 en avril) devient le dernier jour */
+  function echeance(m, j) {
+    const d = jour(m + '-15'), fin = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return m + '-' + String(Math.min(fin, Math.max(1, Math.round(num(j)) || 1))).padStart(2, '0');
+  }
+  /* Paiements arrivés à échéance et pas encore validés (6 derniers mois au plus, jamais avant la création du rappel).
+     Au-delà de « delai » jours sans validation, le paiement passe en retard. */
+  function rappelsDus(rappels, auj, delai = 3) {
+    const out = [];
+    for (const r of rappels || []) {
+      if (!r || r.actif === false || !(num(r.jour) >= 1)) continue;
+      for (let k = 0, m = mois(auj); k < 6; k++, m = moisDecale(m, -1)) {
+        const e = echeance(m, r.jour);
+        if (e > auj || (r.cree && e < r.cree) || (r.hist && r.hist[m])) continue;
+        const j = ecartJours(e, auj);
+        out.push({ r, mois: m, date: e, jours: j, statut: j > delai ? 'retard' : 'a_valider' });
+      }
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  /* Prochaine date de paiement pas encore traitée (aujourd'hui compris) */
+  function prochaineEcheance(r, auj) {
+    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeance(m, r.jour); if (e >= auj && !(r.hist && r.hist[m])) return e; }
+    return null;
+  }
+  /* Rapprochement : un crédit sur le compte entre 3 jours avant et 10 jours après l'échéance, dont le libellé contient
+     un des mots du rappel (séparés par |, sinon son nom). Un montant habituel proche départage ; une opération déjà
+     utilisée pour un autre paiement est écartée. */
+  function rapprocher(r, m, ops, utilises) {
+    const e = echeance(m, r.jour), deb = ajoutJours(e, -3), fin = ajoutJours(e, 10), att = num(r.attendu);
+    const mots = String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
+    if (!mots.length) return null;
+    let best = null, bs = -Infinity;
+    for (const o of ops || []) {
+      if (!o || !(o.m > 0) || !o.d || o.d < deb || o.d > fin || (utilises && utilises.has(o.id))) continue;
+      const lib = norm(o.lib).replace(/[^a-z0-9]/g, '');
+      if (!mots.some(w => lib.includes(w))) continue;
+      const s = (att > 0 && Math.abs(o.m - att) <= Math.max(1, att * 0.05) ? 10 : 0) - Math.abs(ecartJours(e, o.d)) / 10;
+      if (s > bs) { bs = s; best = o; }
+    }
+    return best;
+  }
+  /* Opérations reçues de la banque (fonctions Netlify) → opérations du budget réel. Les opérations en attente et en
+     devise sont ignorées ; une opération déjà importée par un relevé (même jour, même montant) n'est pas reprise. */
+  function opsBanque(L, ref, existantes) {
+    const deja = new Set((existantes || []).filter(o => !/^eb:/.test(o.fid || '')).map(o => o.d + '|' + r2(o.m)));
+    return (L || []).filter(t => t && t.id && t.etat !== 'PDNG' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && isFinite(t.m) && t.m !== 0 && (!t.dev || t.dev === 'EUR'))
+      .map(t => ({ d: t.d, lib: String(t.lib || 'Opération').slice(0, 140), m: r2(t.m), fid: 'eb:' + ref + ':' + t.id }))
+      .filter(o => !deja.has(o.d + '|' + o.m));
+  }
+
   const API = { num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
-    tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir };
+    tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
+    echeance, rappelsDus, prochaineEcheance, rapprocher, opsBanque };
   root.Calculs = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

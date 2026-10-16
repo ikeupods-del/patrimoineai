@@ -12,4 +12,7 @@ window.PATRIMOINE_CONFIG = {
   // Relais CORS personnel pour les cours Yahoo Finance (voir cors-worker/worker.js, Cloudflare Workers gratuit).
   // Vide = relais publics (corsproxy.io, allorigins), parfois lents ou indisponibles.
   marketProxy: '', // ex. https://patrimoine-cors.votre-nom.workers.dev
+  // Liaison bancaire (écran « Mes banques ») : adresse du site Netlify qui héberge les fonctions netlify/functions (voir docs/BANQUE.md).
+  // Vide = le site lui-même s'il est hébergé sur Netlify ; sur GitHub Pages et dans l'application Mac, l'adresse est nécessaire.
+  banqueApi: '', // ex. https://patrimoine-ai.netlify.app
 };
