@@ -33,10 +33,20 @@ jobs:
       - name: Construire l'application
         working-directory: mac
         run: npm run dist
+      - name: IA du Mac — modèle de langage (gardé en cache entre deux essais)
+        uses: actions/cache@v4
+        with:
+          path: ~/ia-modele
+          key: qwen3-4b-instruct-2507-q4km
+      - name: Télécharger le modèle s'il n'est pas en cache
+        run: |
+          mkdir -p ~/ia-modele; f=~/ia-modele/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+          [ -s "$f" ] || curl -L --fail --retry 3 -o "$f" "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+          ls -la ~/ia-modele
       - name: Lancer l'application construite et l'essayer
         working-directory: mac
         run: |
-          PATRIMOINE_AUTOTEST="$PWD/autotest.json" "dist/mac-arm64/Patrimoine AI.app/Contents/MacOS/Patrimoine AI" || true
+          PATRIMOINE_IA_DOSSIER="$HOME/ia-modele" PATRIMOINE_AUTOTEST="$PWD/autotest.json" "dist/mac-arm64/Patrimoine AI.app/Contents/MacOS/Patrimoine AI" || true
           cat autotest.json
           node -e '
             const r = require("./autotest.json"), ko = [];
@@ -50,6 +60,8 @@ jobs:
             if (!r.graphique || !(r.graphique.points >= 5)) ko.push("historique Yahoo : " + JSON.stringify(r.graphique));
             if (!r.direct || !(r.direct.coursEnDirect > 0 || r.direct.yahoo === "open" || r.direct.binance === "open")) ko.push("cours en direct (flux) : " + JSON.stringify(r.direct));
             if (!r.ia || !r.ia.pont || !r.ia.provider) ko.push("IA du Mac : " + JSON.stringify(r.ia));
+            const q = r.iaReponse || {};
+            if (!q.installee || q.erreur || !(String(q.texte || "").length > 80)) ko.push("réponse de l'IA du Mac : " + JSON.stringify(q));
             if (!r.sauvegarde || !(r.sauvegarde.n >= 1)) ko.push("sauvegarde : " + JSON.stringify(r.sauvegarde));
             if (!r.pdf || !r.pdf.ok || !(r.pdf.taille > 20000)) ko.push("bilan PDF : " + JSON.stringify(r.pdf));
             if (!r.maj || !r.maj.version) ko.push("mises à jour : " + JSON.stringify(r.maj));

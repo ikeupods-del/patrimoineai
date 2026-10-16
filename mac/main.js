@@ -63,7 +63,7 @@ function reseau() {
 }
 
 /* ---------- IA du Mac (modèle partagé avec les autres logiciels QuenTools) ---------- */
-const IA = () => ia || (ia = require('./ia-locale').creer());
+const IA = () => ia || (ia = require('./ia-locale').creer(process.env.PATRIMOINE_IA_DOSSIER ? { dossier: process.env.PATRIMOINE_IA_DOSSIER } : {}));
 ipcMain.handle('ia:etat', garde(() => IA().etat()));
 ipcMain.handle('ia:installer', garde(async e => { await IA().installer(p => { if (!e.sender.isDestroyed()) e.sender.send('ia:progres', p); }); return IA().etat(); }));
 ipcMain.handle('ia:ecrire', garde((e, m) => {
@@ -259,7 +259,7 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 function autotest() {
   const res = { version: app.getVersion(), electron: process.versions.electron, arch: process.arch };
   const fin = () => { fs.writeFileSync(AUTOTEST, JSON.stringify(res, null, 2)); app.exit(0); };
-  setTimeout(() => { res.erreur = 'délai dépassé'; fin(); }, 120000);
+  setTimeout(() => { res.erreur = 'délai dépassé'; fin(); }, 420000);
   win.webContents.on('console-message', (e, niveau, texte) => { const l = e.level != null ? e.level : niveau, m = String(e.message != null ? e.message : texte); if ((l === 'error' || l === 3) && !/Failed to load resource|WebSocket connection/i.test(m)) (res.erreursConsole = res.erreursConsole || []).push(m); });
   win.webContents.once('did-finish-load', async () => {
     const js = s => win.webContents.executeJavaScript(s);
@@ -277,6 +277,9 @@ function autotest() {
       res.touch = await js(`MAC.touchDispo()`);
       res.maj = await js(`MAC.maj.etat()`);
       res.notif = await js(`MAC.notifier('Patrimoine AI','Essai automatique')`);
+      res.iaReponse = await js(`(async()=>{await macIaEtat();if(!MACIA.installee)return{installee:false};const t0=Date.now();
+        try{const m=await macAnswer('Fais le bilan de mon patrimoine et dis-moi combien investir chaque mois.',[]);return{installee:true,src:m.src,note:m.note||'',texte:String(m.t).slice(0,1200),ms:Date.now()-t0}}
+        catch(e){return{installee:true,erreur:String(e.message||e),ms:Date.now()-t0}}})()`);
       res.erreursPage = await js(`window.__erreurs||[]`);
     } catch (e) { res.erreur = e.message; }
     fin();
