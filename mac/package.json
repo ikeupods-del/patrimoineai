@@ -1,0 +1,55 @@
+{
+  "name": "patrimoine-ai",
+  "productName": "Patrimoine AI",
+  "version": "6.2.0",
+  "description": "Patrimoine, budget, objectifs, marchés en direct et IA du Mac : produit par QuenTools",
+  "main": "main.js",
+  "private": true,
+  "author": "QuenTools",
+  "scripts": {
+    "copier": "node scripts/copier-app.js",
+    "start": "node scripts/copier-app.js && electron .",
+    "dist": "node scripts/copier-app.js && electron-builder --mac dmg --arm64 --publish never"
+  },
+  "build": {
+    "appId": "fr.quentools.patrimoine",
+    "productName": "Patrimoine AI",
+    "copyright": "QuenTools",
+    "files": [
+      "main.js",
+      "preload.js",
+      "maj.js",
+      "ia-locale.js",
+      "ia-worker.js",
+      "package.json",
+      "app/**"
+    ],
+    "afterPack": "scripts/adhoc-sign.js",
+    "mac": {
+      "category": "public.app-category.finance",
+      "identity": null,
+      "icon": "build/icon.png",
+      "artifactName": "Patrimoine-AI-${version}-arm64.${ext}",
+      "extendInfo": {
+        "NSFaceIDUsageDescription": "Patrimoine AI utilise Touch ID pour déverrouiller vos données."
+      }
+    },
+    "dmg": {
+      "title": "Patrimoine AI"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "node_modules/node-llama-cpp/**",
+      "node_modules/@node-llama-cpp/**"
+    ]
+  },
+  "devDependencies": {
+    "electron": "43.7.5",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "node-llama-cpp": "3.21.1"
+  }
+}

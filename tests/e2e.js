@@ -3,7 +3,7 @@
 const { chromium } = require(process.env.PW || '/opt/node-tools/node_modules/playwright');
 const http = require('http'), fs = require('fs'), path = require('path'), assert = require('assert');
 const ROOT = path.join(__dirname, '..'), SHOTS = process.argv.includes('--photos') ? process.argv[process.argv.indexOf('--photos') + 1] : null;
-let n = 0; const ok = (c, m) => { assert(c, m); n++; };
+let n = 0; const NEWSQ = []; const ok = (c, m) => { assert(c, m); n++; };
 const vi = x => { const o = []; while (x > 127) { o.push((x % 128) | 128); x = Math.floor(x / 128); } o.push(x); return o; };
 const str = (f, s) => { const b = [...Buffer.from(s)]; return [...vi(f * 8 + 2), ...vi(b.length), ...b]; };
 const flt = (f, v) => { const b = Buffer.alloc(4); b.writeFloatLE(v); return [...vi(f * 8 + 5), ...b]; };
@@ -18,6 +18,8 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await ctx.route(/corsproxy\.io|allorigins\.win/, r => {
     const u = decodeURIComponent(r.request().url().replace(/^.*?(url=)/, '')), m = /symbols=([^&]+)/.exec(u), c = /chart\/([^?]+)\?range=(\w+)/.exec(u);
+    if (/news\.google\.com/.test(u)) { NEWSQ.push(u); const it = (t, src, h) => `<item><title>${t} - ${src}</title><link>https://news.google.com/rss/articles/${encodeURIComponent(t)}</link><pubDate>${new Date(Date.now() - h * 36e5).toUTCString()}</pubDate><source url="https://example.fr">${src}</source></item>`;
+      return r.fulfill({ status: 200, contentType: 'application/rss+xml', body: `<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>${it('Le pétrole recule après la réunion de l&apos;OPEP', 'Les Echos', 1)}${it('La BCE maintient ses taux', 'Le Monde', 3)}${it('Le pétrole recule après la réunion de l&apos;OPEP', 'BFM', 4)}${it('Les marchés asiatiques en hausse', 'Reuters', 6)}${it('&lt;script&gt;alert(1)&lt;/script&gt; Titre piégé', 'Source', 8)}</channel></rss>` }); }
     if (m) return r.fulfill({ json: { spark: { result: decodeURIComponent(m[1]).split(',').map(s => ({ symbol: s, response: [{ meta: { regularMarketPrice: (PRICE[s] || [10, 10, 'EUR'])[0], chartPreviousClose: (PRICE[s] || [10, 10, 'EUR'])[1], currency: (PRICE[s] || [10, 10, 'EUR'])[2] } }] })) } } });
     if (c) { const s = decodeURIComponent(c[1]), p = (PRICE[s] || [10])[0], t0 = Math.floor(Date.now() / 1000) - 300 * 60; return r.fulfill({ json: { chart: { result: [{ meta: { currency: (PRICE[s] || [0, 0, 'EUR'])[2] }, timestamp: Array.from({ length: 60 }, (_, i) => t0 + i * 300), indicators: { quote: [{ close: Array.from({ length: 60 }, (_, i) => p * (0.99 + 0.01 * Math.sin(i / 6) + i * 0.0002)) }] } }] } } }); }
     r.fulfill({ status: 404, body: '' });
@@ -44,7 +46,7 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(await pg.evaluate(() => /direct/.test(document.getElementById('lp').className) && !document.getElementById('lp').hidden), 'pastille Direct');
   await pg.evaluate(() => window.scrollTo(0, 0)); if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'accueil.png') });
   /* écran Marchés */
-  await pg.click('.tab[data-nav=mk]'); await pg.waitForSelector('#mkl .mkr'); await pg.waitForTimeout(300);
+  await pg.click('#tmore'); await pg.click('.tile[data-v=mk]'); await pg.waitForSelector('#mkl .mkr'); await pg.waitForTimeout(300);
   ok(await pg.locator('#mkl .mkr').count() >= 10, 'liste crypto affichée (' + await pg.locator('#mkl .mkr').count() + ')');
   const btc = pg.locator('#mkl .mkr', { hasText: 'Bitcoin' }); ok((await btc.textContent()).replace(/\s/g, '').includes('62000'), 'Bitcoin à 62 000 € dans la liste');
   await pg.evaluate(() => { const w = window.__ws.find(x => /binance/.test(x.url)); w.onmessage({ data: JSON.stringify({ stream: 'btceur@ticker', data: { s: 'BTCEUR', c: '63500', o: '59000', E: Date.now() } }) }); });
@@ -69,6 +71,43 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   /* coupure : le secours rapide prend le relais */
   await pg.evaluate(() => { window.__ws.forEach(w => { w.onclose && w.onclose(); }); });
   await pg.waitForTimeout(500); ok(!errs.length, 'aucune erreur JavaScript : ' + errs.join(' | '));
+  /* patrimoine net : bien immobilier et crédit (capital restant dû calculé) */
+  const net = await pg.evaluate(() => { const d = new Date(); d.setMonth(d.getMonth() - 12); D.assets.push({ id: 'b1', cat: 'bien', name: 'Appartement', usage: 'rp', value: 200000, amount: 180000 }, { id: 'c1', cat: 'credit', name: 'Prêt', amount: 120000, rate: 3, dur: 240, date: d.toLocaleDateString('sv-SE'), value: '' }); save(); render(); const T = totals(), a = D.assets.find(x => x.id === 'c1'); return { crd: crd(a), m: loanM(a), net: T.net, tv: T.tv, debt: T.debt }; });
+  ok(Math.abs(net.m - 665.52) < 0.5, 'mensualité du crédit ' + net.m.toFixed(2));
+  ok(Math.abs(net.crd - 115553) < 20 && Math.abs(net.net - (net.tv - net.debt)) < 0.01, 'capital restant dû ' + Math.round(net.crd) + ', patrimoine net');
+  ok((await pg.textContent('#h-lab')) === 'Patrimoine net', 'accueil en patrimoine net');
+  /* budget : épargne possible et plan d'investissement */
+  await pg.click('#tmore'); await pg.click('.tile[data-v=tools]'); await pg.click('.tab[data-nav=budget]'); await pg.click('[data-act=bstart]'); await pg.waitForTimeout(120);
+  const fill = async (sel, v) => { await pg.fill(sel, String(v)); };
+  await fill('#b-inc input[data-f=v]', 3000);
+  const exps = await pg.$$('#b-exp input[data-f=v]'); for (const e of exps) await e.fill('100');
+  await pg.waitForTimeout(400);
+  const bu = await pg.evaluate(() => { const x = budget(); return { cap: x.cap, dep: x.dep, lp: x.lp, inv: x.plan.inv, prec: x.plan.prec, marge: x.plan.marge }; });
+  ok(Math.abs(bu.dep - (exps.length * 100 + bu.lp)) < 0.01 && Math.abs(bu.cap - (3000 - bu.dep)) < 0.01, 'budget : dépenses et épargne possible');
+  ok(Math.abs(bu.marge + bu.prec + bu.inv - bu.cap) <= 1, 'plan mensuel complet (marge, précaution, investissement)');
+  ok((await pg.textContent('#bud-plan')).includes('Combien investir'), 'plan affiché');
+  /* objectifs */
+  await pg.evaluate(() => go('goals')); await pg.click('[data-act=gnew][data-i="0"]'); await pg.click('[data-act=gsave]');
+  ok(await pg.evaluate(() => D.goals.length === 1 && gState(D.goals[0]).need > 0), 'objectif créé avec effort mensuel');
+  ok((await pg.textContent('#v-goals')).includes('Effort nécessaire'), 'carte d’objectif');
+  /* assistant local : budget, crédits, objectifs */
+  const rep = await pg.evaluate(() => ['combien dois-je investir chaque mois ?', 'combien il me reste à rembourser sur mon prêt ?', 'où en sont mes objectifs ?'].map(q => LAI.answer(q).t));
+  ok(/Combien investir chaque mois/.test(rep[0]) && /Capital restant dû/.test(rep[1]) && /Vos objectifs|Épargne de précaution/.test(rep[2]), 'assistant : budget, crédits, objectifs');
+  /* contrôle des chiffres de l'IA du Mac */
+  ok(await pg.evaluate(() => unknownNums('Vous avez 120 000 € et 3 projets', ['120000']).length === 0 && unknownNums('Comptez 98 765 €', ['120000']).length === 1), 'chiffres inventés repérés');
+  /* recherche rapide, bilan PDF */
+  await pg.keyboard.press('Control+k'); await pg.waitForSelector('#pal.open'); await pg.waitForTimeout(80); await pg.keyboard.type('budget'); await pg.waitForTimeout(80); ok((await pg.textContent('#pal-l')).includes('Budget'), 'recherche rapide'); await pg.keyboard.press('Escape');
+  const bil = await pg.evaluate(() => bilanHTML()); ok(/Bilan patrimonial/.test(bil) && /Crédits/.test(bil) && /Budget mensuel/.test(bil) && /Objectifs/.test(bil), 'bilan patrimonial complet');
+  ok(!errs.length, 'aucune erreur JavaScript (nouvelles fonctions) : ' + errs.join(' | '));
+  /* actualités : thème, région, doublons retirés, titres échappés */
+  await pg.click('#tmore'); await pg.click('.tile[data-v=news]'); await pg.waitForSelector('#v-news .nwi', { timeout: 8000 });
+  ok(await pg.locator('#v-news .nwi').count() === 4, 'actualités affichées sans doublon (' + await pg.locator('#v-news .nwi').count() + ')');
+  ok(!(await pg.evaluate(() => !!document.querySelector('#v-news script'))) && (await pg.textContent('#v-news')).includes('<script>'), 'titre piégé affiché comme du texte');
+  await pg.click('[data-act=nth][data-v=energie]'); await pg.click('[data-act=nrg][data-v=asie]'); await pg.waitForTimeout(400);
+  const lq = decodeURIComponent(NEWSQ[NEWSQ.length - 1] || '');
+  ok(/pétrole/.test(lq) && /Chine/.test(lq) && /hl=fr/.test(lq), 'requête selon le thème et la région');
+  ok((await pg.textContent('#sttl')).includes('Pétrole et énergie · Asie'), 'thème et région rappelés dans le titre');
+  ok(/Actualités/.test(await pg.evaluate(() => LAI.answer('quelles sont les actualités ?').t)), 'assistant : actualités');
   /* bureau */
   await pg.setViewportSize({ width: 1280, height: 800 }); await pg.click('.side [data-nav=mk]'); await pg.waitForTimeout(300);
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'bureau.png') });

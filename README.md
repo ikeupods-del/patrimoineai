@@ -1,9 +1,28 @@
 # Patrimoine AI
 
-Suivi de patrimoine, marchés et assistant IA — **produit par QuenTools**.
-Application web installable (PWA), sans serveur : tout tourne dans le navigateur ; connexion Google et sauvegarde chiffrée via Firebase (gratuit).
+Patrimoine, budget, objectifs, marchés en direct et assistant IA — **produit par QuenTools**.
+Deux versions, un seul code : l'application web installable (téléphone, navigateur) et **l'application Mac** (dossier `mac/`).
 
 **Adresse :** https://ikeupods-del.github.io/patrimoineai/
+**Application Mac :** page « Releases » du dépôt, fichier `Patrimoine-AI-X.Y.Z-arm64.dmg` (Mac à puce Apple). Ouvrir le .dmg, glisser Patrimoine AI dans Applications ; au premier lancement : clic droit → Ouvrir. Les versions suivantes s'installent toutes seules.
+
+## Fonctions
+- **Patrimoine net** : placements (bourse, crowdlending, immobilier fractionné, assurance-vie, livrets, autres), **immobilier physique** (résidence, locatif, loyers) et **crédits** (capital restant dû recalculé chaque mois d'après le montant, le taux, la durée et la date de début ; saisie manuelle possible).
+- **Budget** : revenus, dépenses fixes et courantes, mensualités de crédit reprises automatiquement, reste à vivre, taux d'épargne et d'endettement, et **combien investir chaque mois** (marge pour les imprévus, épargne de précaution, objectifs datés, puis long terme).
+- **Objectifs** : montant, échéance, ce qui compte (patrimoine net, certains placements ou somme dédiée), effort mensuel nécessaire, état (en bonne voie, à accélérer), plan proposé par l'assistant.
+- **Actualités** : actualité économique en français (Google Actualités), par thème, par région ou sur un sujet libre, avec un thème « Mes placements » ; derniers titres sur l'accueil et dans la fiche de chaque valeur. Seuls les mots du thème (et, pour « Mes placements », le nom des valeurs suivies) sont envoyés à Google. Version web : flux lu par les relais (`cors-worker/worker.js` l'accepte aussi) ; application Mac : lecture directe.
+- **Marchés** : cours en direct, favoris, **alertes de cours** (notification), graphique avec valeur au survol.
+- **Analyse** : indice de fiabilité du crowdlending, points d'attention, **calendrier des remboursements**, **enveloppes** (PEA et son plafond, compte-titres…).
+- **Simulateurs** : impôt, projection, avant d'investir, **répartition cible** (rééquilibrage par les versements), **crédit** (mensualité, coût, taux d'endettement).
+- **Bilan patrimonial en PDF**, **recherche rapide** (⌘K / Ctrl K), import de contrats (lecteur PDF hébergé dans `vendor/pdfjs/`) et CSV.
+- **Assistant** : IA locale (calculs, sans Internet), **IA du Mac** (application Mac : vrai modèle de langage sur la puce, sans Internet, chaque chiffre cité est vérifié dans les données, sinon la réponse calculée est affichée), Gemini ou Grok avec votre clé.
+
+## Application Mac (`mac/`)
+- Electron ; l'application web est copiée dans `mac/app` à la construction (`scripts/copier-app.js`) : **aucune copie à maintenir à la main**.
+- En plus de la version web : cours Yahoo Finance **en direct sans relais** (l'origine des requêtes est présentée à Yahoo comme sa propre page), IA du Mac (modèle Qwen3 4B partagé avec QuentMovie, Studio Posts et Studio Sites dans `~/Movies/QuentMovie/modeles`, ~2,5 Go téléchargés une fois), **verrouillage Touch ID** (écran de confidentialité), **sauvegardes automatiques** (une par jour, 60 jours, dans `~/Library/Application Support/Patrimoine AI/Sauvegardes`), notifications du Mac, variation du jour dans la barre des menus, menus et raccourcis (⌘1 à ⌘8, ⌘N, ⌘K, ⌘P…), **mises à jour automatiques** (`maj.js`, copie adaptée de QuentMovie).
+- **Connexion Google** dans l'application Mac : Google refuse les fenêtres de connexion intégrées, la connexion se fait donc dans le navigateur du Mac (`connexion-mac.html`, publiée avec le site) qui renvoie un jeton temporaire à l'application (adresse locale 127.0.0.1, code à usage unique). Cette page doit être en ligne : elle l'est dès que la branche est fusionnée sur `main`.
+- **Publier une version** : changer `version` dans `mac/package.json` et ajouter sa section dans `mac/NOUVEAUTES.md`. Le workflow « Patrimoine AI — application Mac » construit le .dmg sur un vrai Mac, l'essaie (cours réels, flux en direct, bilan PDF, sauvegarde, vraie réponse de l'IA du Mac), puis le publie (étiquette `patrimoine-mac-vX.Y.Z`). Sans changement de version, rien n'est republié.
+- Essai local : `cd mac && npm install && npm start`.
 
 ## Mise en ligne (une seule fois)
 Settings → Pages → Source : **GitHub Actions**. Le workflow `.github/workflows/pages.yml` publie le site à chaque push sur `main`.
@@ -17,7 +36,16 @@ Settings → Pages → Source : **GitHub Actions**. Le workflow `.github/workflo
 - **Récupérer l'ancienne version Netlify** : exporter le JSON de l'ancienne app, puis « Restaurer une sauvegarde » dans la nouvelle.
 
 ## Fichiers
-`index.html` (l'app), `marches.js` (cours en direct), `tests/`, `config.js`, `manifest.webmanifest`, `sw.js`, icônes, `cors-worker/worker.js` (facultatif).
+`index.html` (l'app), `marches.js` (cours en direct), `connexion-mac.html` (connexion Google de l'application Mac), `vendor/pdfjs/` (lecteur PDF, licence Apache 2.0), `mac/` (application Mac), `tests/`, `config.js`, `manifest.webmanifest`, `sw.js`, icônes, `cors-worker/worker.js` (facultatif).
+
+## Contrôles
+`node tests/marches.test.js` (moteur de cours) et `node tests/e2e.js` (scénario navigateur : cours en direct, patrimoine net, budget, objectifs, assistant, recherche, bilan). Application Mac : le workflow l'essaie à chaque modification.
+
+## Limites à connaître
+- Montants immobiliers et capital restant dû : estimations (crédit amortissable à mensualités constantes) ; le tableau d'amortissement de la banque fait foi.
+- Le plan « combien investir » et les objectifs supposent un rendement constant : ordre de grandeur, pas un conseil en investissement.
+- Touch ID masque l'écran : ce n'est pas un chiffrement des données sur le Mac (elles restent dans la session macOS, comme toute application).
+- L'IA du Mac est plus lente que l'IA locale (quelques secondes, davantage à la première question) et ne connaît que vos données et les calculs de l'application.
 
 
 ## Configuration Firebase (une seule fois)
