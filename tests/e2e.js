@@ -69,6 +69,34 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   /* coupure : le secours rapide prend le relais */
   await pg.evaluate(() => { window.__ws.forEach(w => { w.onclose && w.onclose(); }); });
   await pg.waitForTimeout(500); ok(!errs.length, 'aucune erreur JavaScript : ' + errs.join(' | '));
+  /* patrimoine net : bien immobilier et crédit (capital restant dû calculé) */
+  const net = await pg.evaluate(() => { const d = new Date(); d.setMonth(d.getMonth() - 12); D.assets.push({ id: 'b1', cat: 'bien', name: 'Appartement', usage: 'rp', value: 200000, amount: 180000 }, { id: 'c1', cat: 'credit', name: 'Prêt', amount: 120000, rate: 3, dur: 240, date: d.toLocaleDateString('sv-SE'), value: '' }); save(); render(); const T = totals(), a = D.assets.find(x => x.id === 'c1'); return { crd: crd(a), m: loanM(a), net: T.net, tv: T.tv, debt: T.debt }; });
+  ok(Math.abs(net.m - 665.52) < 0.5, 'mensualité du crédit ' + net.m.toFixed(2));
+  ok(Math.abs(net.crd - 115553) < 20 && Math.abs(net.net - (net.tv - net.debt)) < 0.01, 'capital restant dû ' + Math.round(net.crd) + ', patrimoine net');
+  ok((await pg.textContent('#h-lab')) === 'Patrimoine net', 'accueil en patrimoine net');
+  /* budget : épargne possible et plan d'investissement */
+  await pg.click('#tmore'); await pg.click('.tile[data-v=tools]'); await pg.click('.tab[data-nav=budget]'); await pg.click('[data-act=bstart]'); await pg.waitForTimeout(120);
+  const fill = async (sel, v) => { await pg.fill(sel, String(v)); };
+  await fill('#b-inc input[data-f=v]', 3000);
+  const exps = await pg.$$('#b-exp input[data-f=v]'); for (const e of exps) await e.fill('100');
+  await pg.waitForTimeout(400);
+  const bu = await pg.evaluate(() => { const x = budget(); return { cap: x.cap, dep: x.dep, lp: x.lp, inv: x.plan.inv, prec: x.plan.prec, marge: x.plan.marge }; });
+  ok(Math.abs(bu.dep - (exps.length * 100 + bu.lp)) < 0.01 && Math.abs(bu.cap - (3000 - bu.dep)) < 0.01, 'budget : dépenses et épargne possible');
+  ok(Math.abs(bu.marge + bu.prec + bu.inv - bu.cap) <= 1, 'plan mensuel complet (marge, précaution, investissement)');
+  ok((await pg.textContent('#bud-plan')).includes('Combien investir'), 'plan affiché');
+  /* objectifs */
+  await pg.evaluate(() => go('goals')); await pg.click('[data-act=gnew][data-i="0"]'); await pg.click('[data-act=gsave]');
+  ok(await pg.evaluate(() => D.goals.length === 1 && gState(D.goals[0]).need > 0), 'objectif créé avec effort mensuel');
+  ok((await pg.textContent('#v-goals')).includes('Effort nécessaire'), 'carte d’objectif');
+  /* assistant local : budget, crédits, objectifs */
+  const rep = await pg.evaluate(() => ['combien dois-je investir chaque mois ?', 'combien il me reste à rembourser sur mon prêt ?', 'où en sont mes objectifs ?'].map(q => LAI.answer(q).t));
+  ok(/Combien investir chaque mois/.test(rep[0]) && /Capital restant dû/.test(rep[1]) && /Vos objectifs|Épargne de précaution/.test(rep[2]), 'assistant : budget, crédits, objectifs');
+  /* contrôle des chiffres de l'IA du Mac */
+  ok(await pg.evaluate(() => unknownNums('Vous avez 120 000 € et 3 projets', ['120000']).length === 0 && unknownNums('Comptez 98 765 €', ['120000']).length === 1), 'chiffres inventés repérés');
+  /* recherche rapide, bilan PDF */
+  await pg.keyboard.press('Control+k'); await pg.waitForSelector('#pal.open'); await pg.waitForTimeout(80); await pg.keyboard.type('budget'); await pg.waitForTimeout(80); ok((await pg.textContent('#pal-l')).includes('Budget'), 'recherche rapide'); await pg.keyboard.press('Escape');
+  const bil = await pg.evaluate(() => bilanHTML()); ok(/Bilan patrimonial/.test(bil) && /Crédits/.test(bil) && /Budget mensuel/.test(bil) && /Objectifs/.test(bil), 'bilan patrimonial complet');
+  ok(!errs.length, 'aucune erreur JavaScript (nouvelles fonctions) : ' + errs.join(' | '));
   /* bureau */
   await pg.setViewportSize({ width: 1280, height: 800 }); await pg.click('.side [data-nav=mk]'); await pg.waitForTimeout(300);
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'bureau.png') });

@@ -309,7 +309,9 @@ header.top{background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filt
 #modal{background:rgba(0,0,0,.42);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .sheet{box-shadow:var(--shadow);border:1px solid var(--line)}
 .sh{border-bottom:1px solid var(--line);margin:0 -18px 6px;padding:14px 18px 12px}
-.chart{cursor:crosshair}
+.chart{cursor:crosshair;height:150px;width:100%}.hero .chart{height:180px}
+.cxl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut);margin-top:4px;font-variant-numeric:tabular-nums}
+.grid2>.card{margin-top:0}
 #ctip{position:fixed;z-index:85;pointer-events:none;background:var(--tx);color:var(--bg);font:600 12.5px/1.35 var(--num);padding:7px 10px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .1s;white-space:nowrap}
 #ctip small{display:block;font-weight:500;opacity:.75}
 .cx{stroke:var(--mut);stroke-dasharray:3 3;stroke-width:1}
@@ -323,6 +325,10 @@ input,select,textarea{min-height:42px;font-size:14.5px;padding:10px 12px}
 .item{padding:12px 14px}
 .sheet{border-radius:20px;padding:0 22px 22px}.sh{margin:0 -22px 8px;padding:16px 22px 12px}
 }
+@media(max-width:560px){#b-exp .trow{grid-template-columns:minmax(0,1fr) 116px 36px!important;row-gap:6px}#b-exp .trow>input[data-f=n]{grid-column:1/-1}#b-inc .trow{grid-template-columns:minmax(0,1fr) 116px 36px!important}}
+body[data-view=ai] .wrap{max-width:880px}
+body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
+@media(min-width:900px){.chart{height:190px}.hero .chart{height:230px}}
 @media(min-width:1280px){.grid2.g3{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media print{body{height:auto;overflow:visible}.side,.tabs,.fab,header.top,#toast,#modal,#pal{display:none!important}}
 </style></head><body data-view="home">
@@ -342,7 +348,7 @@ input,select,textarea{min-height:42px;font-size:14.5px;padding:10px 12px}
 <section class="view" id="v-set"></section>
 </div></main></div></div>
 <nav class="tabs" id="tabs" aria-label="Navigation"></nav>
-<button class="fab" id="fab" data-act="add" aria-label="Ajouter un placement"></button>
+<button class="fab" id="fab" data-act="add" data-fab="1" aria-label="Ajouter"></button>
 <div id="modal" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="pal" role="dialog" aria-modal="true" aria-label="Recherche rapide"><div class="palb"><input id="pal-q" type="search" placeholder="Chercher un placement, une valeur, une action…" autocomplete="off" aria-label="Recherche rapide" data-in="pal"><div class="pall" id="pal-l" role="listbox"></div></div></div>
@@ -354,7 +360,7 @@ input,select,textarea{min-height:42px;font-size:14.5px;padding:10px 12px}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
-const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.0';
+const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.1';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
 const UI={view:'home',filter:'all',q:'',sort:'val',tool:'tax',range:'all'};
 let HIDE=false,CUR={id:''},IMP={},AIBUSY=false,RFB=false,ASK=null,TOASTACT=null,toastT=null;
@@ -615,7 +621,7 @@ const ic=(n,s=20)=>`<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 2
 /* ===================== Graphiques SVG ===================== */
 function lineChart(S,o={}){
   const all=S.flatMap(s=>s.p);if(all.length<2)return '';
-  const W=340,H=o.h||130,pl=6,pr=6,pt=8,pb=20;
+  const W=340,H=o.h||130,pl=4,pr=6,pt=8,pb=4;
   let x0=Math.min(...all.map(p=>p.t)),x1=Math.max(...all.map(p=>p.t)),y0=Math.min(...all.map(p=>p.v)),y1=Math.max(...all.map(p=>p.v));
   if(y1===y0){y1+=1;y0-=1}const pd=(y1-y0)*.12;y0-=pd;y1+=pd;
   const X=t=>pl+(t-x0)/((x1-x0)||1)*(W-pl-pr),Y=v=>pt+(1-(v-y0)/(y1-y0))*(H-pt-pb),f=v=>v.toFixed(1);
@@ -623,11 +629,12 @@ function lineChart(S,o={}){
   const paths=S.map((s,k)=>{
     const d=s.p.map((p,i)=>(i?'L':'M')+f(X(p.t))+' '+f(Y(p.v))).join('');
     const area=k===0&&s.area?`<path d="${d}L${f(X(s.p[s.p.length-1].t))} ${H-pb}L${f(X(s.p[0].t))} ${H-pb}Z" fill="url(#${gid})"/>`:'';
-    return area+`<path d="${d}" fill="none" style="stroke:${s.c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.dash?' stroke-dasharray="4 4"':''}/>`;
+    return area+`<path d="${d}" fill="none" style="stroke:${s.c}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"${s.dash?' stroke-dasharray="4 4"':''}/>`;
   }).join('');
   const L=S[0].p,last=L[L.length-1],xl=o.xl||[fd(new Date(x0)),fd(new Date(x1))];
   const st=Math.max(1,Math.ceil(L.length/240)),tp=L.filter((p,i)=>i%st===0||i===L.length-1).map(p=>[+X(p.t).toFixed(1),+Y(p.v).toFixed(1),p.v,p.t]);
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.aria||'Graphique')}" data-tip="${esc(JSON.stringify(tp))}" data-tf="${o.tf||'date'}" data-vf="${esc(o.vf||'eur')}" data-c="${esc(S[0].c)}"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${S[0].c};stop-opacity:.28"/><stop offset="1" style="stop-color:${S[0].c};stop-opacity:0"/></linearGradient></defs><line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" style="stroke:var(--line)"/>${paths}<circle cx="${f(X(last.t))}" cy="${f(Y(last.v))}" r="3.5" style="fill:${S[0].c}"/><text x="${pl}" y="${H-5}">${esc(xl[0])}</text><text x="${W-pr}" y="${H-5}" text-anchor="end">${esc(xl[1])}</text></svg>`;
+  /* tracé étiré à la largeur de la carte (hauteur fixée par la feuille de style) : traits et points gardent leur épaisseur */
+  return `<svg class="chart${o.cls?' '+o.cls:''}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(o.aria||'Graphique')}" data-tip="${esc(JSON.stringify(tp))}" data-tf="${o.tf||'date'}" data-vf="${esc(o.vf||'eur')}" data-c="${esc(S[0].c)}"><defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:${S[0].c};stop-opacity:.28"/><stop offset="1" style="stop-color:${S[0].c};stop-opacity:0"/></linearGradient></defs><line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" style="stroke:var(--line)" vector-effect="non-scaling-stroke"/>${paths}<line x1="${f(X(last.t))}" y1="${f(Y(last.v))}" x2="${f(X(last.t))}" y2="${f(Y(last.v))}" style="stroke:${S[0].c}" stroke-width="8" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg><div class="cxl"><span>${esc(xl[0])}</span><span>${esc(xl[1])}</span></div>`;
 }
 /* Info-bulle des graphiques : valeur et date du point le plus proche du pointeur */
 function chartTip(e){
@@ -636,8 +643,8 @@ function chartTip(e){
   let P=s._p;if(!P){try{P=s._p=JSON.parse(s.dataset.tip)}catch(x){return}}if(!P.length)return;
   const b=s.getBoundingClientRect(),vb=s.viewBox.baseVal,vx=(e.clientX-b.left)/b.width*vb.width;let k=0,d=1e9;P.forEach((p,i)=>{const dd=Math.abs(p[0]-vx);if(dd<d){d=dd;k=i}});const p=P[k],NS='http://www.w3.org/2000/svg';
   let l=s.querySelector('.cx'),c=s.querySelector('.cxd');
-  if(!l){l=document.createElementNS(NS,'line');l.setAttribute('class','cx');s.appendChild(l);c=document.createElementNS(NS,'circle');c.setAttribute('class','cxd');c.setAttribute('r','4');c.style.fill=s.dataset.c||'var(--pt)';c.style.stroke='var(--card)';c.style.strokeWidth='2';s.appendChild(c)}
-  l.setAttribute('x1',p[0]);l.setAttribute('x2',p[0]);l.setAttribute('y1',4);l.setAttribute('y2',vb.height-20);c.setAttribute('cx',p[0]);c.setAttribute('cy',p[1]);
+  if(!l){l=document.createElementNS(NS,'line');l.setAttribute('class','cx');l.setAttribute('vector-effect','non-scaling-stroke');s.appendChild(l);c=document.createElementNS(NS,'line');c.setAttribute('class','cxd');c.setAttribute('vector-effect','non-scaling-stroke');c.setAttribute('stroke-width','10');c.setAttribute('stroke-linecap','round');c.style.stroke=s.dataset.c||'var(--pt)';s.appendChild(c)}
+  l.setAttribute('x1',p[0]);l.setAttribute('x2',p[0]);l.setAttribute('y1',4);l.setAttribute('y2',vb.height-4);['x1','x2'].forEach(a=>c.setAttribute(a,p[0]));['y1','y2'].forEach(a=>c.setAttribute(a,p[1]));
   const vf=s.dataset.vf,tf=s.dataset.tf,v=vf==='eur'?eur(p[2],p[2]<100?2:0):pxf(p[2],vf),t=tf==='year'?(p[3]?'Dans '+p[3]+' an'+(p[3]>1?'s':''):'Aujourd’hui'):tf==='time'?new Date(p[3]).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}):fd(new Date(p[3]));
   tip.innerHTML=esc(v)+'<small>'+esc(t)+'</small>';tip.style.opacity='1';
   const x=b.left+p[0]/vb.width*b.width,y=b.top+p[1]/vb.height*b.height,w=tip.offsetWidth;
@@ -739,8 +746,9 @@ function onboarding(){
   return `<section class="card"><h2>Bienvenue dans Patrimoine AI</h2><p class="mut mt" style="margin-top:6px">Suivez tout votre patrimoine au même endroit${MAC?', sur votre Mac':''}. Vos données restent sur cet appareil.</p>
 <ol class="steps"><li><div><b>Ajoutez un premier placement</b><div class="sm mut">Bourse, crowdlending, livrets, mais aussi votre logement et vos crédits : choisissez le type et remplissez quelques champs.</div></div></li>
 <li><div><b>Suivez l’essentiel automatiquement</b><div class="sm mut">Répartition, évolution, échéances, alertes et indice de fiabilité se calculent tout seuls.</div></div></li>
-<li><div><b>Posez vos questions à l’assistant</b><div class="sm mut">L’IA locale fonctionne tout de suite, sans Internet ni clé. Une clé Gemini gratuite (facultative) ajoute l’enquête web et la lecture de photos.</div></div></li></ol>
-<div class="stack"><button class="btn" data-act="add">${ic('plus',18)}Ajouter mon premier placement</button><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat ou un CSV</button><button class="btn ghost" data-act="demo">${ic('gem',18)}Découvrir avec des exemples</button></div></section>`;
+<li><div><b>Remplissez votre budget et vos objectifs</b><div class="sm mut">Revenus et dépenses du mois : l’application calcule votre reste à vivre et combien investir chaque mois pour vos projets.</div></div></li>
+<li><div><b>Posez vos questions à l’assistant</b><div class="sm mut">${MAC?'L’IA du Mac rédige sans Internet : vos données ne quittent jamais l’ordinateur.':'L’IA locale fonctionne tout de suite, sans Internet ni clé. Une clé Gemini gratuite (facultative) ajoute l’enquête web et la lecture de photos.'}</div></div></li></ol>
+<div class="stack"><button class="btn" data-act="add">${ic('plus',18)}Ajouter mon premier placement</button><button class="btn sec" data-act="go" data-v="budget">${ic('wallet',18)}Remplir mon budget</button><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat ou un CSV</button><button class="btn ghost" data-act="demo">${ic('gem',18)}Découvrir avec des exemples</button></div></section>`;
 }
 function renderHome(){
   const A=D.assets,el=$('v-home');
@@ -797,8 +805,10 @@ function budget(){
   return{R,lp,fixe,cour,dep,cap,rav:R-fixe,te:R>0?lp/R*100:null,ts:R>0?cap/R*100:null,cash,cible,gap,plan,mois:B.mois};
 }
 const bline=(l,t)=>`<div class="trow" style="grid-template-columns:minmax(0,1fr) ${t==='exp'?'118px ':''}132px 36px"><input aria-label="Libellé" value="${esc(l.n||'')}" placeholder="Libellé" data-in="bud" data-t="${t}" data-id="${esc(l.id)}" data-f="n" style="text-align:left">${t==='exp'?`<select aria-label="Type de dépense" data-ch="bud" data-t="exp" data-id="${esc(l.id)}" data-f="k" style="min-height:36px;padding:6px 8px"><option value="fixe"${l.k!=='courant'?' selected':''}>Fixe</option><option value="courant"${l.k==='courant'?' selected':''}>Courante</option></select>`:''}<div class="inp has"><input type="number" inputmode="decimal" min="0" step="any" aria-label="Montant par mois" value="${l.v===''||l.v==null?'':esc(l.v)}" placeholder="0" data-in="bud" data-t="${t}" data-id="${esc(l.id)}" data-f="v"><span class="suf">€</span></div><button class="ibtn" style="width:36px;height:36px" data-act="bdel" data-t="${t}" data-id="${esc(l.id)}" aria-label="Supprimer la ligne">${ic('x',16)}</button></div>`;
-function renderBudget(){
+const typing=el=>{const a=document.activeElement;return !!(a&&el&&el.contains(a)&&/INPUT|SELECT|TEXTAREA/.test(a.tagName))};
+function renderBudget(force){
   const el=$('v-budget');if(!el)return;const B=D.budget;
+  if(!force&&typing(el)){budOut();return} /* ne jamais redessiner sous les doigts : seuls les totaux sont mis à jour */
   if(!B.inc.length&&!B.exp.length){el.innerHTML=`<section class="card"><div class="empty"><span class="ico" style="--c:var(--pt)">${ic('wallet',24)}</span><h2>Votre budget du mois</h2><p class="mut">Notez vos revenus et vos dépenses : l’application calcule votre reste à vivre et vous dit combien mettre de côté et investir chaque mois, sans vous mettre en difficulté.</p><button class="btn" data-act="bstart">${ic('plus',18)}Commencer avec une liste type</button><button class="btn sec mt" style="margin-left:8px" data-act="bblank">Partir d’une page vide</button></div></section>`;return}
   const lp=loanPay();
   let h=`<div class="grid2"><section class="card"><div class="ct"><h3>Revenus par mois</h3><button class="btn sm sec" data-act="badd" data-t="inc">${ic('plus',15)}Ajouter</button></div><div class="xs mut">Salaires nets, primes lissées sur 12 mois, loyers perçus, pensions…</div><div class="mt" id="b-inc">${B.inc.map(l=>bline(l,'inc')).join('')}</div></section>
@@ -1029,7 +1039,7 @@ function renderAI(){
   if(p==='mac'&&!MACIA.installee)h+=`<section class="card"><h3>L’IA du Mac</h3>${macIaCard()}</section>`;
   else if(p!=='local'&&p!=='mac'&&!keyOf(p))h+=`<section class="card"><h3>Connectez ${PROV[p].co}</h3><p class="sm mut" style="margin-top:6px">La clé reste enregistrée uniquement sur cet appareil. En attendant, l’IA locale répond à vos questions.</p>${keyBlock('key-a')}</section>`;
   if(!M.length&&!AIBUSY){
-    const S=(D.assets.length?SUGG_P:SUGG_E).concat((D.goals||[]).length?['Où en sont mes objectifs ?']:[]),loc=p==='local'||!keyOf(p);
+    const S=(D.assets.length?SUGG_P:SUGG_E).concat((D.goals||[]).length?['Où en sont mes objectifs ?']:[]).concat(D.budget.inc.some(l=>num(l.v)>0)?['Combien dois-je investir chaque mois ?']:[]),loc=p==='local'||!keyOf(p);
     h+=`<section class="card"><div class="row" style="justify-content:flex-start;gap:12px"><span class="ico" style="--c:var(--pt)">${ic(loc?'cpu':'spark')}</span><div><h3>${loc?'Que voulez-vous savoir ?':p==='mac'?'IA du Mac':'Assistant '+PROV[p].n}</h3><div class="sm mut">${p==='mac'&&!loc?'Elle connaît vos placements, vos crédits et vos objectifs, et répond librement sans que rien ne sorte de votre Mac. Les chiffres viennent toujours des calculs de l’application.':loc?(D.assets.length?'Je calcule à partir de vos placements : bilan, risques, échéances, revenus, simulations, fiscalité.':'Posez une question générale, ou ajoutez vos placements pour une analyse personnalisée.'):'Il connaît vos placements et répond librement. S’il ne répond pas, l’IA locale prend le relais.'}</div></div></div><div class="stack mt">${S.map(q=>`<button class="btn sec" style="justify-content:flex-start;text-align:left" data-act="askai" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></section>`;
   }
   h+=M.map((m,k)=>{
@@ -1048,7 +1058,8 @@ function renderAI(){
 
 /* ===================== Simulateurs ===================== */
 const nfld=(id,label,v,suf,hint)=>`<div class="fld"><label for="${id}">${esc(label)}</label><div class="inp has"><input id="${id}" type="number" inputmode="decimal" step="any" min="0" value="${esc(v)}" data-in="calc"><span class="suf">${suf}</span></div>${hint?`<div class="hint">${esc(hint)}</div>`:''}</div>`;
-function renderTools(){
+function renderTools(force){
+  if(!force&&typing($('v-tools'))){calc();return}
   const el=$('v-tools'),T=UI.tool,tabs=[['tax','Impôt'],['proj','Projection'],['new','Avant d’investir'],['alloc','Répartition cible'],['loan','Crédit']];
   let h=`<div class="chips">${tabs.map(t=>`<button class="chip${t[0]===T?' on':''}" data-act="tool" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
   if(T==='tax'){
@@ -1658,11 +1669,11 @@ function unknownNums(t,sources){
   const K=numsIn(sources.join('\n'));
   return [...new Set(numsIn(t))].filter(v=>!(v<=31||(Number.isInteger(v)&&v>=1990&&v<=2100)||K.some(k=>Math.abs(v-k)<=Math.max(0.51,Math.abs(k)*0.006)||Math.abs(v-k/12)<=Math.max(0.51,k/12*0.006))));
 }
-async function macAnswer(q,h){
+async function macAnswer(q,h,opt){
   const loc=LAI.answer(q),dos=JSON.stringify(dossier());
   const hist=(h||[]).slice(-6).map(m=>(m.r==='u'?'Utilisateur : ':'Assistant : ')+String(m.t).slice(0,700)).join('\n');
   const dem=`Dossier de l’utilisateur (JSON, montants en euros) :\n${dos}\n\nCalculs exacts du programme pour cette question (fiables, à réutiliser) :\n${loc.t}\n\n${hist?'Conversation récente :\n'+hist+'\n\n':''}Question : ${q}`;
-  const raw=await MAC.ia.ecrire({systeme:SYS_MAC,demande:dem.slice(0,26000),maxTokens:900,temperature:0.3});
+  const raw=await MAC.ia.ecrire({systeme:SYS_MAC,demande:dem.slice(0,26000),maxTokens:(opt&&opt.max)||700,temperature:0.3});
   const t=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'').trim();
   if(!t)throw Error('réponse vide');
   const bad=unknownNums(t,[dos,loc.t,q,hist,new Date().toLocaleDateString('fr-FR')]);
@@ -2267,7 +2278,7 @@ header p{margin:4px 0 0;color:#5b6961}.brand{text-align:right;font-weight:700;co
 table{width:100%;border-collapse:collapse}.dt{table-layout:fixed}.dt td:first-child,.dt th:first-child{width:46%}td,th{padding:5px 6px;border-bottom:1px solid #e6e9e6;text-align:left;vertical-align:top}th{font-size:9pt;color:#5b6961;font-weight:600}.r{text-align:right;white-space:nowrap}
 tr{break-inside:avoid}small{color:#5b6961}td i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
 .rep{display:flex;gap:22px;align-items:center}.dn{width:150px;flex:none}.dn svg{width:150px;height:150px}
-.chart{width:100%;max-height:200px}.chart text{fill:#5b6961;font-size:9px}ul{padding-left:18px}li{margin:4px 0}
+.chart{width:100%;height:170px;display:block}.cxl{display:flex;justify-content:space-between;font-size:9pt;color:#5b6961}ul{padding-left:18px}li{margin:4px 0}
 footer{margin-top:26px;padding-top:10px;border-top:1px solid #d9dfdb;font-size:8.5pt;color:#5b6961}
 @page{size:A4;margin:12mm}</style></head><body>${h}</body></html>`;
   }finally{HIDE=hid}
@@ -2299,7 +2310,7 @@ function palItems(q){
   add('Actions','Exporter en CSV (tableur)','download',()=>expCSV(),'excel numbers');
   add('Actions',HIDE?'Afficher les montants':'Masquer les montants',HIDE?'eye':'eyeoff',()=>ACT.hide());
   add('Actions','Thème sombre','eye',()=>ACT.theme({v:'dark'}));add('Actions','Thème clair','eye',()=>ACT.theme({v:'light'}));
-  [['tax','Simulateur d’impôt'],['proj','Projection de patrimoine'],['new','Avant d’investir dans un projet'],['alloc','Répartition cible et rééquilibrage'],['loan','Simulateur de crédit']].forEach(t=>add('Outils',t[1],'calc',()=>{UI.tool=t[0];renderTools();go('tools')}));
+  [['tax','Simulateur d’impôt'],['proj','Projection de patrimoine'],['new','Avant d’investir dans un projet'],['alloc','Répartition cible et rééquilibrage'],['loan','Simulateur de crédit']].forEach(t=>add('Outils',t[1],'calc',()=>{UI.tool=t[0];renderTools(true);go('tools')}));
   if(MAC&&D.set.lock)add('Actions','Verrouiller maintenant','lock',()=>lockNow());
   D.assets.forEach(a=>add('Mes placements',a.name||'Sans nom',cinfo(a).ic,()=>openDetail(a.id),[a.plat,a.tick,cinfo(a).n].join(' ')));
   if(n.length>=2){const seen=new Set();Object.values(LISTS).flat().concat((D.watch||[]).map(s=>[s,NAMES[s]||MK.nm[s]||s])).forEach(([s,nm])=>{if(seen.has(s))return;seen.add(s);add('Marchés',nm,'trend',()=>mkPick(s,nm),s)})}
@@ -2362,7 +2373,7 @@ function demo(){
 /* ===================== Actions & événements ===================== */
 const ACT={
   go:d=>{if($('modal').classList.contains('open'))closeM();go(d.v)},
-  add:d=>d.c?openForm(d.c):openPick(),
+  add:d=>d.c?openForm(d.c):(UI.view==='goals'&&d.fab!=null)?openGoalForm(''):openPick(),
   pick:d=>openForm(d.c),
   cat:d=>openForm(d.c,CUR.id,collect()),
   seg:(d,t)=>{$(d.t).value=d.v;t.parentNode.querySelectorAll('.chip').forEach(c=>{const on=c===t;c.classList.toggle('on',on);c.setAttribute('aria-checked',on)});if(d.t==='tm')tradeLive();if(d.t==='f-gsrc')goalLive();else formLive()},
@@ -2381,7 +2392,7 @@ const ACT={
   goalclear:()=>{delete D.goal;save();closeM();render()},
   filter:d=>{UI.filter=d.c;UI.q='';renderAssets();go('assets')},
   range:d=>{UI.range=d.r;renderHome()},
-  tool:d=>{UI.tool=d.t;renderTools()},
+  tool:d=>{UI.tool=d.t;renderTools(true)},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
   tog:d=>{if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
@@ -2427,17 +2438,17 @@ const ACT={
   airetry:()=>{const M=D.chat;let i=M.length-1;while(i>=0&&M[i].r!=='u')i--;if(i<0)return;const q=M[i].t;D.chat=M.slice(0,i);sendAI(q)},
   closeM:()=>closeM(),
   more:()=>sheet('Plus',[['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Impôt, projection, crédit, répartition cible'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
-  bstart:()=>{const B=D.budget;B.inc=BTPL.inc.map(x=>({id:newId(),n:x[0],v:''}));B.exp=BTPL.exp.filter(x=>!(x[2]==='logement'&&loanPay()>0)).map(x=>({id:newId(),n:x[0],k:x[1],c:x[2],v:''}));save();renderBudget();setTimeout(()=>{const i=document.querySelector('#b-inc input[data-f=v]');if(i)i.focus()},50)},
-  bblank:()=>{const B=D.budget;B.inc=[{id:newId(),n:'Salaire net',v:''}];B.exp=[{id:newId(),n:'',k:'fixe',v:''}];save();renderBudget()},
-  badd:d=>{const l={id:newId(),n:'',v:''};if(d.t==='exp')l.k='fixe';D.budget[d.t].push(l);save();renderBudget();setTimeout(()=>{const i=document.querySelector('[data-id="'+l.id+'"][data-f=n]');if(i)i.focus()},40)},
-  bdel:d=>{D.budget[d.t]=D.budget[d.t].filter(x=>x.id!==d.id);save();renderBudget()},
+  bstart:()=>{const B=D.budget;B.inc=BTPL.inc.map(x=>({id:newId(),n:x[0],v:''}));B.exp=BTPL.exp.filter(x=>!(x[2]==='logement'&&loanPay()>0)).map(x=>({id:newId(),n:x[0],k:x[1],c:x[2],v:''}));save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('#b-inc input[data-f=v]');if(i&&!typing($('v-budget')))i.focus()},50)},
+  bblank:()=>{const B=D.budget;B.inc=[{id:newId(),n:'Salaire net',v:''}];B.exp=[{id:newId(),n:'',k:'fixe',v:''}];save();renderBudget(true)},
+  badd:d=>{const l={id:newId(),n:'',v:''};if(d.t==='exp')l.k='fixe';D.budget[d.t].push(l);save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('[data-id="'+l.id+'"][data-f=n]');if(i)i.focus()},40)},
+  bdel:d=>{D.budget[d.t]=D.budget[d.t].filter(x=>x.id!==d.id);save();renderBudget(true)},
   gnew:d=>openGoalForm('',d.i!=null&&d.i!==''?GTPL[+d.i]:null),gedit:d=>openGoalForm(d.id),gsave:()=>goalSave(),
   gdel:async d=>{if(!await ask('Supprimer cet objectif ?','Il disparaîtra de tous vos appareils synchronisés.','Supprimer',true))return;D.goals=D.goals.filter(g=>g.id!==d.id);save();render();toast('Objectif supprimé')},
   gcat:(d,t)=>{t.classList.toggle('on');t.setAttribute('aria-pressed',t.classList.contains('on'));goalLive()},
   gadd:d=>goalAdd(d.id),gaddok:()=>{const g=D.goals.find(x=>x.id===CUR.g),v=num($('ga-v').value);if(!g||!v)return;g.saved=Math.max(0,num(g.saved)+v);save();closeM();render();toast(gState(g).k==='done'?'Objectif atteint !':'Versement enregistré')},
   palgo:d=>palRun(+d.i),bilan:()=>bilan(),pal:()=>openPal(),
   alnow:()=>{const c=allocNow();ALLOC.forEach(k=>{const e=$('al-'+k);if(e)e.value=c.t>0&&c.v[k]?Math.round(c.p[k]):''});calcAlloc()},
-  alclear:()=>{D.target={};save();renderTools()},
+  alclear:()=>{D.target={};save();renderTools(true)},
   askok:()=>{const r=ASK;ASK=null;closeM();if(r)r(true)},
   askno:()=>closeM()
 };

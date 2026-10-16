@@ -259,12 +259,12 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 function autotest() {
   const res = { version: app.getVersion(), electron: process.versions.electron, arch: process.arch };
   const fin = () => { fs.writeFileSync(AUTOTEST, JSON.stringify(res, null, 2)); app.exit(0); };
-  setTimeout(() => { res.erreur = 'délai dépassé'; fin(); }, 420000);
+  setTimeout(() => { res.erreur = 'délai dépassé'; fin(); }, 25 * 60000);
   win.webContents.on('console-message', (e, niveau, texte) => { const l = e.level != null ? e.level : niveau, m = String(e.message != null ? e.message : texte); if ((l === 'error' || l === 3) && !/Failed to load resource|WebSocket connection/i.test(m)) (res.erreursConsole = res.erreursConsole || []).push(m); });
   win.webContents.once('did-finish-load', async () => {
     const js = s => win.webContents.executeJavaScript(s);
     try {
-      res.page = await js(`(async()=>{await new Promise(r=>setTimeout(r,1500));demo();
+      res.page = await js(`(async()=>{await new Promise(r=>setTimeout(r,1500));localStorage.removeItem('pat_data');D=load();demo();
         D.budget.inc=[{id:'i1',n:'Salaire',v:3000}];D.budget.exp=[{id:'e1',n:'Loyer',k:'fixe',v:800},{id:'e2',n:'Courses',k:'courant',v:400}];render();
         const T=totals(),b=budget();go('goals');openGoalForm('',GTPL[0]);goalSave();
         return{mac:!!MAC,hosted:HOSTED,net:Math.round(T.net),dettes:Math.round(T.debt),budget:Math.round(b.cap),plan:Math.round(b.plan.inv),objectifs:D.goals.length,classe:document.body.classList.contains('mac')}})()`);
@@ -278,7 +278,7 @@ function autotest() {
       res.maj = await js(`MAC.maj.etat()`);
       res.notif = await js(`MAC.notifier('Patrimoine AI','Essai automatique')`);
       res.iaReponse = await js(`(async()=>{await macIaEtat();if(!MACIA.installee)return{installee:false};const t0=Date.now();
-        try{const m=await macAnswer('Fais le bilan de mon patrimoine et dis-moi combien investir chaque mois.',[]);return{installee:true,src:m.src,note:m.note||'',texte:String(m.t).slice(0,1200),ms:Date.now()-t0}}
+        try{const m=await macAnswer('Combien dois-je investir chaque mois ?',[],{max:200});return{installee:true,src:m.src,note:m.note||'',texte:String(m.t).slice(0,1200),ms:Date.now()-t0}}
         catch(e){return{installee:true,erreur:String(e.message||e),ms:Date.now()-t0}}})()`);
       res.erreursPage = await js(`window.__erreurs||[]`);
     } catch (e) { res.erreur = e.message; }

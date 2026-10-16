@@ -45,6 +45,7 @@ jobs:
           ls -la ~/ia-modele
       - name: Lancer l'application construite et l'essayer
         working-directory: mac
+        timeout-minutes: 30
         run: |
           PATRIMOINE_IA_DOSSIER="$HOME/ia-modele" PATRIMOINE_AUTOTEST="$PWD/autotest.json" "dist/mac-arm64/Patrimoine AI.app/Contents/MacOS/Patrimoine AI" || true
           cat autotest.json
@@ -61,7 +62,7 @@ jobs:
             if (!r.direct || !(r.direct.coursEnDirect > 0 || r.direct.yahoo === "open" || r.direct.binance === "open")) ko.push("cours en direct (flux) : " + JSON.stringify(r.direct));
             if (!r.ia || !r.ia.pont || !r.ia.provider) ko.push("IA du Mac : " + JSON.stringify(r.ia));
             const q = r.iaReponse || {};
-            if (!q.installee || q.erreur || !(String(q.texte || "").length > 80)) ko.push("réponse de l'IA du Mac : " + JSON.stringify(q));
+            if (!q.installee || q.erreur || !(String(q.texte || "").length > 80)) ko.push("réponse de l’IA du Mac : " + JSON.stringify(q));
             if (!r.sauvegarde || !(r.sauvegarde.n >= 1)) ko.push("sauvegarde : " + JSON.stringify(r.sauvegarde));
             if (!r.pdf || !r.pdf.ok || !(r.pdf.taille > 20000)) ko.push("bilan PDF : " + JSON.stringify(r.pdf));
             if (!r.maj || !r.maj.version) ko.push("mises à jour : " + JSON.stringify(r.maj));

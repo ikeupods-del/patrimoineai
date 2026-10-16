@@ -1,5 +1,10 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.1.0
+- **Interface repensée** : barre latérale façon Mac avec raccourcis (⌘1 à ⌘8), recherche toujours visible, montants plus lisibles, graphiques qui affichent la valeur au survol.
+- Le budget ne se redessine plus pendant la saisie ; le bouton « + » s’adapte à l’écran (nouvel objectif sur Objectifs).
+- L’assistant propose « Combien dois-je investir chaque mois ? » dès que le budget est rempli.
+
 ## 6.0.0
 Première version pour Mac.
 - **Patrimoine net** : votre logement, vos biens locatifs et vos crédits (capital restant dû calculé chaque mois) en plus de vos placements.
