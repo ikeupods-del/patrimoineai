@@ -43,7 +43,7 @@ function servir() {
 
 /* ---------- Cours de bourse : accès direct à Yahoo Finance (sans relais tiers) ----------
    Yahoo n'accepte que ses propres pages comme origine : l'origine est donc présentée comme finance.yahoo.com,
-   et la réponse est autorisée pour l'application. Seuls les domaines de Yahoo Finance sont concernés. */
+   et la réponse est autorisée pour l'application. Seuls Yahoo Finance et le flux RSS de Google Actualités sont concernés. */
 const YAHOO = /^(https|wss):\/\/([a-z0-9-]+\.)*finance\.yahoo\.com(:\d+)?\//i;
 function reseau() {
   const s = session.defaultSession;
@@ -52,7 +52,7 @@ function reseau() {
     if (YAHOO.test(d.url)) { h.Origin = 'https://finance.yahoo.com'; h.Referer = 'https://finance.yahoo.com/'; }
     cb({ requestHeaders: h });
   });
-  s.webRequest.onHeadersReceived({ urls: ['https://*.finance.yahoo.com/*'] }, (d, cb) => {
+  s.webRequest.onHeadersReceived({ urls: ['https://*.finance.yahoo.com/*', 'https://news.google.com/rss/*'] }, (d, cb) => {
     const h = {};
     for (const [k, v] of Object.entries(d.responseHeaders || {})) if (!/^access-control-allow-(origin|credentials)$/i.test(k)) h[k] = v;
     h['Access-Control-Allow-Origin'] = [ORIGINE];
@@ -184,7 +184,7 @@ app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); });
 /* ---------- Menus ---------- */
 const cmd = c => () => { if (!win) ouvrir(); envoyer('commande', c); };
 function menu() {
-  const vues = [['Accueil', 'v1'], ['Placements', 'v2'], ['Budget', 'v3'], ['Objectifs', 'v4'], ['Marchés', 'v5'], ['Analyse', 'v6'], ['Assistant IA', 'v7'], ['Simulateurs', 'v8']];
+  const vues = [['Accueil', 'v1'], ['Placements', 'v2'], ['Budget', 'v3'], ['Objectifs', 'v4'], ['Marchés', 'v5'], ['Analyse', 'v6'], ['Assistant IA', 'v7'], ['Simulateurs', 'v8'], ['Actualités', 'v9']];
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: 'Patrimoine AI', submenu: [
       { role: 'about', label: 'À propos de Patrimoine AI' },
@@ -273,6 +273,7 @@ function autotest() {
       res.marches = await js(`(async()=>{const r=await marketApi('/api/market?list=idx');return{n:(r.items||[]).length,erreur:r.error||'',exemple:(r.items||[])[0]||null}})()`);
       res.graphique = await js(`(async()=>{const r=await marketApi('/api/market?chart=%5EFCHI&range=1mo');return{points:(r.pts||[]).length,erreur:r.error||''}})()`);
       res.direct = await js(`new Promise(ok=>{const t0=Date.now(),f=()=>{const s=FEED?FEED.status():{},n=FEED?Object.values(FEED.Q).filter(q=>q.src==='direct').length:0;if((n>0)||Date.now()-t0>40000)ok({yahoo:s.yahoo,binance:s.binance,mode:s.mode,coursEnDirect:n});else setTimeout(f,500)};f()})`);
+      res.actualites = await js(`(async()=>{try{const L=await newsFetch(newsQuery('energie','europe'));return{n:L.length,exemple:L[0]?L[0].t+' — '+L[0].s:''}}catch(e){return{n:0,erreur:e.message}}})()`);
       res.ia = await js(`(async()=>{const e=await MAC.ia.etat();return{pont:true,installee:e.installee,mo:e.mo,provider:!!PROV.mac}})()`);
       res.sauvegarde = await js(`(async()=>{D.assets.forEach(a=>delete a.demo);const s=await MAC.sauvegarder(JSON.stringify(D));return s})()`);
       res.pdf = await js(`MAC.pdf(bilanHTML(),'Bilan-essai.pdf')`);

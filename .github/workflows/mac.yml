@@ -60,6 +60,7 @@ jobs:
             if (!r.marches || !(r.marches.n >= 4)) ko.push("cours Yahoo directs : " + JSON.stringify(r.marches));
             if (!r.graphique || !(r.graphique.points >= 5)) ko.push("historique Yahoo : " + JSON.stringify(r.graphique));
             if (!r.direct || !(r.direct.coursEnDirect > 0 || r.direct.yahoo === "open" || r.direct.binance === "open")) ko.push("cours en direct (flux) : " + JSON.stringify(r.direct));
+            if (!r.actualites || !(r.actualites.n >= 5)) ko.push("actualités : " + JSON.stringify(r.actualites));
             if (!r.ia || !r.ia.pont || !r.ia.provider) ko.push("IA du Mac : " + JSON.stringify(r.ia));
             const q = r.iaReponse || {};
             if (!q.installee || q.erreur || !(String(q.texte || "").length > 80)) ko.push("réponse de l’IA du Mac : " + JSON.stringify(q));

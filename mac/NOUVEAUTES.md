@@ -1,5 +1,10 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.2.0
+- **Actualités** : toute l’actualité économique en français, par thème (marchés, technologie, pétrole et énergie, or et matières premières, banques centrales, immobilier, crypto, luxe, santé, emploi…) et par région (France, Europe, États-Unis, Asie, Chine, Japon, Moyen-Orient…), ou sur un sujet libre.
+- Thème « Mes placements » : les nouvelles des valeurs et plateformes que vous suivez.
+- Les derniers titres sur l’accueil, les actualités de chaque valeur dans sa fiche, et l’assistant peut les résumer (⌘9 pour ouvrir l’écran).
+
 ## 6.1.1
 - Avec le verrouillage Touch ID, l’écran est masqué dès l’ouverture, avant tout affichage des montants.
 - Message clair si la connexion Google n’est pas encore disponible.
