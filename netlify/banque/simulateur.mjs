@@ -22,6 +22,12 @@ function operations() {
   return L.sort((a, b) => String(b.booking_date || b.transaction_date).localeCompare(a.booking_date || a.transaction_date));
 }
 
+/* Livret de démonstration : un virement depuis le compte courant et les intérêts du mois */
+function operationsLivret() {
+  return [{ entry_reference: 'demo-livret-1', booking_date: jour(-6), status: 'BOOK', transaction_amount: { amount: '200.00', currency: 'EUR' }, credit_debit_indicator: 'CRDT', remittance_information: ['VIR DE COMPTE COURANT'] },
+    { entry_reference: 'demo-livret-2', booking_date: jour(-2), status: 'BOOK', transaction_amount: { amount: '12.50', currency: 'EUR' }, credit_debit_indicator: 'CRDT', remittance_information: ['INTERETS CREDITEURS'] }];
+}
+
 export function simuler(methode, chemin, corps) {
   const u = new URL(chemin, 'https://simulation.invalid'), p = u.pathname;
   if (methode === 'GET' && p === '/aspsps') return { aspsps: [{ name: 'Boursorama', country: 'FR', maximum_consent_validity: 7776000, psu_types: ['personal'] }] };
@@ -38,7 +44,7 @@ export function simuler(methode, chemin, corps) {
   const m = /^\/accounts\/(demo-[a-z]+)\/(balances|transactions)$/.exec(p);
   if (m && m[2] === 'balances') return { balances: [{ name: 'Solde', balance_type: 'CLBD', reference_date: jour(0), balance_amount: { currency: 'EUR', amount: m[1] === 'demo-courant' ? '1834.27' : '6200.00' } }] };
   if (m) {
-    const depuis = u.searchParams.get('date_from') || '0000', L = m[1] === 'demo-courant' ? operations().filter(t => (t.booking_date || t.transaction_date) >= depuis) : [];
+    const depuis = u.searchParams.get('date_from') || '0000', L = m[1] === 'demo-courant' ? operations().filter(t => (t.booking_date || t.transaction_date) >= depuis) : operationsLivret().filter(t => t.booking_date >= depuis);
     const page2 = u.searchParams.get('continuation_key') === 'page-2', moitie = Math.ceil(L.length / 2);
     return page2 ? { transactions: L.slice(moitie) } : { transactions: L.slice(0, moitie), continuation_key: L.length > moitie ? 'page-2' : undefined };
   }

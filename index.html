@@ -297,6 +297,9 @@ h1,h2,h3{letter-spacing:-.015em}h3{font-size:15.5px;font-weight:680}
 input,select,textarea{border-color:var(--line2);background:color-mix(in srgb,var(--bg) 60%,var(--card))}
 input:focus,select:focus,textarea:focus{border-color:var(--pt);box-shadow:0 0 0 3px color-mix(in srgb,var(--pt) 22%,transparent)}
 .badge{font-weight:650;letter-spacing:.005em}
+/* thème clair : texte des pastilles un peu plus foncé (contraste WCAG AA de 4,5 pour 1) */
+@media(prefers-color-scheme:light){:root:not([data-theme=dark]) .badge{color:color-mix(in srgb,var(--c) 72%,#000)}}
+:root[data-theme=light] .badge{color:color-mix(in srgb,var(--c) 72%,#000)}
 .view.on{animation:vin .22s ease-out}@keyframes vin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .content{background:var(--bg)}
 header.top{background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:saturate(1.6) blur(18px);-webkit-backdrop-filter:saturate(1.6) blur(18px);position:sticky;top:0;z-index:15;min-height:58px}
@@ -582,6 +585,7 @@ function insights(){
   {const pea=B.filter(a=>a.env==='pea').reduce((s,a)=>s+inv(a),0);if(pea>135000)add(pea>150000?'warn':'info','Plafond du PEA bientôt atteint','Vos achats sur le PEA représentent environ '+eur(pea)+' pour un plafond de versements de 150 000 €. Les versements comptent, pas la valeur : vérifiez le montant exact chez votre courtier.')}
   if(A.length>=3&&!A.some(a=>a.cat==='cash'))add('info','Aucune liquidité renseignée','Ajoutez vos livrets et comptes pour voir la part de votre patrimoine disponible immédiatement.',{l:'Ajouter un livret',a:'add',c:'cash'});
   rapDus().filter(x=>x.statut==='retard').forEach(x=>add('warn','Paiement à confirmer : '+x.r.nom,'Prévu le '+rapDate(x.date)+', toujours pas confirmé au bout de '+x.jours+' jours. Vérifiez sur la plateforme, puis confirmez-le depuis l’accueil.',{l:'Mes rappels',a:'go',v:'bank'}));
+  if(bqLie()&&D.bank.errAt&&Date.now()-D.bank.errAt>3*864e5&&!bqExpire())add('warn','Synchronisation bancaire en échec depuis '+Math.floor((Date.now()-D.bank.errAt)/864e5)+' jours','Dernier message : '+String(D.bank.err||'erreur inconnue').slice(0,160)+' Ouvrez Mes banques et lancez « Tester la configuration ».',{l:'Mes banques',a:'go',v:'bank'});
   if(bqLie()){const j=bqJours(),nm=D.bank.banque||'votre banque';if(D.bank.statut==='expire'||(j!=null&&j<0))add('warn','Accès à '+nm+' expiré','Les soldes ne sont plus mis à jour. Renouvelez l’accord en vous identifiant de nouveau sur le site de la banque.',{l:'Renouveler',a:'go',v:'bank'});else if(j!=null&&j<=14)add('info','Accès à '+nm+' : plus que '+j+' jour'+(j>1?'s':''),'Renouvelez l’accord pour que vos soldes restent à jour.',{l:'Renouveler',a:'go',v:'bank'})}
   if(A.length>=3&&!MAC&&!syncOn()&&!A.every(a=>a.demo)&&(!D.lastBackup||Date.now()-D.lastBackup>30*864e5))add('info','Pensez à sauvegarder','Vos données ne sont que sur cet appareil. Un export régulier évite de tout perdre en cas de changement de téléphone ou d’effacement du navigateur.',{l:'Exporter maintenant',a:'exp'});
   if(!out.some(o=>o.lvl==='bad'||o.lvl==='warn'))out.push({lvl:'good',title:'Rien d’alarmant',text:'Aucun point de vigilance détecté sur vos données actuelles.'});
@@ -784,7 +788,7 @@ function renderHome(){
   const A=D.assets,el=$('v-home');
   if(!A.length){el.innerHTML=onboarding()+'<section class="card" id="mkmini" style="margin-top:14px"></section>';mkMini();return}
   const T=totals(),bc=byCat(),ins=insights(),dem=A.some(a=>a.demo),pts=histPts(UI.range);
-  let h='<div class="grid2">'+recapHTML()+rapHTML();
+  let h='<div class="grid2">'+recapHTML()+rapHTML()+rapRetraitHTML();
   if(dem)h+=`<section class="card span2" style="border-color:var(--warn)"><b>Vous regardez des données d’exemple</b><div class="sm mut">Supprimez-les quand vous voulez pour commencer avec vos vrais placements.</div><div class="g2 mt"><button class="btn sec sm" data-act="democlear">Supprimer les exemples</button><button class="btn sm" data-act="add">Ajouter mon placement</button></div></section>`;
   h+=`<section class="card hero span2"><div class="lab" id="h-lab">${T.debt>0?'Patrimoine net':'Patrimoine total'}</div><div class="tot" id="h-tot">${eur(T.net)}</div>`;
   if(T.ti>0)h+=`<div class="delta ${T.gain>=0?'pos':'neg'}" id="h-gain">${gainHTML(T)}</div>`;
@@ -1129,7 +1133,7 @@ function openOpsImp(){
 async function opsLire(files){
   const o=$('ops-p');if(!o)return;let all=[],err=0;const fmts=new Set(),noms=[];
   for(const f of files){if(f.size>8e6){toast(f.name+' : fichier trop volumineux (8 Mo au plus)');continue}const r=CL.lireReleve(await lireFichierTexte(f));all=all.concat(r.ops);err+=r.erreurs;fmts.add(r.format);noms.push(f.name)}
-  const neuves=CL.fusionnerOps(D.ops,all,D.regles,noms.join(', ').slice(0,80));IMP.ops=neuves;
+  const neuves=CL.ecarterDoublons(CL.fusionnerOps(D.ops,all,D.regles,noms.join(', ').slice(0,80)),D.ops.filter(o=>/^eb:/.test(o.fid||'')));IMP.ops=neuves; /* déjà reçues de la banque : écartées */
   if(!all.length){o.innerHTML=`<div class="box mt" style="border-color:var(--red)"><b class="neg">Aucune opération reconnue.</b><div class="sm mut">Vérifiez qu’il s’agit bien d’un export des opérations (pas d’un relevé PDF). Colonnes attendues : date, libellé et montant (ou débit et crédit).</div></div>`;return}
   const d0=all.map(x=>x.d).sort(),by={};neuves.forEach(x=>{if(CL.depense(x)&&x.m<0)by[x.cat]=(by[x.cat]||0)-x.m});
   o.innerHTML=`<div class="box mt"><b>${all.length} opération${all.length>1?'s':''} lue${all.length>1?'s':''}</b> du ${esc(fd(new Date(d0[0]+'T12:00:00')))} au ${esc(fd(new Date(d0[d0.length-1]+'T12:00:00')))} (${esc([...fmts].join(', '))})${neuves.length<all.length?`, dont <b>${neuves.length}</b> nouvelle${neuves.length>1?'s':''}`:''}.${err?`<div class="xs mut">${err} ligne(s) ignorée(s) : date ou montant illisible.</div>`:''}</div>${Object.keys(by).length?`<div class="mt">${Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>kv(esc(ccat(k)),eur(v))).join('')}</div>`:''}<div class="g2 mt" style="margin-top:16px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="opsok"${neuves.length?'':' disabled'}>${neuves.length?'Importer '+neuves.length+' opération'+(neuves.length>1?'s':''):'Déjà importé'}</button></div>`;
@@ -1284,7 +1288,7 @@ function recapNotif(){
    Les échanges avec la banque passent par les fonctions Netlify (netlify/functions) : la clé de l'application et la session
    bancaire ne sont jamais dans la page. Ici ne restent que le nom des comptes, leurs soldes (comptés dans le patrimoine) et
    les opérations du compte courant, rangées dans le budget réel comme un relevé importé. Mode d'emploi : docs/BANQUE.md. */
-const BQ={busy:false,err:'',code:'',conf:null,sim:false,vu:0,manque:[]};
+const BQ={busy:false,err:'',code:'',conf:null,sim:false,mock:false,vu:0,manque:[],poll:0};
 const BQTYPE={CACC:'Compte courant',SVGS:'Compte d’épargne',CARD:'Carte',LOAN:'Crédit',CASH:'Compte espèces',TRAN:'Compte de transactions',OTHR:'Autre compte'};
 /* Adresse du serveur : config.js (banqueApi), sinon le site lui-même quand il est hébergé avec ses fonctions (Netlify) */
 const bqBase=()=>{const c=(window.PATRIMOINE_CONFIG||{}).banqueApi;if(c)return String(c).replace(/\/+$/,'');return !MAC&&/^https?:$/.test(location.protocol)&&!/\.github\.io$/.test(location.hostname)?location.origin:''};
@@ -1302,7 +1306,7 @@ async function bqApi(ch,opt){
 /* Réponse du serveur → D.bank (comptes retrouvés par leur empreinte, stable d'un accord à l'autre) */
 function bqApplique(s){
   if(!s)return;if(s.configure===false){BQ.conf=false;BQ.manque=s.manque||[];return}
-  BQ.conf=true;BQ.sim=!!s.simulation;
+  BQ.conf=true;BQ.sim=!!s.simulation;BQ.mock=!!s.mockIgnore;
   if(!s.lie){if(bqLie())bqOublier();return}
   const B=D.bank=Object.assign({comptes:[],depuis:{}},D.bank||{}),old=new Map((B.comptes||[]).map(k=>[k.ref,k]));
   Object.assign(B,{banque:s.banque,valid:s.valid,statut:s.statut,liee:s.liee});
@@ -1323,19 +1327,23 @@ function bqInclus(ref){const k=D.bank&&(D.bank.comptes||[]).find(x=>x.ref===ref)
 /* Opérations des comptes courants depuis la dernière fois (90 jours au premier passage), page après page */
 async function bqOps(){
   const B=D.bank,iso0=d=>d.toLocaleDateString('sv-SE');B.depuis=B.depuis||{};let n=0;
-  for(const k of B.comptes.filter(k=>!k.type||k.type==='CACC'||k.type==='TRAN')){
+  for(const k of B.comptes.filter(k=>!k.type||k.type==='CACC'||k.type==='TRAN'||k.ops)){
     const d0=new Date();d0.setDate(d0.getDate()-90);let suite='',L=[],i=0;const dep=B.depuis[k.ref]||iso0(d0);
     do{const r=await bqApi('operations?compte='+encodeURIComponent(k.uid)+'&depuis='+dep+(suite?'&suite='+encodeURIComponent(suite):''));L=L.concat(r.operations||[]);suite=r.suite||''}while(suite&&++i<20);
-    const neuves=CL.fusionnerOps(D.ops,CL.opsBanque(L,k.ref,D.ops),D.regles,B.banque||'Banque');if(neuves.length){D.ops=D.ops.concat(neuves);n+=neuves.length}
+    const neuves=CL.fusionnerOps(D.ops,CL.opsBanque(L,k.ref,D.ops),D.regles,B.banque||'Banque');
+    if(k.type&&k.type!=='CACC'&&k.type!=='TRAN')neuves.forEach(o=>{o.cat=CL.pourEpargne(o).cat}); /* épargne : virements neutres, intérêts en revenu */
+    if(neuves.length){D.ops=D.ops.concat(neuves);n+=neuves.length}
     const der=L.filter(o=>o.etat!=='PDNG').map(o=>o.d).sort().pop();if(der){const x=new Date(der+'T12:00:00');x.setDate(x.getDate()-5);B.depuis[k.ref]=iso0(x)}
   }
   if(n){opsTrim();UI.bm=''}return n;
 }
 async function bqSync(force,auto){
   if(BQ.busy||!bqLie())return;BQ.busy=true;BQ.err='';BQ.code='';renderBank();let n=0;
-  try{bqApplique(await bqApi('comptes'+(force?'?force=1':'')));bqActifs();if(bqLie()&&D.bank.statut==='actif')n=await bqOps();if(D.bank)D.bank.sync=Date.now();save();render();
+  try{bqApplique(await bqApi('comptes'+(force?'?force=1':'')));bqActifs();if(bqLie()&&D.bank.statut==='actif')n=await bqOps();if(D.bank){D.bank.sync=Date.now();delete D.bank.err;delete D.bank.errAt}save();render();
     if(!auto)toast('Banque synchronisée'+(n?' : '+n+' nouvelle'+(n>1?'s':'')+' opération'+(n>1?'s':''):''))}
-  catch(e){BQ.err=e.message;BQ.code=e.code||'';if(e.code==='consentement_expire'&&D.bank)D.bank.statut='expire';if(e.code==='non_lie')bqOublier();save();render();if(!auto)toast(e.message)}
+  catch(e){BQ.err=e.message;BQ.code=e.code||'';if(e.code==='consentement_expire'&&D.bank)D.bank.statut='expire';if(e.code==='non_lie')bqOublier();
+    if(D.bank&&!/^(hors_ligne|connexion_requise|non_configure|consentement_expire|non_lie)$/.test(e.code||'')){D.bank.err=e.message;D.bank.errAt=D.bank.errAt||Date.now()} /* échecs répétés : signalés dans « À surveiller » */
+    save();render();if(!auto)toast(e.message)}
   BQ.busy=false;renderBank();
 }
 /* Synchronisation automatique à l'ouverture : au plus toutes les 6 heures (la banque limite les consultations) */
@@ -1349,20 +1357,47 @@ function bqVue(){if(bqBase()&&ID.user&&!BQ.busy&&Date.now()-BQ.vu>5*60e3)bqEtat(
 async function bqLier(){
   if(BQ.busy)return;BQ.busy=true;BQ.err='';BQ.code='';renderBank();
   try{const r=await bqApi('demarrer',{method:'POST'});
-    if(MAC){window.open(r.url,'_blank');sheet('Terminez dans le navigateur',`<p class="sm">La connexion à ${esc(r.banque||'votre banque')} s’est ouverte dans votre navigateur. Après votre accord, la page en ligne de Patrimoine AI s’ouvre : connectez-vous-y avec le même compte Google si besoin, la banque est alors liée à votre compte.</p><p class="sm mut mt">Revenez ensuite ici.</p><button class="btn blk mt" data-act="bqetat">J’ai terminé</button>`)}
+    if(MAC){window.open(r.url,'_blank');sheet('Terminez dans le navigateur',`<p class="sm">La connexion à ${esc(r.banque||'votre banque')} s’est ouverte dans votre navigateur. Après votre accord, la page en ligne de Patrimoine AI s’ouvre : connectez-vous-y avec le même compte Google si besoin, la banque est alors liée à votre compte.</p><p class="sm mut mt">Cette fenêtre se ferme toute seule dès que c’est fait.</p><button class="btn blk mt" data-act="bqetat">J’ai terminé</button>`);bqSurveille()}
     else{toast('Ouverture de '+(r.banque||'votre banque')+'…');location.assign(r.url);return}}
   catch(e){BQ.err=e.message;BQ.code=e.code||'';toast(e.message)}
   BQ.busy=false;renderBank();
 }
 /* Retour de la banque : l'adresse de l'application reçoit ?code=…&state=… (ou ?error=…), lue une seule fois puis effacée */
-const BQRET=(()=>{try{const q=new URLSearchParams(location.search);if(!q.get('state')||!(q.get('code')||q.get('error')))return null;const r={code:q.get('code')||'',state:q.get('state'),err:q.get('error')?(q.get('error_description')||q.get('error')):''};history.replaceState(null,'',location.pathname+'#bank');return r}catch(e){return null}})();
+/* Retour de la banque : l'adresse de l'application reçoit ?code=…&state=… (ou ?error=…). Gardé le temps de la session du navigateur,
+   pour pouvoir terminer la liaison même si la connexion Google n'était pas encore faite (iPhone, autre navigateur), puis effacé. */
+const BQRET=(()=>{try{const q=new URLSearchParams(location.search);if(!q.get('state')||!(q.get('code')||q.get('error')))return;
+  const r={code:q.get('code')||'',state:q.get('state'),err:q.get('error')?(q.get('error_description')||q.get('error')):'',at:Date.now()};
+  history.replaceState(null,'',location.pathname+'#bank');try{sessionStorage.setItem('pat_bq_ret',JSON.stringify(r))}catch(e){BQ.ret=r}}catch(e){}return 1})();
+function bqRetourLu(){let r=BQ.ret||null;try{r=JSON.parse(sessionStorage.getItem('pat_bq_ret')||'null')||r}catch(e){}return r&&Date.now()-r.at<30*60e3?r:null}
+function bqRetourEfface(){BQ.ret=null;try{sessionStorage.removeItem('pat_bq_ret')}catch(e){}}
 async function bqFinir(){
-  const R=BQRET;if(!R)return;
-  if(R.err){BQ.err='Liaison annulée : '+R.err+'. Vous pouvez recommencer quand vous voulez.';renderBank();return}
-  BQ.busy=true;renderBank();toast('Finalisation de la liaison bancaire…');
-  try{const s=await bqApi('retour',{method:'POST',body:{code:R.code,state:R.state}});bqApplique(s);if(D.bank)D.bank.sync=0;save();BQ.busy=false;BQ.vu=Date.now();toast((s.banque||'Banque')+' liée : '+(s.comptes||[]).length+' compte'+((s.comptes||[]).length>1?'s':''));await bqSync(true,true)}
-  catch(e){BQ.busy=false;BQ.err=e.message;BQ.code=e.code||'';renderBank()}
+  const R=bqRetourLu();if(!R||BQ.busy)return;
+  if(R.err){bqRetourEfface();BQ.err='Liaison annulée : '+R.err+'. Vous pouvez recommencer quand vous voulez.';renderBank();return}
+  if(!ID.user){BQ.err='La banque a validé votre accord : connectez-vous avec Google (Réglages) pour terminer la liaison.';BQ.code='connexion_requise';renderBank();return}
+  BQ.busy=true;BQ.err='';BQ.code='';renderBank();toast('Finalisation de la liaison bancaire…');
+  try{const s=await bqApi('retour',{method:'POST',body:{code:R.code,state:R.state}});bqRetourEfface();bqApplique(s);if(D.bank)D.bank.sync=0;save();BQ.busy=false;BQ.vu=Date.now();toast((s.banque||'Banque')+' liée : '+(s.comptes||[]).length+' compte'+((s.comptes||[]).length>1?'s':''));await bqSync(true,true)}
+  catch(e){BQ.busy=false;BQ.err=e.message;BQ.code=e.code||'';if(e.code!=='connexion_requise'&&e.code!=='hors_ligne')bqRetourEfface();renderBank()}
 }
+/* Application Mac : pendant que la banque s'ouvre dans le navigateur, l'état est relu toutes les 4 secondes (10 minutes au plus) */
+function bqSurveille(){
+  clearInterval(BQ.poll);const t0=Date.now();
+  BQ.poll=setInterval(async()=>{
+    if(Date.now()-t0>10*60e3||!$('modal').classList.contains('open')){clearInterval(BQ.poll);BQ.poll=0;return}
+    try{const s=await bqApi('etat');if(s.lie&&s.liee>t0){clearInterval(BQ.poll);BQ.poll=0;bqApplique(s);if(D.bank)D.bank.sync=0;save();closeM();BQ.busy=false;toast((s.banque||'Banque')+' liée');await bqSync(true,true)}}catch(e){}
+  },4000);
+}
+async function bqDiag(){
+  sheet('Test de la configuration','<div id="dgb"><p class="hint">Vérification en cours…</p></div><button class="btn sec blk mt" data-act="closeM">Fermer</button>');
+  try{const d=await bqApi('diagnostic');if(!$('dgb'))return;
+    $('dgb').innerHTML=(d.lignes||[]).map(l=>`<div class="dgl"><span style="color:${l.ok===null?'var(--blue)':l.ok?'var(--ok)':'var(--red)'}">${ic(l.ok===null?'info':l.ok?'check':'alert',20)}</span><div><b>${esc(l.titre)}</b>${l.detail?`<div class="sm mut" style="overflow-wrap:anywhere">${esc(l.detail)}</div>`:''}</div></div>`).join('')+`<p class="sm mt ${d.ok?'pos':'neg'}"><b>${d.ok?'Tout est en place : vous pouvez lier votre banque.':'Corrigez les points en rouge dans les variables Netlify (docs/BANQUE.md), puis relancez le test.'}</b></p>`}
+  catch(e){if($('dgb'))$('dgb').innerHTML=`<p class="sm neg">${esc(e.message)}</p>`}
+}
+function bqCalendrier(){
+  if(!D.bank||!D.bank.valid)return;const d=new Date(D.bank.valid);d.setDate(d.getDate()-7);const j=d.toLocaleDateString('sv-SE');
+  dl('renouvellement-banque.ics',CL.icsUnique('renouvellement-'+(D.bank.banque||'banque').replace(/[^a-z0-9]/gi,''),'Renouveler l’accès de Patrimoine AI à '+(D.bank.banque||'la banque'),'L’accord de lecture de vos comptes expire le '+fd(new Date(D.bank.valid))+'. Ouvrez Patrimoine AI, écran Mes banques, puis touchez Renouveler.',j<today()?today():j,today()),'text/calendar');
+  toast('Ajoutez le fichier à votre calendrier : il vous préviendra une semaine avant l’expiration');
+}
+function bqOpsCompte(ref){const k=D.bank&&(D.bank.comptes||[]).find(x=>x.ref===ref);if(!k)return;k.ops=!k.ops;if(k.ops&&D.bank.depuis)delete D.bank.depuis[ref];save();render();toast(k.ops?'Les opérations de ce compte seront importées à la prochaine synchronisation':'Opérations de ce compte non importées')}
 async function bqDeco(){
   if(!await ask('Déconnecter la banque ?','L’accès de Patrimoine AI à '+((D.bank&&D.bank.banque)||'votre banque')+' sera retiré. Les soldes déjà importés restent dans vos placements comme des comptes saisis à la main, et vos opérations restent dans le budget.','Déconnecter',true))return;
   BQ.busy=true;renderBank();
@@ -1377,21 +1412,22 @@ function renderBank(){
   else if(!base)h+='<p class="sm mut">La liaison bancaire n’est pas encore installée pour cette version : elle passe par un petit serveur (fonctions Netlify) qui garde la clé de l’application à l’abri. Son adresse se renseigne dans config.js (banqueApi) ; le mode d’emploi est dans docs/BANQUE.md.</p>';
   else if(!cnx)h+=`<p class="sm mut">La liaison bancaire est rattachée à votre compte Google : connectez-vous d’abord dans les réglages.</p><button class="btn blk mt" data-act="go" data-v="set">${ic('cloud',18)}Se connecter</button>`;
   else if(BQ.conf===false)h+=`<p class="sm mut">Le serveur bancaire répond, mais sa configuration est incomplète (${esc(BQ.manque.join(', '))}). Voir docs/BANQUE.md.</p>`;
-  else if(!lie)h+=`<p class="sm mut">Aucun compte lié. Reliez votre compte Boursorama par Enable Banking, prestataire agréé d’accès aux comptes (DSP2) : vous vous identifiez sur le site de votre banque, jamais dans Patrimoine AI, et l’accès, en lecture seule, vaut 90 jours.</p><ul class="sm mut" style="padding-left:18px;margin-top:8px"><li>Lu : le nom des comptes, leurs soldes et leurs opérations.</li><li>Jamais : vos identifiants, ni aucun virement.</li></ul><button class="btn blk mt" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('bank',18)}${BQ.busy?'Connexion…':'Lier ma banque'}</button>`;
+  else if(!lie)h+=`<p class="sm mut">Aucun compte lié. Reliez votre compte Boursorama par Enable Banking, prestataire agréé d’accès aux comptes (DSP2) : vous vous identifiez sur le site de votre banque, jamais dans Patrimoine AI, et l’accès, en lecture seule, vaut 90 jours.</p><ul class="sm mut" style="padding-left:18px;margin-top:8px"><li>Lu : le nom des comptes, leurs soldes et leurs opérations.</li><li>Jamais : vos identifiants, ni aucun virement.</li></ul><button class="btn blk mt" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('bank',18)}${BQ.busy?'Connexion…':'Lier ma banque'}</button><button class="btn sec blk mt" data-act="bqdiag">${ic('shield',18)}Tester la configuration</button>`;
   else{
     const exp=bqExpire(),warn=!exp&&j!=null&&j<=14;
     h+=`<div class="row"><div style="min-width:0"><b style="font-size:17px">${esc(B.banque||'Banque')}</b><div class="sm mut">${exp?'Accord expiré':'Accès en lecture seule'}${B.valid?` · ${exp?'depuis le':'jusqu’au'} ${esc(fd(new Date(B.valid)))}${!exp&&j!=null?` (${j} jour${j>1?'s':''})`:''}`:''}</div><div class="xs mut">${B.sync?'Dernière synchronisation : '+esc(new Date(B.sync).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})):'Pas encore synchronisée'}</div></div><span class="badge" style="--c:${exp?'var(--red)':warn?'var(--warn)':'var(--ok)'}">${exp?'Expiré':warn?'À renouveler':'Actif'}</span></div>`;
     if(exp||warn)h+=`<div class="box mt" style="border-color:${exp?'var(--red)':'var(--warn)'}"><b>${exp?'Votre accord avec la banque a expiré':'Votre accord avec la banque expire bientôt'}</b><div class="sm mut">La DSP2 limite l’accès à 90 jours : renouvelez-le en vous identifiant de nouveau sur le site de la banque. Les soldes déjà importés restent affichés.</div></div>`;
-    h+=`<div class="g2 mt"><button class="btn${exp?' sec':''}" data-act="bqsync"${BQ.busy||exp?' disabled':''}>${ic('refresh',18)}${BQ.busy?'Synchronisation…':'Synchroniser'}</button>${exp||warn?`<button class="btn${exp?'':' sec'}" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('key',18)}Renouveler</button>`:`<button class="btn dng" data-act="bqdeco"${BQ.busy?' disabled':''}>Déconnecter</button>`}</div>${exp||warn?'<button class="btn dng blk mt" data-act="bqdeco">Déconnecter</button>':''}`;
+    h+=`<div class="g2 mt"><button class="btn${exp?' sec':''}" data-act="bqsync"${BQ.busy||exp?' disabled':''}>${ic('refresh',18)}${BQ.busy?'Synchronisation…':'Synchroniser'}</button>${exp||warn?`<button class="btn${exp?'':' sec'}" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('key',18)}Renouveler</button>`:`<button class="btn dng" data-act="bqdeco"${BQ.busy?' disabled':''}>Déconnecter</button>`}</div>${exp||warn?'<button class="btn dng blk mt" data-act="bqdeco">Déconnecter</button>':''}<div class="g2 mt"><button class="btn sec sm" data-act="bqcal">${ic('cal',15)}Rappel au calendrier</button><button class="btn sec sm" data-act="bqdiag">${ic('shield',15)}Tester la configuration</button></div>`;
   }
-  if(BQ.err)h+=`<div class="box mt" style="border-color:var(--red)"><b class="neg">${esc(BQ.err)}</b>${/banque_indisponible|delai|reseau/.test(BQ.code)?'<div class="sm mut">C’est en général passager (maintenance de la banque) : réessayez plus tard.</div>':''}</div>`;
+  if(BQ.mock&&cnx)h+='<div class="box mt sm" role="status" style="border-color:var(--warn)"><b>ENABLE_MOCK est encore à 1 sur Netlify</b> : la démonstration est ignorée puisque de vraies clés sont présentes. Retirez cette variable.</div>';
+  if(BQ.err)h+=`<div class="box mt" role="alert" style="border-color:var(--red)"><b class="neg">${esc(BQ.err)}</b>${/banque_indisponible|delai|reseau/.test(BQ.code)?'<div class="sm mut">C’est en général passager (maintenance de la banque) : réessayez plus tard.</div>':''}</div>`;
   h+='</section>';
   if(lie&&B.comptes&&B.comptes.length){const tot=B.comptes.filter(k=>k.inclus&&k.solde!=null).reduce((s,k)=>s+k.solde,0);
-    h+=`<section class="card"><div class="ct"><h3>Comptes liés</h3><b>${eur(tot)}</b></div>${B.comptes.map(k=>`<div class="set"><div style="min-width:0"><b>${esc(k.nom)}</b><div class="xs mut">${esc(BQTYPE[k.type]||k.produit||'Compte')}${k.iban4?' · •••• '+esc(k.iban4):''}${k.soldeAt?' · solde du '+esc(fd(new Date(k.soldeAt))):''}</div>${k.err?`<div class="xs neg">${esc(k.err)}</div>`:''}<div class="xs mut">${k.inclus?'Compté dans le patrimoine':'Non compté dans le patrimoine'}</div></div><div style="display:flex;align-items:center;gap:10px"><b style="white-space:nowrap">${k.solde!=null?eur(k.solde,2):'–'}</b>${sw('bq:'+k.ref,k.inclus,'Compter '+k.nom+' dans le patrimoine')}</div></div>`).join('')}<p class="hint">Un compte compté apparaît dans vos placements (Livrets et liquidités) avec son solde, mis à jour à chaque synchronisation.</p></section>`}
+    h+=`<section class="card"><div class="ct"><h3>Comptes liés</h3><b>${eur(tot)}</b></div>${B.comptes.map(k=>`<div class="set"><div style="min-width:0"><b>${esc(k.nom)}</b><div class="xs mut">${esc(BQTYPE[k.type]||k.produit||'Compte')}${k.iban4?' · •••• '+esc(k.iban4):''}${k.soldeAt?' · solde du '+esc(fd(new Date(k.soldeAt))):''}</div>${k.err?`<div class="xs neg">${esc(k.err)}</div>`:''}<div class="xs mut">${k.inclus?'Compté dans le patrimoine':'Non compté dans le patrimoine'}</div>${k.type&&k.type!=='CACC'&&k.type!=='TRAN'?`<div class="set" style="border:0;padding:6px 0 0"><span class="xs mut">Importer aussi ses opérations</span>${sw('bqo:'+k.ref,k.ops,'Importer les opérations de '+k.nom)}</div>`:''}</div><div style="display:flex;align-items:center;gap:10px"><b style="white-space:nowrap">${k.solde!=null?eur(k.solde,2):'–'}</b>${sw('bq:'+k.ref,k.inclus,'Compter '+k.nom+' dans le patrimoine')}</div></div>`).join('')}<p class="hint">Un compte compté apparaît dans vos placements (Livrets et liquidités) avec son solde, mis à jour à chaque synchronisation.</p></section>`}
   h+=`<section class="card"><h3>PEA et compte-titres</h3><p class="sm mut" style="margin-top:6px">L’open banking (DSP2) ne couvre que les comptes de paiement : si votre PEA ou votre compte-titres n’apparaît pas ${lie?'dans les comptes liés':'après la liaison'}, c’est que la banque ne le transmet pas. Leurs positions se suivent à la main (type Bourse, avec le ticker pour les cours en direct) ou par import d’un fichier CSV.</p><div class="g2 mt"><button class="btn sec" data-act="add" data-c="bourse">${ic('plus',16)}Ajouter une ligne</button><button class="btn sec" data-act="imp">${ic('upload',16)}Importer</button></div></section>`;
   if(lie){const ops=D.ops.filter(o=>/^eb:/.test(o.fid||'')).sort((a,b)=>b.d.localeCompare(a.d)).slice(0,15);
     h+=`<section class="card span2"><div class="ct"><h3>Dernières opérations</h3>${ops.length?'<button class="btn sm sec" data-act="go" data-v="budget">Budget réel</button>':''}</div>${ops.length?ops.map(o=>`<div class="trow" style="grid-template-columns:minmax(0,1fr) 128px 92px"><div style="min-width:0"><b class="sm" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(o.lib)}">${esc(o.lib)}</b><span class="xs mut">${esc(fd(new Date(o.d+'T12:00:00')))}</span></div><select aria-label="Catégorie" data-ch="opcat" data-id="${esc(o.id)}" style="min-height:34px;padding:4px 6px">${Object.entries(CL.CATEGORIES).map(([c,nm])=>`<option value="${c}"${c===o.cat?' selected':''}>${esc(nm)}</option>`).join('')}</select><b class="${o.m>0?'pos':''}" style="text-align:right">${o.m>0?'+':'−'}${eur(Math.abs(o.m),2)}</b></div>`).join('')+'<p class="hint">Classées automatiquement ; changez une catégorie, elle est retenue pour ce libellé. Ces opérations alimentent aussi le budget réel et les abonnements repérés.</p>':'<p class="sm mut">Les opérations du compte courant (90 derniers jours) apparaîtront ici après la première synchronisation.</p>'}</section>`}
-  el.innerHTML=h+rapListeHTML()+'</div>';
+  el.innerHTML=h+rapRetraitHTML()+rapListeHTML()+'</div>';
 }
 
 /* ===================== Rappels de paiement : versements attendus des plateformes (Bricks le 8, BienPrêter le 5…) =====================
@@ -1408,7 +1444,7 @@ const rapMatch=x=>bqLie()&&D.ops.length?CL.rapprocher(x.r,x.mois,D.ops,rapUtilis
 function rapPlacements(r){if(r.aid){const a=D.assets.find(x=>x.id===r.aid);return a?[a]:[]}const k=plKey(r.nom);return k?owned().filter(a=>a.cat!=='cash'&&a.plat&&plKey(a.plat)===k&&live(a)):[]}
 function rapLigne(x){
   const r=x.r,m=rapMatch(x),st=RAPST[x.statut],q=`data-id="${esc(r.id)}" data-m="${esc(x.mois)}"`,non=r.non&&r.non[x.mois];
-  return `<div class="ins"><span style="color:${st[1]}">${ic(x.statut==='retard'?'alert':'bell',22)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)} : paiement reçu ?</b><span class="badge" style="--c:${st[1]}">${st[0]}</span></div><div class="sm mut">Prévu le ${esc(rapDate(x.date))}${num(r.attendu)>0?', environ '+eur(r.attendu,2):''}${x.statut==='retard'?', '+x.jours+' jours sans confirmation':''}${non?'. Signalé non reçu le '+esc(rapDate(non)):''}.</div>`
+  return `<div class="ins"><span style="color:${st[1]}">${ic(x.statut==='retard'?'alert':'bell',22)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)} : paiement reçu ?</b><span class="badge" style="--c:${st[1]}">${st[0]}</span></div><div class="sm mut">Prévu le ${esc(rapDate(x.date))}${CL.montantHabituel(r)>0?', environ '+eur(CL.montantHabituel(r),2):''}${x.statut==='retard'?', '+x.jours+' jours sans confirmation':''}${non?'. Signalé non reçu le '+esc(rapDate(non)):''}.</div>`
     +(m?`<div class="box sm" style="margin-top:8px"><div style="display:flex;gap:8px;align-items:flex-start"><span style="margin-top:2px">${ic('bank',14)}</span><span>Sur votre compte : <b>${esc(m.lib)}</b>, ${eur(m.m,2)} le ${esc(rapDate(m.d))}.</span></div><div class="acts2"><button class="btn sm" data-act="rapok" ${q} data-tx="${esc(m.id)}">${ic('check',15)}Valider avec cette opération</button></div></div>`:'')
     +`<div class="acts2"><button class="btn sm${m?' sec':''}" data-act="rapoui" ${q}>Oui</button><button class="btn sm sec" data-act="rapnon" ${q}>Non</button><button class="btn sm sec" data-act="rapautre" ${q}>Montant différent</button></div></div></div>`;
 }
@@ -1420,8 +1456,26 @@ function rapDest(r){
   if(r.dest==='aucun')return null;
   if(r.dest==='compte')return D.assets.find(x=>x.id===r.cpt&&x.cat==='cash')||null;
   const id='pf-'+(plKey(r.nom)||r.id);let w=D.assets.find(x=>x.id===id);
-  if(!w){w={id,cat:'cash',name:'Portefeuille '+r.nom,plat:r.nom,amount:0,notes:'Sommes versées par '+r.nom+' et pas encore retirées de la plateforme. Diminuez ce montant quand vous les virez vers votre banque.'};D.assets.push(w)}
+  if(!w){w={id,crAt:today(),cat:'cash',name:'Portefeuille '+r.nom,plat:r.nom,amount:0,notes:'Sommes versées par '+r.nom+' et pas encore retirées de la plateforme. Diminuez ce montant quand vous les virez vers votre banque.'};D.assets.push(w)}
   return w;
+}
+/* Portefeuille d'une plateforme : l'argent versé par la plateforme y reste compté tant qu'il n'est pas viré sur la banque.
+   Quand un virement de la plateforme arrive sur le compte lié, le solde de la banque monte : sans correction, la somme serait comptée deux fois. */
+const rapPortefeuille=r=>D.assets.find(x=>x.id==='pf-'+(plKey(r.nom)||r.id)&&!x.bq);
+function rapRetraits(){
+  if(!bqLie()||!D.ops.length)return [];const eb=D.ops.filter(o=>/^eb:/.test(o.fid||'')),out=[];
+  (D.rappels||[]).forEach(r=>{const w=rapPortefeuille(r);if(!w||r.dest!=='plateforme'||!(num(w.amount)>0))return;
+    const pris=rapUtilises();rapDus().filter(x=>x.r.id===r.id).forEach(x=>{const m=rapMatch(x);if(m)pris.add(m.id)}); /* un virement proposé comme paiement n'est pas un retrait */
+    CL.retraitsPossibles(r,eb,pris,w.amount,w.crAt||r.cree).slice(0,3).forEach(x=>out.push({r,w,op:x.op,somme:x.somme}))});
+  return out;
+}
+function rapRetraitHTML(){const L=rapRetraits();if(!L.length)return '';
+  return `<section class="card span2 ret-card" style="border-color:var(--blue)"><div class="ct"><h3>Retrait à confirmer</h3></div>${L.map(x=>`<div class="ins"><span style="color:var(--blue)">${ic('bank',22)}</span><div style="flex:1;min-width:0"><b>${esc(x.r.nom)} : ${eur(x.op.m,2)} reçus sur votre compte</b><div class="sm mut">${esc(x.op.lib)}, le ${esc(rapDate(x.op.d))}. Est-ce un retrait de votre portefeuille ${esc(x.r.nom)} (${eur(x.w.amount,2)} comptés) ? Sinon la somme serait comptée deux fois.</div><div class="acts2"><button class="btn sm" data-act="raretire" data-id="${esc(x.r.id)}" data-tx="${esc(x.op.id)}">Oui, retirer ${eur(x.somme,2)} du portefeuille</button><button class="btn sm sec" data-act="raignore" data-id="${esc(x.r.id)}" data-tx="${esc(x.op.id)}">Non, autre chose</button></div></div></div>`).join('')}</section>`}
+function rapRetire(id,tx,oui){
+  const r=D.rappels.find(x=>x.id===id),o=D.ops.find(x=>x.id===tx),w=r&&rapPortefeuille(r);if(!r||!o||!w)return;
+  const avant=JSON.stringify({a:D.assets,r:D.rappels}),som=oui?Math.round(Math.min(o.m,num(w.amount))*100)/100:0;
+  r.ret=(r.ret||[]).concat([{tx,d:o.d,m:som,s:oui?'retire':'ignore'}]).slice(-60);if(oui)w.amount=Math.round((num(w.amount)-som)*100)/100;
+  save();render();toast(oui?eur(som,2)+' retirés du portefeuille '+r.nom:'D’accord, cette opération est ignorée',{l:'Annuler',fn:()=>{const b=JSON.parse(avant);D.assets=b.a;D.rappels=b.r;save();render()}});
 }
 function rapValider(id,mois,mt,o){
   const r=D.rappels.find(x=>x.id===id);mt=Math.round(num(mt)*100)/100;if(!r||!(mt>0))return;o=o||{};
@@ -1440,21 +1494,22 @@ function rapValider(id,mois,mt,o){
 }
 function rapMontant(id,mois){
   const r=D.rappels.find(x=>x.id===id);if(!r)return;const cand=rapPlacements(r);
-  sheet('Paiement de '+r.nom,`<p class="sm mut">Prévu le ${esc(rapDate(CL.echeance(mois,r.jour)))}. Indiquez la somme réellement reçue.</p><div class="g2"><div class="fld"><label for="rv-m">Montant reçu</label><div class="inp has"><input id="rv-m" type="number" inputmode="decimal" step="any" min="0" value="${num(r.attendu)||''}"><span class="suf">€</span></div></div><div class="fld"><label for="rv-d">Reçu le</label><input id="rv-d" type="date" value="${today()}"></div></div>
+  sheet('Paiement de '+r.nom,`<p class="sm mut">Prévu le ${esc(rapDate(CL.echeanceR(r,mois)))}. Indiquez la somme réellement reçue.</p><div class="g2"><div class="fld"><label for="rv-m">Montant reçu</label><div class="inp has"><input id="rv-m" type="number" inputmode="decimal" step="any" min="0" value="${CL.montantHabituel(r)||''}"><span class="suf">€</span></div></div><div class="fld"><label for="rv-d">Reçu le</label><input id="rv-d" type="date" value="${today()}"></div></div>
   <div class="fld"><label for="rv-c">Dont capital remboursé<span class="opt">facultatif</span></label><div class="inp has"><input id="rv-c" type="number" inputmode="decimal" step="any" min="0"><span class="suf">€</span></div><div class="hint">Pour un prêt remboursé chaque mois (BienPrêter…) : la part de capital réduit le montant encore investi ; le reste, ce sont les intérêts.</div></div>
   ${cand.length>1?`<div class="fld"><label for="rv-a">Placement concerné</label><select id="rv-a"><option value="">Plusieurs projets (non réparti)</option>${cand.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select></div>`:cand.length?`<p class="hint">Inscrit dans l’historique de « ${esc(cand[0].name)} ».</p>`:''}<div class="err" id="rv-e"></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="rapsave" data-id="${esc(id)}" data-m="${esc(mois)}">Valider</button></div>`);
 }
 function rapNon(id,mois){
   const r=D.rappels.find(x=>x.id===id);if(!r)return;const q=`data-id="${esc(id)}" data-m="${esc(mois)}"`;
-  sheet('Paiement non reçu',`<p class="sm mut">${esc(r.nom)}, prévu le ${esc(rapDate(CL.echeance(mois,r.jour)))}.</p><div class="stack mt"><button class="btn" data-act="rapattente" ${q}>Pas encore reçu : me le rappeler</button><div class="hint" style="margin-top:-4px">Le rappel reste affiché ; il passe « en retard » 3 jours après la date prévue.</div><button class="btn sec" data-act="rapabsent" ${q}>Pas de paiement ce mois-ci</button><div class="hint" style="margin-top:-4px">Ferme le rappel de ce mois sans rien enregistrer.</div></div>`);
+  sheet('Paiement non reçu',`<p class="sm mut">${esc(r.nom)}, prévu le ${esc(rapDate(CL.echeanceR(r,mois)))}.</p><div class="stack mt"><button class="btn" data-act="rapattente" ${q}>Pas encore reçu : me le rappeler</button><div class="hint" style="margin-top:-4px">Le rappel reste affiché ; il passe « en retard » 3 jours après la date prévue.</div><button class="btn sec" data-act="rapabsent" ${q}>Pas de paiement ce mois-ci</button><div class="hint" style="margin-top:-4px">Ferme le rappel de ce mois sans rien enregistrer.</div></div>`);
 }
 function rapListeHTML(){
   const R=D.rappels||[],perm=!MAC&&typeof Notification!=='undefined'?Notification.permission:'';
   let h=`<section class="card span2"><div class="ct"><h3 style="display:flex;align-items:center;gap:8px">${ic('bell',18)}Rappels de paiement</h3><button class="btn sm sec" data-act="rapnew">${ic('plus',15)}Ajouter</button></div><p class="sm mut">Le jour prévu, l’application vous demande si le paiement est arrivé ; sans réponse au bout de 3 jours, il passe en retard.${bqLie()?' Le virement est cherché dans les opérations de votre banque.':''}</p>`;
   if(perm==='default')h+=`<button class="btn sm sec mt" data-act="rapnotif">${ic('bell',15)}Recevoir aussi une notification du navigateur</button>`;
   else if(perm==='denied')h+='<p class="hint">Notifications du navigateur bloquées : les rappels s’affichent dans l’application.</p>';
+  if(R.some(r=>r.actif!==false))h+=`<button class="btn sm sec mt" data-act="rapics">${ic('cal',15)}Ajouter au calendrier (sonne application fermée)</button>`;
   h+=R.length?R.map(r=>{const p=CL.prochaineEcheance(r,today()),H=Object.entries(r.hist||{}).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4),cand=rapPlacements(r),libre=[moisCourant(),moisDecale(moisCourant(),-1)].find(m=>!(r.hist&&r.hist[m]));
-    return `<div class="ins"><span class="ico" style="--c:${r.actif===false?'var(--mut)':'var(--pt)'};width:36px;height:36px">${ic('cal',18)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)}</b><span class="sm mut">le ${esc(r.jour)} de chaque mois</span></div><div class="xs mut">${r.actif===false?'Désactivé':p?'Prochain : '+esc(rapDate(p)):''}${num(r.attendu)>0?' · environ '+eur(r.attendu,2):''}${cand.length?' · '+esc(cand.length===1?cand[0].name:cand.length+' placements'):''}</div>${H.length?`<div class="xs mut" style="margin-top:2px">${H.map(([m,x])=>esc(moisNom(m))+' : '+(x.s==='recu'?eur(x.m,2):'aucun')).join(' · ')}</div>`:''}<div class="acts2"><button class="btn sm sec" data-act="rapedit" data-id="${esc(r.id)}">${ic('edit',15)}Modifier</button>${libre?`<button class="btn sm sec" data-act="rapautre" data-id="${esc(r.id)}" data-m="${libre}">Enregistrer le paiement de ${esc(moisNom(libre))}</button>`:''}</div></div></div>`}).join(''):'<p class="sm mut mt">Aucun rappel.</p>';
+    return `<div class="ins"><span class="ico" style="--c:${r.actif===false?'var(--mut)':'var(--pt)'};width:36px;height:36px">${ic('cal',18)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)}</b><span class="sm mut">le ${esc(r.jour)} de chaque mois</span></div><div class="xs mut">${r.actif===false?'Désactivé':p?'Prochain : '+esc(rapDate(p)):''}${CL.montantHabituel(r)>0?' · environ '+eur(CL.montantHabituel(r),2):''}${cand.length?' · '+esc(cand.length===1?cand[0].name:cand.length+' placements'):''}</div>${H.length?`<div class="xs mut" style="margin-top:2px">${H.map(([m,x])=>esc(moisNom(m))+' : '+(x.s==='recu'?eur(x.m,2):'aucun')).join(' · ')}</div>`:''}<div class="acts2"><button class="btn sm sec" data-act="rapedit" data-id="${esc(r.id)}">${ic('edit',15)}Modifier</button>${libre?`<button class="btn sm sec" data-act="rapautre" data-id="${esc(r.id)}" data-m="${libre}">Enregistrer le paiement de ${esc(moisNom(libre))}</button>`:''}</div></div></div>`}).join(''):'<p class="sm mut mt">Aucun rappel.</p>';
   return h+'</section>';
 }
 function openRap(id){
@@ -1466,6 +1521,7 @@ function openRap(id){
   f+=`<div class="fld"><div class="lbl">Où arrive l’argent ?</div>${seg('f-rdest',[['plateforme','Sur la plateforme'],['compte','Sur un compte'],['aucun','Ne pas l’ajouter']],o.dest||'plateforme')}<div class="hint">Sur la plateforme : ajouté à un compte « Portefeuille » dans vos liquidités. Un compte synchronisé avec la banque n’est jamais modifié : son solde inclut déjà le virement.</div></div>`;
   f+=`<div class="fld" id="r-cpt"${o.dest==='compte'?'':' hidden'}><label for="f-rcpt">Compte crédité</label><select id="f-rcpt">${cs.length?cs.map(a=>`<option value="${esc(a.id)}"${a.id===o.cpt?' selected':''}>${esc(a.name)}</option>`).join(''):'<option value="">Aucun compte : ajoutez-en un dans vos placements</option>'}</select></div>`;
   f+=F('rmotif','Mot du libellé du virement',o.motif,{opt:1,hint:'Pour le retrouver sur votre compte lié (ex. BRICKS ; plusieurs mots séparés par |). Par défaut, le nom.'});
+  f+=`<div class="set" style="margin-top:10px"><div><b>Décaler au jour ouvré</b><div class="hint">Un week-end ou un jour férié, le paiement est attendu le jour ouvré suivant.</div></div><button type="button" class="sw" role="switch" id="f-rouvre" aria-checked="${o.ouvre!==false}" aria-label="Décaler au jour ouvré suivant" data-act="rapouvre"><i></i></button></div>`;
   f+=`<div class="set" style="margin-top:10px"><div><b>Rappel actif</b><div class="hint">Désactivé, il ne demande plus rien.</div></div><button type="button" class="sw" role="switch" id="f-ractif" aria-checked="${o.actif!==false}" aria-label="Rappel actif" data-act="rapactif"><i></i></button></div>`;
   f+=`<div class="err" id="r-e"></div><div class="g2 mt" style="margin-top:20px">${r?`<button class="btn dng" data-act="rapdel" data-id="${esc(r.id)}">${ic('trash',18)}Supprimer</button>`:'<button class="btn sec" data-act="closeM">Annuler</button>'}<button class="btn" data-act="rapenr">Enregistrer</button></div>`;
   sheet(r?'Modifier le rappel':'Nouveau rappel de paiement',f);
@@ -1476,7 +1532,7 @@ function rapEnr(){
   if(!nom){$('e-rnom').textContent='Indiquez la plateforme ou le placement.';return}
   if(!(j>=1&&j<=31)){$('e-rjour').textContent='Un jour entre 1 et 31.';return}
   if(dest==='compte'&&!v('rcpt')){$('r-e').textContent='Choisissez le compte crédité.';return}
-  const o={nom:nom.slice(0,60),jour:j,attendu:v('ratt')===''?'':Math.max(0,num(v('ratt'))),aid:v('raid'),dest,cpt:dest==='compte'?v('rcpt'):'',motif:v('rmotif').trim().slice(0,80),actif:$('f-ractif').getAttribute('aria-checked')==='true'};
+  const o={nom:nom.slice(0,60),jour:j,attendu:v('ratt')===''?'':Math.max(0,num(v('ratt'))),aid:v('raid'),dest,cpt:dest==='compte'?v('rcpt'):'',motif:v('rmotif').trim().slice(0,80),actif:$('f-ractif').getAttribute('aria-checked')==='true',ouvre:$('f-rouvre').getAttribute('aria-checked')==='true'};
   const r=CUR.rap&&D.rappels.find(x=>x.id===CUR.rap);
   if(r)Object.assign(r,o);else D.rappels.push(Object.assign({id:newId(),cree:today(),hist:{}},o));
   save();closeM();render();toast(r?'Rappel modifié':'Rappel créé : le '+j+' de chaque mois');
@@ -3009,7 +3065,7 @@ const ACT={
   range:d=>{UI.range=d.r;renderHome()},
   tool:d=>{UI.tool=d.t;renderTools(true)},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
-  tog:d=>{if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
+  tog:d=>{if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
   sauvlist:()=>openSauv(),sauvdir:()=>MAC&&MAC.ouvrirSauvegardes(),sauvrest:d=>sauvRest(d.f),
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
@@ -3074,15 +3130,17 @@ const ACT={
   recapok:()=>{D.set.recapVu=moisDecale(moisCourant(),-1);save();renderHome()},
   docs:()=>openDocs(),docadd:()=>{const i=$('doc-f');if(i)i.click()},docopen:d=>docOuvrir(d.id),docdl:d=>docTelecharger(d.id),docdel:d=>docSuppr(d.id),
   barm:d=>{D.set.barMode=d.v;save();renderSet();macBar()},
+  bqdiag:()=>bqDiag(),bqcal:()=>bqCalendrier(),rapics:()=>{dl('paiements-attendus.ics',CL.ics(D.rappels,today()),'text/calendar');toast('Ajoutez le fichier à votre calendrier (Google Agenda, Apple Calendrier…) : il sonnera chaque mois, même application fermée')},
   bqlier:()=>bqLier(),bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},
-  rapoui:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;if(num(r.attendu)>0&&rapPlacements(r).length<=1)rapValider(r.id,d.m,r.attendu);else rapMontant(r.id,d.m)},
+  rapoui:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;if(CL.montantHabituel(r)>0&&rapPlacements(r).length<=1)rapValider(r.id,d.m,CL.montantHabituel(r));else rapMontant(r.id,d.m)},
   rapok:d=>{const o=D.ops.find(x=>x.id===d.tx);if(o)rapValider(d.id,d.m,o.m,{tx:o.id,d:o.d})},
   rapautre:d=>rapMontant(d.id,d.m),rapnon:d=>rapNon(d.id,d.m),
   rapsave:d=>{const m=num($('rv-m').value),dt=$('rv-d').value;if(!(m>0)||!dt){$('rv-e').textContent='Indiquez le montant reçu et sa date.';return}rapValider(d.id,d.m,m,{d:dt,c:$('rv-c').value,aid:$('rv-a')?$('rv-a').value:undefined})},
   rapattente:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;r.non=Object.assign({},r.non,{[d.m]:today()});save();closeM();render();toast('D’accord : le rappel reste affiché')},
   rapabsent:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;const old=r.hist;r.hist=Object.assign({},r.hist,{[d.m]:{s:'absent',d:today()}});save();closeM();render();toast('Aucun paiement en '+moisTxt(d.m),{l:'Annuler',fn:()=>{r.hist=old;save();render()}})},
+  raretire:d=>rapRetire(d.id,d.tx,true),raignore:d=>rapRetire(d.id,d.tx,false),
   rapnew:()=>openRap(''),rapedit:d=>openRap(d.id),rapenr:()=>rapEnr(),
-  rapactif:(d,t)=>t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true'),
+  rapactif:(d,t)=>t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true'),rapouvre:(d,t)=>t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true'),
   rapdel:async d=>{if(!await ask('Supprimer ce rappel ?','Les paiements déjà enregistrés restent dans l’historique de vos placements.','Supprimer',true))return;D.rappels=D.rappels.filter(r=>r.id!==d.id);save();render();toast('Rappel supprimé')},
   rapnotif:()=>{try{Promise.resolve(Notification.requestPermission()).then(p=>{toast(p==='granted'?'Notifications activées':'Notifications non autorisées par le navigateur');renderBank()})}catch(e){toast('Notifications indisponibles dans ce navigateur')}},
   askok:()=>{const r=ASK;ASK=null;closeM();if(r)r(true)},
@@ -3320,7 +3378,7 @@ function ghLogout(){[KPW,KGU].forEach(k=>lsSet(k,null));localStorage.removeItem(
 function onAuth(fresh){
   if(fresh&&ID.user)toast('Connecté : '+ID.user.email);
   syncUI();renderSet();if(!AIBUSY)renderAI();
-  if(ID.user){syncNow();setTimeout(bqAuto,5000)}
+  if(ID.user){syncNow();setTimeout(()=>{if(bqRetourLu())bqFinir();else bqAuto()},5000)}
 }
 const idName=()=>ID.user?((ID.user.user_metadata&&(ID.user.user_metadata.full_name||ID.user.user_metadata.name))||ID.user.email):'';
 

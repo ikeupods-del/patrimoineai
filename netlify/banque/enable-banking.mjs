@@ -57,6 +57,15 @@ export async function choisirBanque(c) {
   return { name: b.name, country: b.country || c.pays, max: +b.maximum_consent_validity || 0 };
 }
 
+/* Certains accords ne donnent que l'identifiant des comptes : le nom et l'IBAN sont alors demandés un à un (sans bloquer si la banque ne les fournit pas) */
+export async function comptesComplets(c, L, psu) {
+  return Promise.all((L || []).map(async a => {
+    const o = typeof a === 'string' ? { uid: a } : a;
+    if (!o || !o.uid || o.name || o.product || o.account_id) return o;
+    try { const d = await eb(c, 'GET', '/accounts/' + encodeURIComponent(o.uid) + '/details', { psu, ms: 5000 }); return Object.assign({}, d, { uid: o.uid }); }
+    catch (e) { return o; }
+  }));
+}
 /* Compte tel que gardé et renvoyé : jamais l'IBAN complet ; « ref » est une empreinte stable d'un accord à l'autre */
 const TYPES = { CACC: 'Compte courant', SVGS: 'Compte d’épargne', CARD: 'Carte', LOAN: 'Crédit', CASH: 'Compte espèces', TRAN: 'Compte de transactions', MOMA: 'Compte espèces', OTHR: 'Autre compte' };
 export function compte(a) {
@@ -98,8 +107,8 @@ export function operation(t) {
 /* --- État de la liaison gardé pour l'utilisateur --- */
 export const expire = (e, c) => !e || !e.sid || (e.statut && e.statut !== 'AUTHORIZED') || (e.valid && Date.parse(e.valid) < DEP.maintenant());
 export const resume = (e, c) => !e || !e.sid
-  ? { configure: true, simulation: c.simulation, lie: false }
-  : { configure: true, simulation: c.simulation, lie: true, banque: e.banque, valid: e.valid, liee: e.liee, statut: expire(e, c) ? 'expire' : 'actif', comptes: e.comptes || [] };
+  ? { configure: true, simulation: c.simulation, mockIgnore: c.mockIgnore, lie: false }
+  : { configure: true, simulation: c.simulation, mockIgnore: c.mockIgnore, lie: true, banque: e.banque, valid: e.valid, liee: e.liee, statut: expire(e, c) ? 'expire' : 'actif', comptes: e.comptes || [] };
 export async function etatLie(u, c) {
   const e = await stockage().lire(u, c);
   if (!e || !e.sid) throw new Erreur('non_lie', 'Aucune banque n’est liée pour le moment.', 409);

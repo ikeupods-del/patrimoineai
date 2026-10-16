@@ -7,7 +7,7 @@ const F = f => import(path.join(__dirname, '..', 'netlify', f));
 
 (async () => {
   const { DEP } = await F('banque/commun.mjs');
-  const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter']) H[f] = (await F('functions/banque-' + f + '.mjs')).default;
+  const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) H[f] = (await F('functions/banque-' + f + '.mjs')).default;
 
   /* horloge maîtrisée */
   let T = Date.parse('2026-10-16T10:00:00Z'); DEP.maintenant = () => T;
@@ -141,6 +141,29 @@ const F = f => import(path.join(__dirname, '..', 'netlify', f));
   r = await appel('etat'); ok(r.st === 403 && r.d.code === 'acces_refuse', 'compte Google non autorisé : refusé');
   process.env.ENABLE_ALLOWED_EMAILS = 'Moi@Exemple.fr'; r = await appel('etat'); ok(r.st === 200, 'compte autorisé');
   delete process.env.ENABLE_ALLOWED_EMAILS;
+
+  /* --- diagnostic de configuration --- */
+  const route1 = ebRoute;
+  ebRoute = (m, u, c) => u.pathname === '/application' ? { name: 'Patrimoine AI', environment: 'SANDBOX', redirect_urls: ['https://autre.example/'] } : route1(m, u, c);
+  r = await appel('diagnostic'); const ln = t => r.d.lignes.find(x => x.titre === t);
+  ok(r.st === 200 && r.d.ok === false && ln('Clé privée').ok && ln('Application Enable Banking').ok && ln('Adresse de retour').ok === false && /identiques/.test(ln('Adresse de retour').detail), 'diagnostic : adresse de retour différente de celle déclarée');
+  ok(ln('Banque').ok && /BoursoBank/.test(ln('Banque').detail) && ln('Accès réservé').ok === null && ln('Stockage Firestore').ok, 'diagnostic : banque trouvée, accès non réservé signalé, stockage lisible');
+  ebRoute = (m, u, c) => u.pathname === '/application' ? { name: 'Patrimoine AI', redirect_urls: ['https://ikeupods-del.github.io/patrimoineai'] } : route1(m, u, c);
+  r = await appel('diagnostic'); ok(r.d.ok === true && ln('Adresse de retour').ok, 'diagnostic : tout est bon (barre finale ignorée)');
+  ebRoute = (m, u, c) => u.pathname === '/application' ? { status: 401, body: { code: 401, message: 'Invalid signature' } } : route1(m, u, c);
+  r = await appel('diagnostic'); ok(r.d.ok === false && /ne correspondent pas/.test(ln('Application Enable Banking').detail), 'diagnostic : clé refusée par Enable Banking');
+  T += 2 * 864e5; /* la liste des banques est gardée 24 h */
+  ebRoute = (m, u, c) => u.pathname === '/aspsps' ? { aspsps: [{ name: 'BNP Paribas', country: 'FR' }] } : u.pathname === '/application' ? {} : route1(m, u, c);
+  r = await appel('diagnostic'); ok(ln('Banque').ok === false && /ENABLE_ASPSP_NAME/.test(ln('Banque').detail), 'diagnostic : banque introuvable, nom à préciser');
+  ebRoute = route1;
+  process.env.ENABLE_MOCK = '1'; r = await appel('etat'); ok(r.st === 200 && r.d.mockIgnore === true && r.d.simulation === false, 'ENABLE_MOCK oublié avec de vraies clés : ignoré, la vraie banque reste utilisée');
+  r = await appel('diagnostic'); ok(!ln('ENABLE_MOCK ignoré').ok, 'diagnostic : demande de retirer ENABLE_MOCK'); delete process.env.ENABLE_MOCK;
+  /* comptes sans détails : nom et IBAN demandés à la banque */
+  ebRoute = (m, u, c) => u.pathname === '/sessions' && m === 'POST' ? { session_id: 'sess-9', aspsp: { name: 'BoursoBank' }, access: { valid_until: '2027-01-14T10:00:00+00:00' }, accounts: ['acc-9'] } : /\/accounts\/acc-9\/details$/.test(u.pathname) ? { name: 'Compte chèques', account_id: { iban: 'FR7612345678901234567890123' }, cash_account_type: 'CACC' } : route1(m, u, c);
+  T += 2 * 864e5; await appel('demarrer', { methode: 'POST' }); const st9 = EB.filter(x => x.p === '/auth').pop().corps.state;
+  r = await appel('retour', { methode: 'POST', corps: { code: 'c9', state: st9 } });
+  ok(r.d.comptes[0].uid === 'acc-9' && r.d.comptes[0].nom === 'Compte chèques' && r.d.comptes[0].iban4 === '0123' && EB.some(x => x.p === '/accounts/acc-9/details'), 'comptes donnés par leur seul identifiant : détails demandés');
+  await appel('deconnecter', { methode: 'POST' }); ebRoute = route1;
 
   /* --- mode démonstration : tout le parcours sans Enable Banking --- */
   ['ENABLE_APP_ID', 'ENABLE_PRIVATE_KEY'].forEach(k => delete process.env[k]); process.env.ENABLE_MOCK = '1';

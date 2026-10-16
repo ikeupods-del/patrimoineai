@@ -419,6 +419,32 @@
     const d = jour(m + '-15'), fin = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
     return m + '-' + String(Math.min(fin, Math.max(1, Math.round(num(j)) || 1))).padStart(2, '0');
   }
+  /* Jours fériés français (fêtes fixes, lundi de Pâques, Ascension, lundi de Pentecôte) : un virement n'arrive pas ces jours-là */
+  function paques(a) {
+    const c = Math.floor(a / 100), u = a % 100, k = Math.floor(c / 4), l = c % 4, p = Math.floor((c + 8) / 25), q = Math.floor((c - p + 1) / 3), e = (19 * (a % 19) + c - k - q + 15) % 30,
+      b = Math.floor(u / 4), d = u % 4, f = (32 + 2 * l + 2 * b - e - d) % 7, h = Math.floor(((a % 19) + 11 * e + 22 * f) / 451), mo = Math.floor((e + f - 7 * h + 114) / 31), j = ((e + f - 7 * h + 114) % 31) + 1;
+    return new Date(a, mo - 1, j, 12);
+  }
+  function ferie(s) {
+    const d = jour(s); if (!d) return false;
+    const a = d.getFullYear(), fixes = ['01-01', '05-01', '05-08', '07-14', '08-15', '11-01', '11-11', '12-25'], P = paques(a), plus = n => { const x = new Date(P); x.setDate(x.getDate() + n); return iso(x); };
+    return fixes.includes(s.slice(5)) || [plus(1), plus(39), plus(50)].includes(s);
+  }
+  const ouvre = s => { const d = jour(s).getDay(); return d !== 0 && d !== 6 && !ferie(s); };
+  /* Date réellement attendue d'un rappel : le jour prévu ; un week-end ou un jour férié, le jour ouvré suivant
+     (sauf si le rappel demande de ne pas décaler : « ouvre: false »). */
+  function echeanceR(r, m) {
+    let e = echeance(m, r.jour);
+    if (r.ouvre === false) return e;
+    for (let k = 0; k < 7 && !ouvre(e); k++) e = ajoutJours(e, 1);
+    return e;
+  }
+  /* Montant habituel d'un rappel : celui saisi, sinon la médiane des trois derniers paiements reçus */
+  function montantHabituel(r) {
+    if (num(r.attendu) > 0) return r2(num(r.attendu));
+    const V = Object.entries((r && r.hist) || {}).filter(([, h]) => h && h.s === 'recu' && num(h.m) > 0).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3).map(([, h]) => num(h.m)).sort((a, b) => a - b);
+    return V.length ? r2(V[Math.floor(V.length / 2)]) : 0;
+  }
   /* Paiements arrivés à échéance et pas encore validés (6 derniers mois au plus, jamais avant la création du rappel).
      Au-delà de « delai » jours sans validation, le paiement passe en retard. */
   function rappelsDus(rappels, auj, delai = 3) {
@@ -426,7 +452,7 @@
     for (const r of rappels || []) {
       if (!r || r.actif === false || !(num(r.jour) >= 1)) continue;
       for (let k = 0, m = mois(auj); k < 6; k++, m = moisDecale(m, -1)) {
-        const e = echeance(m, r.jour);
+        const e = echeanceR(r, m);
         if (e > auj || (r.cree && e < r.cree) || (r.hist && r.hist[m])) continue;
         const j = ecartJours(e, auj);
         out.push({ r, mois: m, date: e, jours: j, statut: j > delai ? 'retard' : 'a_valider' });
@@ -436,14 +462,14 @@
   }
   /* Prochaine date de paiement pas encore traitée (aujourd'hui compris) */
   function prochaineEcheance(r, auj) {
-    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeance(m, r.jour); if (e >= auj && !(r.hist && r.hist[m])) return e; }
+    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeanceR(r, m); if (e >= auj && !(r.hist && r.hist[m])) return e; }
     return null;
   }
   /* Rapprochement : un crédit sur le compte entre 3 jours avant et 10 jours après l'échéance, dont le libellé contient
      un des mots du rappel (séparés par |, sinon son nom). Un montant habituel proche départage ; une opération déjà
      utilisée pour un autre paiement est écartée. */
   function rapprocher(r, m, ops, utilises) {
-    const e = echeance(m, r.jour), deb = ajoutJours(e, -3), fin = ajoutJours(e, 10), att = num(r.attendu);
+    const e = echeanceR(r, m), deb = ajoutJours(e, -3), fin = ajoutJours(e, 10), att = montantHabituel(r);
     const mots = String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
     if (!mots.length) return null;
     let best = null, bs = -Infinity;
@@ -456,18 +482,67 @@
     }
     return best;
   }
+  /* Mots du libellé d'un rappel (séparés par |, sinon son nom) */
+  const motsDe = r => String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
+  /* Retraits probables vers la compte bancaire : crédits dont le libellé évoque la plateforme, reçus après la création du
+     portefeuille, qui ne sont ni un paiement déjà validé ni une opération déjà traitée. La somme est plafonnée au solde du
+     portefeuille. « ignorer » = opérations déjà refusées par l'utilisateur. */
+  function retraitsPossibles(r, ops, utilises, solde, depuis) {
+    const mots = motsDe(r), vu = new Set([...(utilises || []), ...((r.ret || []).map(x => x.tx))]);
+    if (!mots.length || !(num(solde) > 0)) return [];
+    return (ops || []).filter(o => o && o.m > 0 && o.d >= (depuis || '0000') && !vu.has(o.id) && mots.some(w => norm(o.lib).replace(/[^a-z0-9]/g, '').includes(w)))
+      .sort((a, b) => a.d.localeCompare(b.d)).map(o => ({ op: o, somme: r2(Math.min(o.m, num(solde))) }));
+  }
+  /* Écarte les opérations nouvelles qui existent déjà dans « existantes » : même montant, à 2 jours près, une seule fois chacune
+     (deux achats identiques le même jour restent deux opérations). Sert à ne pas compter deux fois une même opération reçue
+     par la banque et par un relevé importé. */
+  function ecarterDoublons(nouvelles, existantes, tol = 2) {
+    const libres = (existantes || []).map(o => ({ o, pris: false }));
+    return (nouvelles || []).filter(n => {
+      let best = null, bd = Infinity;
+      for (const e of libres) {
+        if (e.pris || r2(e.o.m) !== r2(n.m)) continue;
+        const d = Math.abs(ecartJours(e.o.d, n.d)); if (d <= tol && d < bd) { bd = d; best = e; }
+      }
+      if (best) { best.pris = true; return false; }
+      return true;
+    });
+  }
   /* Opérations reçues de la banque (fonctions Netlify) → opérations du budget réel. Les opérations en attente et en
-     devise sont ignorées ; une opération déjà importée par un relevé (même jour, même montant) n'est pas reprise. */
+     devise sont ignorées ; une opération déjà importée par un relevé (même montant, à 2 jours près) n'est pas reprise. */
   function opsBanque(L, ref, existantes) {
-    const deja = new Set((existantes || []).filter(o => !/^eb:/.test(o.fid || '')).map(o => o.d + '|' + r2(o.m)));
-    return (L || []).filter(t => t && t.id && t.etat !== 'PDNG' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && isFinite(t.m) && t.m !== 0 && (!t.dev || t.dev === 'EUR'))
-      .map(t => ({ d: t.d, lib: String(t.lib || 'Opération').slice(0, 140), m: r2(t.m), fid: 'eb:' + ref + ':' + t.id }))
-      .filter(o => !deja.has(o.d + '|' + o.m));
+    const ops = (L || []).filter(t => t && t.id && t.etat !== 'PDNG' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && isFinite(t.m) && t.m !== 0 && (!t.dev || t.dev === 'EUR'))
+      .map(t => ({ d: t.d, lib: String(t.lib || 'Opération').slice(0, 140), m: r2(t.m), fid: 'eb:' + ref + ':' + t.id }));
+    return ecarterDoublons(ops, (existantes || []).filter(o => !/^eb:/.test(o.fid || '')));
+  }
+  /* Opérations d'un compte d'épargne : ni dépenses ni revenus (le virement est déjà compté « mis de côté » sur le compte
+     courant), sauf les intérêts, qui sont un revenu. */
+  const pourEpargne = o => Object.assign({}, o, { cat: /\binterets?\b/.test(norm(o.lib)) && o.m > 0 ? 'revenu' : 'virement' });
+
+  /* ===================== Calendrier (.ics) : rappels qui sonnent même application fermée ===================== */
+  const icsT = s => String(s || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
+  const icsD = s => s.replace(/-/g, '');
+  /* Événements mensuels (un par rappel, alarme à 9 h le jour même et la veille) ; au-delà du 28, dernier jour du mois */
+  function ics(rappels, auj, id = 'patrimoine') {
+    const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Patrimoine AI//Rappels//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Paiements attendus'];
+    for (const r of (rappels || []).filter(r => r && r.actif !== false && num(r.jour) >= 1)) {
+      const j = Math.round(num(r.jour)), m = mois(auj), e = echeance(m, j) < auj ? echeance(moisDecale(m, 1), j) : echeance(m, j), att = montantHabituel(r);
+      L.push('BEGIN:VEVENT', 'UID:' + id + '-' + String(r.id).replace(/[^a-z0-9]/gi, '') + '@patrimoine-ai', 'DTSTAMP:' + icsD(auj) + 'T080000Z', 'DTSTART;VALUE=DATE:' + icsD(e),
+        'RRULE:FREQ=MONTHLY;BYMONTHDAY=' + (j <= 28 ? j : -1), 'SUMMARY:' + icsT('Paiement ' + r.nom + ' attendu' + (att > 0 ? ' (environ ' + String(att).replace('.', ',') + ' €)' : '')),
+        'DESCRIPTION:' + icsT('Ouvrez Patrimoine AI pour confirmer que le paiement de ' + r.nom + ' est bien arrivé.'), 'TRANSP:TRANSPARENT',
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Paiement ' + icsT(r.nom), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT');
+    }
+    return L.concat('END:VCALENDAR').join('\r\n') + '\r\n';
+  }
+  /* Un seul événement daté (renouvellement de l'accord bancaire, quelques jours avant son expiration) */
+  function icsUnique(uid, titre, description, date, auj) {
+    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Patrimoine AI//Banque//FR', 'METHOD:PUBLISH', 'BEGIN:VEVENT', 'UID:' + uid + '@patrimoine-ai', 'DTSTAMP:' + icsD(auj) + 'T080000Z', 'DTSTART;VALUE=DATE:' + icsD(date),
+      'SUMMARY:' + icsT(titre), 'DESCRIPTION:' + icsT(description), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsT(titre), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
   }
 
   const API = { num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
-    echeance, rappelsDus, prochaineEcheance, rapprocher, opsBanque };
+    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

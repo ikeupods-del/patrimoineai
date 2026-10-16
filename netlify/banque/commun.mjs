@@ -17,11 +17,13 @@ function pem(v) {
   return t;
 }
 export function conf() {
+  const appId = env('ENABLE_APP_ID'), cle = pem(env('ENABLE_PRIVATE_KEY')), demande = env('ENABLE_MOCK') === '1';
   return {
-    appId: env('ENABLE_APP_ID'),
-    cle: pem(env('ENABLE_PRIVATE_KEY')),
+    appId, cle,
     retour: env('ENABLE_REDIRECT_URL'),
-    simulation: env('ENABLE_MOCK') === '1',
+    /* La démonstration n'est jamais active en même temps que de vraies clés : un ENABLE_MOCK oublié ne masque pas la vraie banque */
+    simulation: demande && !(appId && cle),
+    mockIgnore: demande && !!(appId && cle),
     banque: env('ENABLE_ASPSP_NAME'),
     pays: (env('ENABLE_ASPSP_COUNTRY') || 'FR').toUpperCase(),
     projet: env('FIREBASE_PROJECT_ID') || 'quentools-adca1',
@@ -153,7 +155,9 @@ export function fonction(methodes, traiter) {
       return json(await traiter({ req, c, u, psu: presence(req, context), url: new URL(req.url) }), 200, h);
     } catch (e) {
       const er = e instanceof Erreur ? e : new Erreur('erreur', 'Erreur inattendue du service bancaire. Réessayez plus tard.', 500);
-      if (!(e instanceof Erreur)) console.error('banque :', e);
+      /* Journal Netlify : code et statut seulement (jamais de jeton, de compte ni de montant), pour comprendre un échec a posteriori */
+      if (!(e instanceof Erreur)) console.error('banque : erreur inattendue', e && e.name, e && e.message);
+      else if (er.statut >= 500 || er.statut === 429 || er.code === 'configuration') console.warn('banque :', JSON.stringify({ route: new URL(req.url).pathname, code: er.code, statut: er.statut }));
       return json({ code: er.code, message: er.message }, er.statut, h);
     }
   };
