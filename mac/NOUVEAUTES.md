@@ -1,5 +1,16 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.3.0
+- **Relevés bancaires** : importez le fichier de votre banque (CSV, OFX ou QIF) ; chaque dépense est classée et comparée à votre budget, mois par mois, avec les dépassements signalés.
+- **Abonnements repérés** : tous vos prélèvements réguliers et ce qu’ils vous coûtent par an. Le budget peut se remplir tout seul avec vos moyennes réelles.
+- **Rendement réel** de chaque placement, d’après vos versements datés, comparé au Livret A et à un ETF monde ; coût des frais de gestion sur 20 ans.
+- **Revenus passifs** : loyers, dividendes et intérêts mois par mois sur 12 mois.
+- **Nouveaux simulateurs** : retraite et indépendance financière (trois scénarios et vos chances d’y arriver), impôt à la vente d’un placement, succession, donation et IFI.
+- **Placements en devises** (dollar, livre, franc suisse…) convertis en euros au cours du jour.
+- **Barre des menus** : patrimoine net, variation du jour, ou les deux.
+- **Résumé du mois** en notification le 1er du mois, et sur l’accueil.
+- **Coffre à documents** : contrats et relevés rangés avec chaque placement, chiffrés avec une clé gardée par le trousseau du Mac.
+
 ## 6.2.0
 - **Actualités** : toute l’actualité économique en français, par thème (marchés, technologie, pétrole et énergie, or et matières premières, banques centrales, immobilier, crypto, luxe, santé, emploi…) et par région (France, Europe, États-Unis, Asie, Chine, Japon, Moyen-Orient…), ou sur un sujet libre.
 - Thème « Mes placements » : les nouvelles des valeurs et plateformes que vous suivez.

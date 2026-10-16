@@ -108,6 +108,73 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(/pétrole/.test(lq) && /Chine/.test(lq) && /hl=fr/.test(lq), 'requête selon le thème et la région');
   ok((await pg.textContent('#sttl')).includes('Pétrole et énergie · Asie'), 'thème et région rappelés dans le titre');
   ok(/Actualités/.test(await pg.evaluate(() => LAI.answer('quelles sont les actualités ?').t)), 'assistant : actualités');
+  /* version 6.3 : relevés bancaires, prévu contre réel, abonnements */
+  await pg.evaluate(() => go('budget')); await pg.click('#bud-reel [data-act=opsimp]');
+  const mois = await pg.evaluate(() => [4, 3, 2, 1].map(k => moisDecale(moisCourant(), -k)));
+  const lignes = ['Date;Libellé;Débit euros;Crédit euros'];
+  mois.forEach((m, i) => { const [y, mo] = m.split('-'); const d = j => j + '/' + mo + '/' + y;
+    lignes.push(`${d('01')};VIR SALAIRE ACME;;3 000,00`, `${d('05')};PRLV SEPA NETFLIX.COM;13,49;`, `${d('08')};PRLV FREE MOBILE;19,99;`, `${d('10')};CB CARREFOUR MARKET;320,00;`, `${d('12')};CB RESTAURANT LE ZINC;${i === 3 ? '260,00' : '60,00'};`, `${d('15')};VIR LIVRET A;300,00;`, `${d('20')};CB BOUTIQUE INCONNUE;45,00;`); });
+  await pg.setInputFiles('#ops-f', { name: 'releve.csv', mimeType: 'text/csv', buffer: Buffer.from(lignes.join('\r\n'), 'latin1') });
+  await pg.waitForFunction(() => /opérations lues/.test((document.getElementById('ops-p') || {}).textContent || ''));
+  ok(/28 opérations lues/.test(await pg.textContent('#ops-p')), 'relevé lu (encodage Windows, débit et crédit) : ' + (await pg.textContent('#ops-p')).slice(0, 80));
+  await pg.click('[data-act=opsok]'); await pg.waitForTimeout(200);
+  ok(await pg.evaluate(() => D.ops.length === 28 && D.ops.filter(o => o.cat === 'abonnement').length === 4 && D.ops.filter(o => o.cat === 'revenu').length === 4), 'opérations importées et classées');
+  await pg.click('#bud-reel [data-act=opsimp]'); await pg.setInputFiles('#ops-f', { name: 'releve.csv', mimeType: 'text/csv', buffer: Buffer.from(lignes.join('\r\n'), 'latin1') });
+  await pg.waitForFunction(() => /Déjà importé/.test((document.getElementById('ops-p') || {}).textContent || '')); ok(true, 'même relevé importé deux fois : aucun doublon'); await pg.keyboard.press('Escape');
+  const reel = await pg.textContent('#bud-reel');
+  ok(/Mes dépenses réelles/.test(reel) && /de plus que prévu/.test(reel) && /loisirs/.test(reel), 'prévu contre réel : dépassement en loisirs signalé');
+  ok(/Netflix/i.test(await pg.textContent('#bud-abo')) && /par an/.test(await pg.textContent('#bud-abo')), 'abonnements détectés');
+  ok(await pg.evaluate(() => insights().some(i => /de plus que prévu/.test(i.title))), 'dépassement du mois dernier dans les alertes');
+  await pg.click('[data-act=bmois][data-k="-1"]'); ok((await pg.textContent('#bm-txt')).toLowerCase() === (await pg.evaluate(() => moisTxt(moisDecale(UI.bm, 0)))).toLowerCase(), 'navigation entre les mois');
+  await pg.click('[data-act=opsvoir]'); const sel = pg.locator('#sheet select[data-ch=opcat]', { has: pg.locator('option') }).filter({ hasText: '' });
+  const idInc = await pg.evaluate(() => D.ops.find(o => /INCONNUE/.test(o.lib)).id);
+  await pg.selectOption(`#sheet select[data-id="${idInc}"]`, 'loisirs').catch(async () => { await pg.evaluate(id => opCat(id, 'loisirs'), idInc); });
+  ok(await pg.evaluate(() => D.regles['boutique inconnue'] === 'loisirs' && D.ops.filter(o => /INCONNUE/.test(o.lib)).every(o => o.cat === 'loisirs')), 'catégorie corrigée et retenue pour le même libellé');
+  await pg.keyboard.press('Escape'); await pg.click('#bud-reel [data-act=bfill]'); await pg.click('[data-act=askok]'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => D.budget.exp.some(l => l.c === 'alimentation' && l.v === 320) && D.budget.inc[0].v === 3000 && !D.budget.exp.some(l => l.c === 'epargne')), 'budget rempli avec les moyennes réelles');
+  /* rendement réel, versements datés, frais */
+  const ren = await pg.evaluate(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 2); D.assets.push({ id: 'e1', cat: 'epargne', env: 'av', name: 'Assurance-vie', amount: 10000, value: 11025, date: d.toLocaleDateString('sv-SE'), fees: 0.6 }); save(); openDetail('e1'); return document.getElementById('sheet').textContent; });
+  ok(/Rendement réel/.test(ren) && /5,0\s%\spar an/.test(ren.replace(/ | /g, ' ')) && /Livret A/.test(ren) && /Frais de gestion/.test(ren), 'rendement réel d’une assurance-vie (5 % par an) : ' + (/[\d,]+\s?%\spar an/.exec(ren.replace(/ | /g, ' ')) || [''])[0]);
+  await pg.click('[data-act=move][data-id=e1]'); await pg.fill('#mv-m', '1000'); await pg.click('[data-act=mvsave]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => { const a = D.assets.find(x => x.id === 'e1'); return a.mv.length === 2 && a.amount === 11000 && a.value === 12025; }), 'versement daté enregistré');
+  await pg.keyboard.press('Escape');
+  /* devises */
+  ok(await pg.evaluate(() => { const t0 = totals().tv; D.fx.USD = { r: 0.9, ts: Date.now() }; D.assets.push({ id: 'u1', cat: 'cash', name: 'Compte en dollars', amount: 1000, dev: 'USD' }); return Math.abs(totals().tv - t0 - 900) < 0.01 && /1\s000\s\$/.test(devTxt(D.assets.find(a => a.id === 'u1'), 1000).replace(/ | /g, ' ')); }), 'compte en dollars converti en euros');
+  await pg.evaluate(() => { delete D.fx.USD; return fxRefresh(true); }); await pg.waitForTimeout(400);
+  ok(await pg.evaluate(() => D.fx.USD && Math.abs(D.fx.USD.r - 0.9) < 1e-9), 'taux du dollar récupéré');
+  /* revenus passifs et analyse */
+  await pg.evaluate(() => { const a = D.assets.find(x => x.id === 'a1'); a.div = 1; a.divm = 6; D.assets.push({ id: 'l1', cat: 'cash', name: 'Livret A', amount: 10000, rate: 2.4 }); D.assets.find(x => x.id === 'b1').rent = 700; save(); render(); go('analyse'); });
+  await pg.waitForTimeout(200); const ana = await pg.textContent('#v-analyse');
+  ok(/Revenus passifs/.test(ana) && /Loyers/.test(ana) && /Dividendes/.test(ana) && /Intérêts des livrets/.test(ana), 'revenus passifs : loyers, dividendes, intérêts');
+  ok(await pg.evaluate(() => Math.abs(CL.revenusPassifs(sourcesPassives()).total - (700 * 12 + 10 + 240)) < 1), 'total des revenus passifs sur 12 mois');
+  ok(/Rendement réel/.test(ana), 'carte rendement réel');
+  await ctx.route(/range%3Dmax|range=max/, r => { const t0 = Date.now() / 1000 - 5 * 365 * 864e2; r.fulfill({ json: { chart: { result: [{ meta: { currency: 'EUR' }, timestamp: Array.from({ length: 61 }, (_, i) => Math.floor(t0 + i * 30.4 * 864e2)), indicators: { quote: [{ close: Array.from({ length: 61 }, (_, i) => 300 + i * 5) }] } }] } } }); });
+  await pg.click('[data-act=perfidx]'); await pg.waitForFunction(() => /€/.test(document.getElementById('pf-idx').textContent)); ok(true, 'comparaison avec un ETF monde');
+  /* simulateurs : retraite, vente, succession */
+  await pg.evaluate(() => { UI.tool = 'fire'; go('tools'); renderTools(true); }); await pg.fill('#fi-age', '35'); await pg.waitForTimeout(300);
+  const fo = await pg.textContent('#fi-out'); ok(/Capital à réunir/.test(fo) && /Chances/.test(fo) && /prudent/.test(fo) && await pg.locator('#fi-out svg.chart').count() === 1, 'simulation de la retraite');
+  ok(await pg.evaluate(() => D.fire.age === 35), 'paramètres de la retraite gardés');
+  await pg.click('[data-act=tool][data-t=vente]'); await pg.selectOption('#v-a', 'e1'); await pg.waitForTimeout(150);
+  const vo = await pg.textContent('#v-out'); ok(/Vous touchez/.test(vo) && /Prélèvements sociaux/.test(vo) && await pg.inputValue('#v-t') === 'av', 'vente d’une assurance-vie : impôt calculé');
+  await pg.click('[data-act=tool][data-t=succ]'); await pg.waitForTimeout(150);
+  const so = await pg.textContent('#v-tools'); ok(/Droits par enfant/.test(so) && /Droits de donation/.test(so) && /fortune immobilière/.test(so), 'succession, donation et IFI');
+  /* résumé du mois */
+  await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000 }, { d: pm + '-27', v: 101500 }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; go('home'); renderHome(); });
+  const rc = await pg.textContent('#v-home'); ok(/Votre bilan de/.test(rc) && /1\s500/.test(rc.replace(/ | /g, ' ')), 'résumé du mois écoulé sur l’accueil');
+  await pg.click('[data-act=recapok]'); ok(!/Votre bilan de/.test(await pg.textContent('#v-home')), 'résumé masqué après lecture');
+  /* coffre à documents */
+  await pg.evaluate(() => openDetail('e1')); await pg.setInputFiles('#doc-f', { name: 'contrat.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 contrat d’essai') });
+  await pg.waitForFunction(() => D.docs.length === 1);
+  ok(await pg.evaluate(async () => new TextDecoder().decode(await cofLire(D.docs[0].id)) === '%PDF-1.4 contrat d’essai' && D.docs[0].aid === 'e1' && D.docs[0].k === 'web'), 'document chiffré puis relu');
+  ok(await pg.evaluate(async () => { const e = await cofOp('docs', 'readonly', s => s.get(D.docs[0].id)); return !new TextDecoder().decode(e.data).includes('contrat'); }), 'document illisible sans la clé');
+  ok(/Documents \(1\)/.test(await pg.textContent('#sheet')), 'document rangé dans la fiche');
+  await pg.keyboard.press('Escape');
+  /* l'assistant connaît les nouvelles données */
+  ok(await pg.evaluate(() => { const d = dossier(); return d.depenses_reelles && d.depenses_reelles.abonnements_par_an > 0 && d.rendement_reel && d.revenus_passifs_12_mois > 0; }), 'dossier de l’assistant complété');
+  const rep63 = await pg.evaluate(() => ['quels sont mes abonnements ?', 'à quel âge puis-je prendre ma retraite ?', 'combien me rapportent mes revenus passifs ?', 'combien dois-je investir chaque mois ?'].map(q => LAI.answer(q).t));
+  ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /revenus passifs sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
+  ok(await pg.evaluate(() => { const n = D.ops.length, lib = D.ops[0].lib, P = JSON.parse(JSON.stringify(payload())); P.mt = Object.assign({}, P.mt, { ops: Date.now() + 1e6 }); const big = JSON.stringify(payload()).length; mergeRemote(P); return Array.isArray(P.ops[0]) && D.ops.length === n && D.ops[0].lib === lib.slice(0, 60) && typeof D.ops[0].m === 'number' && big < 400000; }), 'opérations synchronisées en format compact puis relues');
+  ok(!errs.length, 'aucune erreur JavaScript (version 6.3) : ' + errs.join(' | '));
   /* bureau */
   await pg.setViewportSize({ width: 1280, height: 800 }); await pg.click('.side [data-nav=mk]'); await pg.waitForTimeout(300);
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'bureau.png') });
