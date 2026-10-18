@@ -95,4 +95,44 @@ const dv = C.dividendesAVenir([{ date: +new Date('2026-03-15') / 1000, amount: 0
 ok(dv[5] === 50 && dv[1] === 40 && dv.reduce((a, b) => a + b, 0) === 90, 'dividendes des 12 prochains mois');
 const rp = C.revenusPassifs([{ type: 'loyer', mois: Array(12).fill(700) }, { type: 'dividendes', mois: dv }]); ok(rp.total === 8490 && rp.mois[5].par.dividendes === 50 && rp.mois[1].total === 740, 'revenus passifs par mois et par type');
 
+/* rappels de paiement : Bricks le 8, BienPrêter le 5 */
+ok(C.echeance('2026-10', 8) === '2026-10-08' && C.echeance('2026-02', 31) === '2026-02-28' && C.echeance('2028-02', 30) === '2028-02-29', 'date du paiement dans le mois (fin de mois si besoin)');
+const bricks = { id: 'r1', nom: 'Bricks', jour: 8, cree: '2026-09-01', hist: {} }, bp = { id: 'r2', nom: 'BienPrêter', jour: 5, cree: '2026-10-01', hist: {}, motif: 'bienpreter|lemonway', attendu: 42.5 };
+ok(C.rappelsDus([bricks, bp], '2026-10-04').length === 1 && C.rappelsDus([bricks, bp], '2026-10-04')[0].mois === '2026-09', 'avant le jour J : seul le mois précédent non validé est dû');
+const du = C.rappelsDus([bricks, bp], '2026-10-08');
+ok(du.length === 3 && du[2].r === bricks && du[2].statut === 'a_valider' && du[1].r === bp && du[1].statut === 'a_valider' && du[0].statut === 'retard', 'le jour J : à valider ; septembre non validé : en retard');
+ok(C.rappelsDus([bp], '2026-10-08')[0].statut === 'a_valider' && C.rappelsDus([bp], '2026-10-09')[0].statut === 'retard' && C.rappelsDus([bp], '2026-10-09')[0].jours === 4, 'en retard après 3 jours sans validation');
+bricks.hist['2026-09'] = { s: 'recu', m: 31.2 }; bricks.hist['2026-10'] = { s: 'absent' };
+ok(C.rappelsDus([bricks], '2026-10-20').length === 0 && C.prochaineEcheance(bricks, '2026-10-20') === '2026-11-09' && C.prochaineEcheance(bp, '2026-10-05') === '2026-10-05', 'validé ou absent : plus dû ; prochaine échéance');
+ok(C.rappelsDus([Object.assign({}, bp, { actif: false })], '2026-12-01').length === 0 && C.rappelsDus([Object.assign({}, bp, { cree: '2026-10-06' })], '2026-10-20').length === 0, 'rappel désactivé ou créé après la date : rien de dû');
+const opsB = [{ id: 'x1', d: '2026-10-06', lib: 'VIR SEPA LEMONWAY BIENPRETER', m: 42.5 }, { id: 'x2', d: '2026-10-05', lib: 'VIR BIENPRETER', m: 10 }, { id: 'x3', d: '2026-10-05', lib: 'CARTE BIENPRETER', m: -42.5 }, { id: 'x4', d: '2026-09-20', lib: 'VIR BIENPRETER', m: 42.5 }, { id: 'x5', d: '2026-10-09', lib: 'VIR SALAIRE', m: 42.5 }];
+ok(C.rapprocher(bp, '2026-10', opsB).id === 'x1', 'rapprochement : bon libellé, bon montant, dans la fenêtre');
+ok(C.rapprocher(bp, '2026-10', opsB, new Set(['x1'])).id === 'x2' && C.rapprocher(bp, '2026-10', opsB, new Set(['x1', 'x2'])) === null, 'opération déjà utilisée écartée');
+ok(C.rapprocher({ nom: 'Bricks', jour: 8 }, '2026-10', [{ id: 'b', d: '2026-10-09', lib: 'Vir. Bricks.co loyers', m: 12.3 }]).id === 'b', 'rapprochement par le nom de la plateforme');
+const ob = C.opsBanque([{ id: 't1', d: '2026-10-02', lib: 'CB CARREFOUR', m: -54.2, dev: 'EUR' }, { id: 't2', d: '2026-10-03', lib: 'EN ATTENTE', m: -5, etat: 'PDNG' }, { id: 't3', d: '2026-10-04', lib: 'USD', m: -5, dev: 'USD' }, { id: 't4', d: '2026-10-05', lib: 'NETFLIX', m: -13.49 }], 'abc', [{ d: '2026-10-05', m: -13.49, lib: 'PRLV NETFLIX.COM' }]);
+ok(ob.length === 1 && ob[0].fid === 'eb:abc:t1' && ob[0].m === -54.2, 'opérations de la banque : en attente, devise et doublon d’un relevé écartés');
+ok(C.fusionnerOps(ob, C.opsBanque([{ id: 't1', d: '2026-10-02', lib: 'CB CARREFOUR MARKET', m: -54.2 }], 'abc')).length === 0, 'opération de la banque déjà reçue non reprise');
+
+/* jours ouvrés : week-end et jours fériés décalés au jour ouvré suivant */
+ok(C.echeanceR({ jour: 8 }, '2026-11') === '2026-11-09' && C.echeanceR({ jour: 8, ouvre: false }, '2026-11') === '2026-11-08' && C.echeanceR({ jour: 5 }, '2026-10') === '2026-10-05', 'un dimanche devient lundi, sauf si on demande de ne pas décaler');
+ok(C.ferie('2026-04-06') && C.ferie('2026-05-14') && C.ferie('2026-05-25') && C.ferie('2026-11-11') && !C.ferie('2026-04-07') && C.ferie('2027-03-29'), 'jours fériés : lundi de Pâques, Ascension, Pentecôte, 11 novembre');
+ok(C.echeanceR({ jour: 11 }, '2026-11') === '2026-11-12' && C.echeanceR({ jour: 1 }, '2026-05') === '2026-05-04', '11 novembre férié → 12 ; 1er mai (vendredi férié) → lundi 4');
+ok(C.rappelsDus([{ id: 'w', nom: 'X', jour: 8, cree: '2026-10-01', hist: {} }], '2026-11-08').length === 1 && C.rappelsDus([{ id: 'w', nom: 'X', jour: 8, cree: '2026-11-01', hist: {} }], '2026-11-08').length === 0 && C.rappelsDus([{ id: 'w', nom: 'X', jour: 8, cree: '2026-11-01', hist: {} }], '2026-11-09').length === 1, 'rien d’exigé le dimanche : le paiement est attendu lundi');
+/* montant habituel */
+ok(C.montantHabituel({ attendu: 40 }) === 40 && C.montantHabituel({ hist: { '2026-07': { s: 'recu', m: 10 }, '2026-08': { s: 'recu', m: 30 }, '2026-09': { s: 'recu', m: 12 }, '2026-10': { s: 'absent' }, '2026-05': { s: 'recu', m: 999 } } }) === 12 && C.montantHabituel({}) === 0, 'montant habituel : saisi, sinon médiane des trois derniers paiements');
+/* retraits vers la banque */
+const pf = { nom: 'Bricks', jour: 8, ret: [{ tx: 'r2' }] }, cr = [{ id: 'r1', d: '2026-10-12', lib: 'VIR SEPA BRICKS RETRAIT', m: 50 }, { id: 'r2', d: '2026-10-13', lib: 'VIR BRICKS', m: 20 }, { id: 'r3', d: '2026-10-14', lib: 'VIR SALAIRE', m: 500 }, { id: 'r4', d: '2026-09-01', lib: 'VIR BRICKS ANCIEN', m: 9 }, { id: 'r5', d: '2026-10-15', lib: 'CB BRICKS', m: -5 }, { id: 'r6', d: '2026-10-16', lib: 'VIR BRICKS', m: 300 }];
+const rt = C.retraitsPossibles(pf, cr, new Set(), 80, '2026-10-01');
+ok(rt.length === 2 && rt[0].op.id === 'r1' && rt[0].somme === 50 && rt[1].op.id === 'r6' && rt[1].somme === 80, 'retraits : libellé de la plateforme, après la création, jamais traités, plafonnés au portefeuille');
+ok(C.retraitsPossibles(pf, cr, new Set(['r1', 'r6']), 80, '2026-10-01').length === 0 && C.retraitsPossibles(pf, cr, new Set(), 0, '2026-10-01').length === 0, 'retrait déjà utilisé ou portefeuille vide : rien');
+/* doublons entre sources (une seule fois chacune, 2 jours de tolérance) */
+const dd = C.ecarterDoublons([{ d: '2026-10-05', m: -2.5 }, { d: '2026-10-05', m: -2.5 }, { d: '2026-10-07', m: -13.49 }, { d: '2026-10-20', m: -9 }], [{ d: '2026-10-06', m: -2.5 }, { d: '2026-10-05', m: -13.49 }]);
+ok(dd.length === 2 && dd.filter(x => x.m === -2.5).length === 1 && dd.some(x => x.m === -9) && !dd.some(x => x.m === -13.49), 'doublons : un seul achat identique est écarté, pas les deux ; 2 jours d’écart tolérés (' + JSON.stringify(dd) + ')');
+ok(C.opsBanque([{ id: 'a', d: '2026-10-07', lib: 'NETFLIX', m: -13.49 }], 'x', [{ d: '2026-10-05', m: -13.49, lib: 'PRLV NETFLIX.COM' }]).length === 0 && C.opsBanque([{ id: 'a', d: '2026-10-09', lib: 'NETFLIX', m: -13.49 }], 'x', [{ d: '2026-10-05', m: -13.49, lib: 'PRLV NETFLIX.COM' }]).length === 1, 'banque contre relevé CSV : doublon reconnu à 2 jours près, pas à 4');
+ok(C.pourEpargne({ lib: 'VIR DE M DUPONT', m: 200 }).cat === 'virement' && C.pourEpargne({ lib: 'INTERETS CREDITEURS', m: 3.2 }).cat === 'revenu' && C.pourEpargne({ lib: 'RETRAIT', m: -100 }).cat === 'virement', 'compte d’épargne : virements neutres, intérêts en revenu');
+/* calendrier */
+const ic = C.ics([{ id: 'r1', nom: 'Bricks', jour: 8, attendu: 31.2 }, { id: 'r2', nom: 'Fin; de mois', jour: 31 }, { id: 'r3', nom: 'Off', jour: 3, actif: false }], '2026-10-16');
+ok(/^BEGIN:VCALENDAR\r\n/.test(ic) && /END:VCALENDAR\r\n$/.test(ic) && (ic.match(/BEGIN:VEVENT/g) || []).length === 2 && /DTSTART;VALUE=DATE:20261108\r\n/.test(ic) && /RRULE:FREQ=MONTHLY;BYMONTHDAY=8\r\n/.test(ic) && /BYMONTHDAY=-1/.test(ic) && /environ 31\\,2 €/.test(ic) && /Fin\\; de mois/.test(ic) && /TRIGGER:PT9H/.test(ic) && !/Off/.test(ic), 'calendrier : un événement mensuel par rappel actif, échappements, dernier jour du mois');
+ok(/DTSTART;VALUE=DATE:20261105/.test(C.icsUnique('x', 'Renouveler', 'Banque', '2026-11-05', '2026-10-16')) && /SUMMARY:Renouveler/.test(C.icsUnique('x', 'Renouveler', 'Banque', '2026-11-05', '2026-10-16')), 'calendrier : événement unique');
+
 console.log('calculs :', n, 'contrôles réussis');

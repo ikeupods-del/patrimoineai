@@ -1,0 +1,16 @@
+# Patrimoine AI sur Netlify : le site (mêmes fichiers que GitHub Pages) et les fonctions de la liaison bancaire.
+# Variables d'environnement à renseigner dans Netlify (jamais dans ce dépôt) : voir docs/BANQUE.md.
+[build]
+  command = "mkdir -p _site && cp index.html connexion-mac.html config.js marches.js calculs.js manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png _site/ && cp -r vendor _site/"
+  publish = "_site"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Les réponses des fonctions (données bancaires) ne sont jamais mises en cache
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+    X-Content-Type-Options = "nosniff"

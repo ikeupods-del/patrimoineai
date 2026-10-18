@@ -13,7 +13,17 @@ concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
+  # Les contrôles rapides (cours, calculs, fonctions bancaires) passent avant toute publication
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/marches.test.js && node tests/calculs.test.js && node tests/banque.test.js
   deploy:
+    needs: tests
     runs-on: ubuntu-latest
     environment:
       name: github-pages

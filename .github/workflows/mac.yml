@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 22
       - name: Contrôler le moteur de cours et les calculs
-        run: node tests/marches.test.js && node tests/calculs.test.js
+        run: node tests/marches.test.js && node tests/calculs.test.js && node tests/banque.test.js
       - name: Installer les dépendances
         working-directory: mac
         env:

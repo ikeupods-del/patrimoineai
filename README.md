@@ -18,6 +18,8 @@ Deux versions, un seul code : l'application web installable (téléphone, naviga
 - **Simulateurs** : impôt, projection, **retraite et indépendance financière** (capital à réunir, trois scénarios, probabilité par 2 000 tirages), **vente d'un placement** (PFU, PEA, assurance-vie, PER, plus-value immobilière avec abattements et surtaxe), **succession, donation et IFI**, avant d'investir, **répartition cible** (rééquilibrage par les versements), **crédit** (mensualité, coût, taux d'endettement).
 - **Coffre à documents** : contrats, relevés, avis d'imposition rangés avec chaque placement, chiffrés en AES-256 sur l'appareil (IndexedDB ; sur le Mac, clé protégée par le trousseau), jamais synchronisés.
 - **Résumé du mois** : le mois écoulé (patrimoine, dépenses réelles, dépassements) sur l'accueil, et en notification sur le Mac.
+- **Mes banques** : compte Boursorama relié par Enable Banking (open banking DSP2, lecture seule, 90 jours renouvelables) ; soldes comptés dans le patrimoine, opérations du compte courant classées dans le budget réel. Le serveur (fonctions Netlify, `netlify/`) garde la clé de l'application ; mode d'emploi et variables à configurer : [`docs/BANQUE.md`](docs/BANQUE.md).
+- **Rappels de paiement** : Bricks le 8, BienPrêter le 5 (modifiables) ; le jour J, « Paiement reçu ? Oui / Non / Montant différent », en retard après 3 jours, paiement inscrit dans l'historique du placement et ajouté au patrimoine, rapprochement avec les opérations de la banque liée, week-ends et jours fériés décalés au jour ouvré, retrait vers la banque détecté (pas de double compte), calendrier `.ics` pour être prévenu application fermée.
 - **Bilan patrimonial en PDF**, **recherche rapide** (⌘K / Ctrl K), import de contrats (lecteur PDF hébergé dans `vendor/pdfjs/`) et CSV.
 - **Assistant** : IA locale (calculs, sans Internet), **IA du Mac** (application Mac : vrai modèle de langage sur la puce, sans Internet, chaque chiffre cité est vérifié dans les données, sinon la réponse calculée est affichée), Gemini ou Grok avec votre clé.
 
@@ -40,10 +42,10 @@ Settings → Pages → Source : **GitHub Actions**. Le workflow `.github/workflo
 - **Récupérer l'ancienne version Netlify** : exporter le JSON de l'ancienne app, puis « Restaurer une sauvegarde » dans la nouvelle.
 
 ## Fichiers
-`index.html` (l'app), `marches.js` (cours en direct), `calculs.js` (relevés bancaires, catégories, abonnements, rendement réel, retraite, fiscalité, revenus passifs : fonctions sans affichage), `connexion-mac.html` (connexion Google de l'application Mac), `vendor/pdfjs/` (lecteur PDF, licence Apache 2.0), `mac/` (application Mac), `tests/`, `config.js`, `manifest.webmanifest`, `sw.js`, icônes, `cors-worker/worker.js` (facultatif).
+`index.html` (l'app), `marches.js` (cours en direct), `calculs.js` (relevés bancaires, catégories, abonnements, rendement réel, retraite, fiscalité, revenus passifs : fonctions sans affichage), `connexion-mac.html` (connexion Google de l'application Mac), `vendor/pdfjs/` (lecteur PDF, licence Apache 2.0), `mac/` (application Mac), `tests/`, `config.js`, `manifest.webmanifest`, `sw.js`, icônes, `cors-worker/worker.js` (facultatif), `netlify/` et `netlify.toml` (fonctions de la liaison bancaire, sur Netlify), `docs/BANQUE.md`.
 
 ## Contrôles
-`node tests/marches.test.js` (moteur de cours), `node tests/calculs.test.js` (relevés de plusieurs banques, catégories, abonnements, TRI, simulation, barèmes fiscaux) et `node tests/e2e.js` (scénario navigateur : cours en direct, patrimoine net, budget, relevés, prévu contre réel, rendement, devises, revenus passifs, simulateurs, résumé du mois, coffre, objectifs, assistant, recherche, bilan). Application Mac : le workflow l'essaie à chaque modification.
+`node tests/marches.test.js` (moteur de cours), `node tests/calculs.test.js` (relevés de plusieurs banques, catégories, abonnements, TRI, simulation, barèmes fiscaux, rappels de paiement), `node tests/banque.test.js` (fonctions bancaires : jeton Enable Banking, state, chiffrement, cache, pagination, erreurs), `node tests/banque-e2e.js` (Mes banques et rappels dans le navigateur, banque de démonstration, accessibilité avec `AXE=…`) et `node tests/e2e.js` (scénario navigateur : cours en direct, patrimoine net, budget, relevés, prévu contre réel, rendement, devises, revenus passifs, simulateurs, résumé du mois, coffre, objectifs, assistant, recherche, bilan). Application Mac : le workflow l'essaie à chaque modification.
 
 ## Limites à connaître
 - Montants immobiliers et capital restant dû : estimations (crédit amortissable à mensualités constantes) ; le tableau d'amortissement de la banque fait foi.
@@ -53,6 +55,7 @@ Settings → Pages → Source : **GitHub Actions**. Le workflow `.github/workflo
 - Fiscalité, succession et IFI : règles 2026 simplifiées (hors démembrement, régime matrimonial, testament, cas particuliers) ; un notaire ou un conseiller fiscal fait foi. Le taux du Livret A retenu pour la comparaison se modifie dans la carte « Rendement réel ».
 - Simulation de la retraite : rendements réels hypothétiques, ce n'est pas une prévision.
 - Coffre à documents : les fichiers restent sur l'appareil où ils ont été ajoutés (ni synchronisés, ni dans les sauvegardes JSON) ; gardez les originaux ailleurs. Dans le navigateur, effacer les données du site efface aussi le coffre.
+- Liaison bancaire : comptes de paiement seulement (pas de PEA ni de compte-titres, que la DSP2 ne couvre pas) ; accord de 90 jours à renouveler ; voir les autres limites dans `docs/BANQUE.md`.
 - L'IA du Mac est plus lente que l'IA locale (quelques secondes, davantage à la première question) et ne connaît que vos données et les calculs de l'application.
 
 
