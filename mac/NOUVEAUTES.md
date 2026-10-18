@@ -1,5 +1,12 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.4.0
+- **Mes banques** : reliez votre compte Boursorama en lecture seule (open banking, accord de 90 jours renouvelable). Les soldes entrent dans votre patrimoine et les opérations du compte courant sont classées dans le budget réel, sans doublon avec vos relevés importés.
+- **Rappels de paiement** (Bricks le 8, BienPrêter le 5, modifiables) : le jour J, « Paiement reçu ? Oui / Non / Montant différent ». Le paiement est inscrit dans l'historique du placement et ajouté au patrimoine ; en retard après 3 jours.
+- **Jours ouvrés** : un paiement prévu un week-end ou un jour férié est attendu le jour ouvré suivant.
+- **Pas de double compte** : quand une plateforme verse l'argent puis que vous le virez sur votre banque, l'application propose « Retirer du portefeuille ».
+- **Calendrier** : un fichier .ics ajoute les rappels à Google Agenda, Apple Calendrier ou Outlook, même application fermée.
+
 ## 6.3.0
 - **Relevés bancaires** : importez le fichier de votre banque (CSV, OFX ou QIF) ; chaque dépense est classée et comparée à votre budget, mois par mois, avec les dépassements signalés.
 - **Abonnements repérés** : tous vos prélèvements réguliers et ce qu’ils vous coûtent par an. Le budget peut se remplir tout seul avec vos moyennes réelles.
