@@ -1090,7 +1090,7 @@ function renderAI(){
     return x;
   }).join('');
   if(AIBUSY){const loc=p==='local'||!keyOf(p)||(p!=='mac'&&navigator.onLine===false);h+=`<div class="msg m"><div class="thinking"><span class="dots" aria-hidden="true"><span></span><span></span><span></span></span><span>${loc?'Calcul en cours…':p==='mac'?'L’IA du Mac rédige (quelques secondes, plus longtemps à la première question)…':PROV[p].n+' réfléchit, cela peut prendre jusqu’à une minute…'}</span></div></div>`}
-  h+=`<div class="composer"><textarea id="ai-q" rows="1" placeholder="${MAC?'Posez votre question… (dictée : appuyez deux fois sur la touche Fn)':'Posez votre question…'}" data-in="aiq" data-kd="ai" aria-label="Votre question">${esc(old)}</textarea>${dicteeOk()?`<button class="btn sec${DICTEE?' rec':''}" data-act="aidictee" aria-label="${DICTEE?'Arrêter la dictée':'Dicter la question'}" title="${DICTEE?'Arrêter la dictée':'Dicter la question au micro'}">${ic('mic',20)}</button>`:''}<button class="btn" data-act="aisend" aria-label="Envoyer"${AIBUSY?' disabled':''}>${ic('send',20)}</button></div>`;
+  h+=`<div class="composer"><textarea id="ai-q" rows="1" placeholder="Posez votre question…" data-in="aiq" data-kd="ai" aria-label="Votre question">${esc(old)}</textarea>${dicteeOk()?`<button class="btn sec${DICTEE&&!DICTEE.ecrit?' rec':''}" data-act="aidictee" aria-label="${DICTEE?(DICTEE.ecrit?'Écriture en cours':'Arrêter la dictée'):'Dicter la question'}" title="${DICTEE?(DICTEE.ecrit?'J’écris votre question…':'Touchez pour arrêter'):'Dicter la question au micro'}"${DICTEE&&DICTEE.ecrit?' disabled':''}>${ic('mic',20)}</button>`:''}<button class="btn" data-act="aisend" aria-label="Envoyer"${AIBUSY?' disabled':''}>${ic('send',20)}</button></div>`;
   h+=`<div class="hint">${M.length?`<button class="btn sm sec" data-act="aiclear" style="margin-right:8px">Nouvelle conversation</button>`:''}${p==='local'||!keyOf(p)?'L’IA locale travaille sur l’appareil : rien n’est envoyé.':p==='mac'?'L’IA du Mac travaille sur l’ordinateur : rien n’est envoyé.':'Vos placements sont transmis à '+PROV[p].co+' pour répondre.'} Ce n’est pas un conseil en investissement.</div>`;
   el.innerHTML=h;
   const t=$('ai-q');if(t&&old){t.style.height='auto';t.style.height=Math.min(140,t.scrollHeight)+'px'}
@@ -3187,17 +3187,45 @@ async function openDiag(pv){
   if($('dg2'))$('dg2').innerHTML=`<p class="hint mt">Les modèles qui échouent (introuvables, hors offre gratuite, quota du jour atteint) sont automatiquement écartés pendant quelques heures, et le suivant est essayé. Vous pouvez aussi imposer un modèle dans les réglages.</p><button class="btn blk mt" data-act="closeM">Fermer</button>`;
   renderSet();renderAI();
 }
-/* Dictée de la question : reconnaissance vocale du navigateur (Safari, Chrome). L'application Mac garde la dictée du système (touche Fn deux fois). */
+/* Dictée de la question. Application Mac : le micro est écouté par la reconnaissance de la voix du Mac (sans internet, modèle partagé avec QuentMovie).
+   Version en ligne : reconnaissance vocale du navigateur (Safari, Chrome). */
 let DICTEE=null;
-const dicteeOk=()=>!MAC&&!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+const dicteeOk=()=>MAC?!!MAC.dictee:!!(window.SpeechRecognition||window.webkitSpeechRecognition);
 function basculerDictee(){
-  if(DICTEE){DICTEE.stop();return}
+  if(DICTEE){if(DICTEE.stop)DICTEE.stop();return}
+  if(MAC)return dicteeMac();
   const R=window.SpeechRecognition||window.webkitSpeechRecognition,t=$('ai-q');if(!R||!t)return;
   const r=new R(),avant=t.value.trim();r.lang='fr-FR';r.interimResults=true;r.continuous=false;DICTEE=r;
   r.onresult=e=>{const txt=[...e.results].map(x=>x[0].transcript).join(' ').trim();const z=$('ai-q');if(z){z.value=(avant?avant+' ':'')+txt;z.dispatchEvent(new Event('input',{bubbles:true}))}};
   r.onerror=e=>{toast(e.error==='not-allowed'?'Micro refusé : autorisez-le dans les réglages du navigateur.':'Dictée interrompue : '+e.error)};
   r.onend=()=>{DICTEE=null;renderAI();const z=$('ai-q');if(z)z.focus()};
   try{r.start();renderAI()}catch(e){DICTEE=null;toast('Dictée indisponible sur ce navigateur.')}
+}
+async function dicteeMac(){
+  try{
+    let e=await MAC.dictee.etat();
+    if(!e.dispo)return toast('La dictée n’est pas disponible sur ce Mac.');
+    if(!e.installee){
+      if(!confirm('La dictée a besoin de la reconnaissance de la voix (≈ '+e.mo+' Mo, téléchargée une seule fois, partagée avec QuentMovie). Tout se fait ensuite sur le Mac, sans internet. La télécharger maintenant ?'))return;
+      toast('Téléchargement de la dictée…');let last=0;
+      await MAC.dictee.installer(p=>{const q=Math.floor(p*10);if(q>last){last=q;toast('Téléchargement de la dictée : '+q*10+' %')}});
+      toast('Dictée prête : touchez le micro et parlez.');return;
+    }
+    if(!await MAC.dictee.micro())return toast('Micro refusé : autorisez Patrimoine AI dans Réglages Système → Confidentialité et sécurité → Micro.');
+    const flux=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    const ctx=new AudioContext({sampleRate:16000}),src=ctx.createMediaStreamSource(flux),proc=ctx.createScriptProcessor(4096,1,1),bouts=[];
+    proc.onaudioprocess=ev=>bouts.push(new Float32Array(ev.inputBuffer.getChannelData(0)));
+    src.connect(proc);proc.connect(ctx.destination);
+    const fin=setTimeout(()=>DICTEE&&DICTEE.stop(),60000); /* une minute au plus */
+    DICTEE={stop:async()=>{
+      clearTimeout(fin);DICTEE={ecrit:true};proc.disconnect();src.disconnect();flux.getTracks().forEach(t=>t.stop());await ctx.close();renderAI();
+      const n=bouts.reduce((s,b)=>s+b.length,0),son=new Float32Array(n);let k=0;bouts.forEach(b=>{son.set(b,k);k+=b.length});
+      try{const r=await MAC.dictee.ecouter(son),z=$('ai-q');if(r.texte&&z){z.value=(z.value.trim()?z.value.trim()+' ':'')+r.texte;z.dispatchEvent(new Event('input',{bubbles:true}));z.focus()}else if(!r.texte)toast('Je n’ai rien entendu : parlez un peu plus près du micro.')}
+      catch(err){toast('Dictée : '+err.message)}
+      DICTEE=null;renderAI();
+    }};
+    renderAI();
+  }catch(err){DICTEE=null;toast('Dictée : '+(err.message||err));renderAI()}
 }
 function sendFromBox(){const t=$('ai-q');if(!t)return;const q=t.value;t.value='';sendAI(q)}
 document.addEventListener('click',e=>{

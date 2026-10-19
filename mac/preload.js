@@ -1,8 +1,9 @@
 // Pont entre la page de Patrimoine AI et le Mac : seules ces fonctions sont accessibles à la page.
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
-let surProgres = null, surMaj = null, surVerrou = null, surCommande = null;
+let surProgres = null, surDictee = null, surMaj = null, surVerrou = null, surCommande = null;
 ipcRenderer.on('ia:progres', (e, p) => { if (surProgres) surProgres(p); });
+ipcRenderer.on('dictee:progres', (e, p) => { if (surDictee) surDictee(p); });
 ipcRenderer.on('maj:etat', (e, etat) => { if (surMaj) surMaj(etat); });
 ipcRenderer.on('verrou', () => { if (surVerrou) surVerrou(); });
 ipcRenderer.on('commande', (e, c) => { if (surCommande) surCommande(String(c)); });
@@ -11,6 +12,12 @@ contextBridge.exposeInMainWorld('patrimoineMac', {
     etat: () => ipcRenderer.invoke('ia:etat'),
     installer: cb => { surProgres = cb; return ipcRenderer.invoke('ia:installer'); },
     ecrire: msg => ipcRenderer.invoke('ia:ecrire', msg)
+  },
+  dictee: {
+    etat: () => ipcRenderer.invoke('dictee:etat'),
+    micro: () => ipcRenderer.invoke('dictee:micro'),
+    installer: cb => { surDictee = cb; return ipcRenderer.invoke('dictee:installer'); },
+    ecouter: samples => ipcRenderer.invoke('dictee:ecouter', samples)
   },
   maj: {
     etat: () => ipcRenderer.invoke('maj:etat'),

@@ -1,9 +1,9 @@
 # Nouveautés de Patrimoine AI pour Mac
 
-## 6.5.0
+## 6.5.1
 - **Épargne de précaution suivie** : « À surveiller » prévient quand vos liquidités ne couvrent pas encore le nombre de mois de dépenses choisi dans le budget, avec la somme qui manque.
 - **Argent qui dort** : quand vos liquidités dépassent largement votre épargne de précaution, l'application vous le signale pour que cette somme serve un projet ou un objectif.
-- **Dictée** : dans l'assistant, appuyez deux fois sur la touche Fn pour dicter votre question (dictée du Mac). Sur la version en ligne, un bouton micro fait la même chose.
+- **Dictée** : dans l'assistant, touchez le micro, parlez, touchez à nouveau : votre question s'écrit toute seule. La voix est reconnue sur le Mac, sans internet (téléchargement d'environ 660 Mo la première fois, partagé avec QuentMovie : rien à refaire s'il l'a déjà installé).
 
 ## 6.4.0
 - **Mes banques** : reliez votre compte Boursorama en lecture seule (open banking, accord de 90 jours renouvelable). Les soldes entrent dans votre patrimoine et les opérations du compte courant sont classées dans le budget réel, sans doublon avec vos relevés importés.

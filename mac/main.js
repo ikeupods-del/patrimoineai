@@ -64,11 +64,18 @@ function reseau() {
     cb({ responseHeaders: h });
   });
   // Rien d'autre que nos pages ne s'ouvre dans la fenêtre ; les autres liens partent dans le navigateur
-  s.setPermissionRequestHandler((wc, perm, ok) => ok(perm === 'notifications' || perm === 'clipboard-sanitized-write'));
+  s.setPermissionRequestHandler((wc, perm, ok, d) => ok(perm === 'notifications' || perm === 'clipboard-sanitized-write' || (perm === 'media' && !!d && (d.mediaTypes || []).every(t => t === 'audio') && wc === (win && win.webContents)))); // micro seul : dictée de l'assistant
 }
 
 /* ---------- IA du Mac (modèle partagé avec les autres logiciels QuenTools) ---------- */
 const IA = () => ia || (ia = require('./ia-locale').creer(process.env.PATRIMOINE_IA_DOSSIER ? { dossier: process.env.PATRIMOINE_IA_DOSSIER } : {}));
+/* ---------- Dictée de l'assistant (reconnaissance de la voix sur le Mac, modèle partagé avec QuentMovie) ---------- */
+let dictee = null;
+const DICTEE = () => dictee || (dictee = require('./dictee').creer());
+ipcMain.handle('dictee:etat', garde(() => DICTEE().etat()));
+ipcMain.handle('dictee:micro', garde(async () => systemPreferences.getMediaAccessStatus('microphone') === 'granted' || systemPreferences.askForMediaAccess('microphone')));
+ipcMain.handle('dictee:installer', garde(async e => { await DICTEE().installer(p => { if (!e.sender.isDestroyed()) e.sender.send('dictee:progres', p); }); return DICTEE().etat(); }));
+ipcMain.handle('dictee:ecouter', garde((e, samples) => DICTEE().ecouter(samples)));
 ipcMain.handle('ia:etat', garde(() => IA().etat()));
 ipcMain.handle('ia:installer', garde(async e => { await IA().installer(p => { if (!e.sender.isDestroyed()) e.sender.send('ia:progres', p); }); return IA().etat(); }));
 ipcMain.handle('ia:ecrire', garde((e, m) => {
@@ -210,7 +217,7 @@ const verifierMaj = () => maj.verifier().then(e => { envoyer('maj:etat', e); ret
 ipcMain.handle('maj:etat', garde(() => maj.etat));
 ipcMain.handle('maj:verifier', garde(() => verifierMaj()));
 ipcMain.handle('maj:installer', garde(() => { if (maj.installer(true)) setTimeout(() => app.quit(), 200); return maj.etat; }));
-app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); });
+app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); if (dictee) dictee.arreter(); });
 
 /* ---------- Menus ---------- */
 const cmd = c => () => { if (!win) ouvrir(); envoyer('commande', c); };

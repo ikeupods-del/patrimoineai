@@ -1,7 +1,7 @@
 {
   "name": "patrimoine-ai",
   "productName": "Patrimoine AI",
-  "version": "6.5.0",
+  "version": "6.5.1",
   "description": "Patrimoine, budget, objectifs, marchés en direct et IA du Mac : produit par QuenTools",
   "main": "main.js",
   "private": true,
@@ -21,6 +21,8 @@
       "maj.js",
       "ia-locale.js",
       "ia-worker.js",
+      "dictee.js",
+      "dictee-worker.js",
       "package.json",
       "app/**"
     ],
@@ -31,7 +33,8 @@
       "icon": "build/icon.png",
       "artifactName": "Patrimoine-AI-${version}-arm64.${ext}",
       "extendInfo": {
-        "NSFaceIDUsageDescription": "Patrimoine AI utilise Touch ID pour déverrouiller vos données."
+        "NSFaceIDUsageDescription": "Patrimoine AI utilise Touch ID pour déverrouiller vos données.",
+        "NSMicrophoneUsageDescription": "Patrimoine AI utilise le micro pour dicter vos questions à l'assistant. Le son est traité sur le Mac et n'est jamais envoyé."
       }
     },
     "dmg": {
@@ -42,7 +45,8 @@
     },
     "asarUnpack": [
       "node_modules/node-llama-cpp/**",
-      "node_modules/@node-llama-cpp/**"
+      "node_modules/@node-llama-cpp/**",
+      "node_modules/sherpa-onnx-*/**"
     ]
   },
   "devDependencies": {
@@ -50,6 +54,7 @@
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
-    "node-llama-cpp": "3.21.1"
+    "node-llama-cpp": "3.21.1",
+    "sherpa-onnx-node": "1.13.8"
   }
 }
