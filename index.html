@@ -142,6 +142,7 @@ summary{cursor:pointer;font-weight:600;font-size:14px;min-height:36px;display:fl
 .composer{position:sticky;bottom:calc(66px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;align-items:flex-end;background:var(--bg);padding:10px 0 4px;margin-top:8px}
 .composer textarea{min-height:46px;max-height:140px;resize:none}
 .composer .btn{width:46px;padding:0;flex:none}
+.composer .btn.rec{background:#dc2626;border-color:#dc2626;color:#fff}
 /* nav */
 .tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:color-mix(in srgb,var(--card) 94%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));z-index:20}
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--mut);min-height:50px}
@@ -566,6 +567,10 @@ function insights(){
     if(share>50)add('warn','Poids élevé des placements peu liquides',Math.round(share)+' % de votre patrimoine est en crowdlending ou immobilier fractionné : difficile à revendre et exposé à la perte en capital.');
     else if(share>30)add('info','Placements peu liquides : '+Math.round(share)+' %','Ils sont bloqués jusqu’à l’échéance et exposés à la perte en capital. Gardez de quoi faire face aux imprévus ailleurs.');
   }
+  {const b=budget();if(b.dep>0&&b.cible>0){
+    if(b.cash<b.cible)add('info','Épargne de précaution à compléter','Vos liquidités ('+eur(b.cash)+') couvrent '+(b.cash/b.dep).toFixed(1).replace('.',',')+' mois de dépenses, pour un objectif de '+eur(b.cible)+'. Il manque '+eur(b.cible-b.cash)+'.',{l:'Voir mon budget',a:'go',v:'budget'});
+    else if(b.cash>Math.max(b.cible,b.dep*12)*1.5)add('info','Beaucoup d’argent disponible','Vos liquidités ('+eur(b.cash)+') dépassent largement votre épargne de précaution ('+eur(b.cible)+'). Vérifiez que cette somme correspond à un projet prévu ; un placement non rémunéré perd de la valeur avec l’inflation.',{l:'Voir mes objectifs',a:'go',v:'goals'});
+  }}
   {const b=budget();if(b.R>0&&b.cap<0)add('warn','Budget dans le rouge','Vos dépenses dépassent vos revenus de '+eur(-b.cap)+' par mois.',{l:'Voir mon budget',a:'go',v:'budget'})}
   if(D.ops.length&&D.budget.exp.length){const pm=moisDecale(moisCourant(),-1),r=CL.reelDuMois(D.ops,pm);if(r.n>=5){const c=CL.comparer(catPrevu(),r),t=c.depasse[0];if(t)add('warn',ccat(t.cat)+' : '+eur(t.ecart)+' de plus que prévu','En '+moisTxt(pm)+', vous avez dépensé '+eur(t.reel)+' en '+ccat(t.cat).toLowerCase()+' pour '+eur(t.prevu)+' prévus'+(c.depasse.length>1?', et '+(c.depasse.length-1)+' autre(s) dépassement(s)':'')+'.',{l:'Voir mon budget',a:'go',v:'budget'})}}
   A.filter(a=>devOf(a)&&!fxConnu(a)).slice(0,1).forEach(a=>add('info','Taux de change inconnu : '+devOf(a),a.name+' est en '+devOf(a)+' : sans connexion, le montant est compté tel quel. Indiquez le taux dans la fiche ou reconnectez-vous.',{l:'Ouvrir la fiche',a:'detail',id:a.id}));
@@ -624,6 +629,7 @@ users:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M17 
 coins:'<circle cx="9" cy="9" r="6"/><path d="M15.5 9.7A6 6 0 1 1 9.7 15.5"/>',
 file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/>',
 send:'<path d="m22 2-11 11M22 2l-7 20-4-9-9-4z"/>',
+mic:'<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/>',
 swap:'<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
 gem:'<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>',
 cpu:'<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9.5 9.5h5v5h-5zM9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/>',
@@ -1084,7 +1090,7 @@ function renderAI(){
     return x;
   }).join('');
   if(AIBUSY){const loc=p==='local'||!keyOf(p)||(p!=='mac'&&navigator.onLine===false);h+=`<div class="msg m"><div class="thinking"><span class="dots" aria-hidden="true"><span></span><span></span><span></span></span><span>${loc?'Calcul en cours…':p==='mac'?'L’IA du Mac rédige (quelques secondes, plus longtemps à la première question)…':PROV[p].n+' réfléchit, cela peut prendre jusqu’à une minute…'}</span></div></div>`}
-  h+=`<div class="composer"><textarea id="ai-q" rows="1" placeholder="Posez votre question…" data-in="aiq" data-kd="ai" aria-label="Votre question">${esc(old)}</textarea><button class="btn" data-act="aisend" aria-label="Envoyer"${AIBUSY?' disabled':''}>${ic('send',20)}</button></div>`;
+  h+=`<div class="composer"><textarea id="ai-q" rows="1" placeholder="${MAC?'Posez votre question… (dictée : appuyez deux fois sur la touche Fn)':'Posez votre question…'}" data-in="aiq" data-kd="ai" aria-label="Votre question">${esc(old)}</textarea>${dicteeOk()?`<button class="btn sec${DICTEE?' rec':''}" data-act="aidictee" aria-label="${DICTEE?'Arrêter la dictée':'Dicter la question'}" title="${DICTEE?'Arrêter la dictée':'Dicter la question au micro'}">${ic('mic',20)}</button>`:''}<button class="btn" data-act="aisend" aria-label="Envoyer"${AIBUSY?' disabled':''}>${ic('send',20)}</button></div>`;
   h+=`<div class="hint">${M.length?`<button class="btn sm sec" data-act="aiclear" style="margin-right:8px">Nouvelle conversation</button>`:''}${p==='local'||!keyOf(p)?'L’IA locale travaille sur l’appareil : rien n’est envoyé.':p==='mac'?'L’IA du Mac travaille sur l’ordinateur : rien n’est envoyé.':'Vos placements sont transmis à '+PROV[p].co+' pour répondre.'} Ce n’est pas un conseil en investissement.</div>`;
   el.innerHTML=h;
   const t=$('ai-q');if(t&&old){t.style.height='auto';t.style.height=Math.min(140,t.scrollHeight)+'px'}
@@ -3074,6 +3080,7 @@ const ACT={
   imp:()=>openImport(),runlocal:()=>runLocal(),gemc:()=>gemContract(),mkfiche:()=>mkFiche(),enq:()=>enquete(),
   csvchk:()=>csvCheck(),csvgo:()=>csvGo(),csvtpl:()=>dl('modele-patrimoine.csv','\ufeff'+CSVT,'text/csv'),
   aisend:()=>sendFromBox(),
+  aidictee:()=>basculerDictee(),
   aiclear:()=>{D.chat=[];LAI.reset();save();renderAI()},
   askai:d=>askAI(d.q),
   prov:d=>{D.set.prov=d.v;D.set.provChosen=1;save();renderAI();renderSet();toast(d.v==='local'?'IA locale activée : fonctionne hors ligne':d.v==='mac'?(MACIA.installee?'IA du Mac activée':'Installez l’IA du Mac pour l’activer'):keyOf(d.v)?PROV[d.v].n+' activé':'Ajoutez une clé '+PROV[d.v].n+' pour l’activer')},
@@ -3179,6 +3186,18 @@ async function openDiag(pv){
   catch(e){pop();line(false,'Génération impossible',e.message)}
   if($('dg2'))$('dg2').innerHTML=`<p class="hint mt">Les modèles qui échouent (introuvables, hors offre gratuite, quota du jour atteint) sont automatiquement écartés pendant quelques heures, et le suivant est essayé. Vous pouvez aussi imposer un modèle dans les réglages.</p><button class="btn blk mt" data-act="closeM">Fermer</button>`;
   renderSet();renderAI();
+}
+/* Dictée de la question : reconnaissance vocale du navigateur (Safari, Chrome). L'application Mac garde la dictée du système (touche Fn deux fois). */
+let DICTEE=null;
+const dicteeOk=()=>!MAC&&!!(window.SpeechRecognition||window.webkitSpeechRecognition);
+function basculerDictee(){
+  if(DICTEE){DICTEE.stop();return}
+  const R=window.SpeechRecognition||window.webkitSpeechRecognition,t=$('ai-q');if(!R||!t)return;
+  const r=new R(),avant=t.value.trim();r.lang='fr-FR';r.interimResults=true;r.continuous=false;DICTEE=r;
+  r.onresult=e=>{const txt=[...e.results].map(x=>x[0].transcript).join(' ').trim();const z=$('ai-q');if(z){z.value=(avant?avant+' ':'')+txt;z.dispatchEvent(new Event('input',{bubbles:true}))}};
+  r.onerror=e=>{toast(e.error==='not-allowed'?'Micro refusé : autorisez-le dans les réglages du navigateur.':'Dictée interrompue : '+e.error)};
+  r.onend=()=>{DICTEE=null;renderAI();const z=$('ai-q');if(z)z.focus()};
+  try{r.start();renderAI()}catch(e){DICTEE=null;toast('Dictée indisponible sur ce navigateur.')}
 }
 function sendFromBox(){const t=$('ai-q');if(!t)return;const q=t.value;t.value='';sendAI(q)}
 document.addEventListener('click',e=>{

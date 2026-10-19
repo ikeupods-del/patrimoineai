@@ -1,5 +1,10 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.5.0
+- **Épargne de précaution suivie** : « À surveiller » prévient quand vos liquidités ne couvrent pas encore le nombre de mois de dépenses choisi dans le budget, avec la somme qui manque.
+- **Argent qui dort** : quand vos liquidités dépassent largement votre épargne de précaution, l'application vous le signale pour que cette somme serve un projet ou un objectif.
+- **Dictée** : dans l'assistant, appuyez deux fois sur la touche Fn pour dicter votre question (dictée du Mac). Sur la version en ligne, un bouton micro fait la même chose.
+
 ## 6.4.0
 - **Mes banques** : reliez votre compte Boursorama en lecture seule (open banking, accord de 90 jours renouvelable). Les soldes entrent dans votre patrimoine et les opérations du compte courant sont classées dans le budget réel, sans doublon avec vos relevés importés.
 - **Rappels de paiement** (Bricks le 8, BienPrêter le 5, modifiables) : le jour J, « Paiement reçu ? Oui / Non / Montant différent ». Le paiement est inscrit dans l'historique du placement et ajouté au patrimoine ; en retard après 3 jours.
