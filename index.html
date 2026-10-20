@@ -379,6 +379,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
 const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.4';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
+/* Retour de la banque pour l'application Mac : la page en ligne (adresse déclarée chez Enable Banking) le renvoie aussitôt
+   à l'application, qui l'attend sur ce Mac (port écrit au début du « state » : mac<port>-…, voir mac/banque-locale.js) */
+(()=>{try{const q=new URLSearchParams(location.search),m=/^mac(\d{2,5})-[0-9a-f]{16,}$/.exec(q.get('state')||'');if(m&&!MAC&&(q.get('code')||q.get('error')))location.replace('http://127.0.0.1:'+m[1]+'/banque'+location.search)}catch(e){}})();
 const UI={view:'home',filter:'all',q:'',sort:'val',tool:'tax',range:'all'};
 let HIDE=false,CUR={id:''},IMP={},AIBUSY=false,RFB=false,ASK=null,TOASTACT=null,toastT=null;
 const newId=()=>'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -1296,15 +1299,16 @@ function recapNotif(){
    les opérations du compte courant, rangées dans le budget réel comme un relevé importé. Mode d'emploi : docs/BANQUE.md. */
 const BQ={busy:false,err:'',code:'',conf:null,sim:false,mock:false,vu:0,manque:[],poll:0};
 const BQTYPE={CACC:'Compte courant',SVGS:'Compte d’épargne',CARD:'Carte',LOAN:'Crédit',CASH:'Compte espèces',TRAN:'Compte de transactions',OTHR:'Autre compte'};
-/* Adresse du serveur : config.js (banqueApi), sinon le site lui-même quand il est hébergé avec ses fonctions (Netlify) */
-const bqBase=()=>{const c=(window.PATRIMOINE_CONFIG||{}).banqueApi;if(c)return String(c).replace(/\/+$/,'');return !MAC&&/^https?:$/.test(location.protocol)&&!/\.github\.io$/.test(location.hostname)?location.origin:''};
+/* Adresse des fonctions bancaires : l'application Mac elle-même (app://patrimoine, mac/banque-locale.js) ; sinon config.js (banqueApi)
+   ou le site s'il héberge les fonctions. La version en ligne (GitHub Pages) n'en a pas : elle reçoit soldes et opérations par la synchronisation. */
+const bqBase=()=>{if(MAC)return location.origin;const c=(window.PATRIMOINE_CONFIG||{}).banqueApi;if(c)return String(c).replace(/\/+$/,'');return !MAC&&/^https?:$/.test(location.protocol)&&!/\.github\.io$/.test(location.hostname)?location.origin:''};
 const bqLie=()=>!!(D.bank&&D.bank.liee);
 const bqJours=()=>D.bank&&D.bank.valid?Math.floor((Date.parse(D.bank.valid)-Date.now())/864e5):null;
 const bqExpire=()=>bqLie()&&(D.bank.statut==='expire'||(bqJours()!=null&&bqJours()<0));
 async function bqApi(ch,opt){
   const base=bqBase();if(!base)throw Object.assign(Error('La liaison bancaire n’est pas encore installée pour cette version.'),{code:'non_configure'});
   if(navigator.onLine===false)throw Object.assign(Error('Hors ligne : la banque sera synchronisée au retour de la connexion.'),{code:'hors_ligne'});
-  let tok;try{const{u}=await fbUser();tok=await u.getIdToken()}catch(e){throw Object.assign(Error('Connectez-vous avec Google (Réglages) pour utiliser la liaison bancaire.'),{code:'connexion_requise'})}
+  let tok='mac';if(!MAC)try{const{u}=await fbUser();tok=await u.getIdToken()}catch(e){throw Object.assign(Error('Connectez-vous avec Google (Réglages) pour utiliser la liaison bancaire.'),{code:'connexion_requise'})}
   opt=opt||{};const r=await tfetch(base+'/api/banque/'+ch,{method:opt.method||'GET',headers:Object.assign({authorization:'Bearer '+tok},opt.body?{'content-type':'application/json'}:{}),body:opt.body?JSON.stringify(opt.body):undefined},30000),d=await rjson(r);
   if(!r.ok)throw Object.assign(Error(d.message||'Service bancaire indisponible (erreur '+r.status+').'),{code:d.code||'erreur',st:r.status});
   return d;
@@ -1353,17 +1357,18 @@ async function bqSync(force,auto){
   BQ.busy=false;renderBank();
 }
 /* Synchronisation automatique à l'ouverture : au plus toutes les 6 heures (la banque limite les consultations) */
-function bqAuto(){if(bqLie()&&D.bank.statut==='actif'&&!bqExpire()&&bqBase()&&ID.user&&navigator.onLine!==false&&Date.now()-(D.bank.sync||0)>6*36e5)bqSync(false,true)}
+function bqAuto(){if(bqLie()&&D.bank.statut==='actif'&&!bqExpire()&&bqBase()&&(MAC||ID.user)&&navigator.onLine!==false&&Date.now()-(D.bank.sync||0)>6*36e5)bqSync(false,true)}
 async function bqEtat(){
-  if(!bqBase()||!ID.user||BQ.busy)return;BQ.vu=Date.now();
+  if(!bqBase()||!(MAC||ID.user)||BQ.busy)return;BQ.vu=Date.now();
+  if(MAC&&MAC.banque)try{BQ.mac=await MAC.banque.conf()}catch(e){}
   try{bqApplique(await bqApi('etat'));save();if(BQ.code!=='banque_indisponible'){BQ.err='';BQ.code=''}}catch(e){BQ.err=e.message;BQ.code=e.code||''}
   renderBank();
 }
-function bqVue(){if(bqBase()&&ID.user&&!BQ.busy&&Date.now()-BQ.vu>5*60e3)bqEtat().then(bqAuto)}
+function bqVue(){if(bqBase()&&(MAC||ID.user)&&!BQ.busy&&Date.now()-BQ.vu>5*60e3)bqEtat().then(bqAuto)}
 async function bqLier(){
   if(BQ.busy)return;BQ.busy=true;BQ.err='';BQ.code='';renderBank();
   try{const r=await bqApi('demarrer',{method:'POST'});
-    if(MAC){window.open(r.url,'_blank');sheet('Terminez dans le navigateur',`<p class="sm">La connexion à ${esc(r.banque||'votre banque')} s’est ouverte dans votre navigateur. Après votre accord, la page en ligne de Patrimoine AI s’ouvre : connectez-vous-y avec le même compte Google si besoin, la banque est alors liée à votre compte.</p><p class="sm mut mt">Cette fenêtre se ferme toute seule dès que c’est fait.</p><button class="btn blk mt" data-act="bqetat">J’ai terminé</button>`);bqSurveille()}
+    if(MAC){window.open(r.url,'_blank');sheet('Terminez dans le navigateur',`<p class="sm">La connexion à ${esc(r.banque||'votre banque')} s’est ouverte dans votre navigateur : identifiez-vous sur le site de la banque et donnez votre accord. Une page vous ramène ensuite ici, et vos comptes s’affichent.</p><p class="sm mut mt">Cette fenêtre se ferme toute seule dès que c’est fait (30 minutes au plus).</p><button class="btn blk mt" data-act="bqetat">J’ai terminé</button>`);bqSurveille()}
     else{toast('Ouverture de '+(r.banque||'votre banque')+'…');location.assign(r.url);return}}
   catch(e){BQ.err=e.message;BQ.code=e.code||'';toast(e.message)}
   BQ.busy=false;renderBank();
@@ -1371,7 +1376,7 @@ async function bqLier(){
 /* Retour de la banque : l'adresse de l'application reçoit ?code=…&state=… (ou ?error=…), lue une seule fois puis effacée */
 /* Retour de la banque : l'adresse de l'application reçoit ?code=…&state=… (ou ?error=…). Gardé le temps de la session du navigateur,
    pour pouvoir terminer la liaison même si la connexion Google n'était pas encore faite (iPhone, autre navigateur), puis effacé. */
-const BQRET=(()=>{try{const q=new URLSearchParams(location.search);if(!q.get('state')||!(q.get('code')||q.get('error')))return;
+const BQRET=(()=>{try{const q=new URLSearchParams(location.search);if(!q.get('state')||/^mac\d/.test(q.get('state'))||!(q.get('code')||q.get('error')))return;
   const r={code:q.get('code')||'',state:q.get('state'),err:q.get('error')?(q.get('error_description')||q.get('error')):'',at:Date.now()};
   history.replaceState(null,'',location.pathname+'#bank');try{sessionStorage.setItem('pat_bq_ret',JSON.stringify(r))}catch(e){BQ.ret=r}}catch(e){}return 1})();
 function bqRetourLu(){let r=BQ.ret||null;try{r=JSON.parse(sessionStorage.getItem('pat_bq_ret')||'null')||r}catch(e){}return r&&Date.now()-r.at<30*60e3?r:null}
@@ -1395,7 +1400,7 @@ function bqSurveille(){
 async function bqDiag(){
   sheet('Test de la configuration','<div id="dgb"><p class="hint">Vérification en cours…</p></div><button class="btn sec blk mt" data-act="closeM">Fermer</button>');
   try{const d=await bqApi('diagnostic');if(!$('dgb'))return;
-    $('dgb').innerHTML=(d.lignes||[]).map(l=>`<div class="dgl"><span style="color:${l.ok===null?'var(--blue)':l.ok?'var(--ok)':'var(--red)'}">${ic(l.ok===null?'info':l.ok?'check':'alert',20)}</span><div><b>${esc(l.titre)}</b>${l.detail?`<div class="sm mut" style="overflow-wrap:anywhere">${esc(l.detail)}</div>`:''}</div></div>`).join('')+`<p class="sm mt ${d.ok?'pos':'neg'}"><b>${d.ok?'Tout est en place : vous pouvez lier votre banque.':'Corrigez les points en rouge dans les variables Netlify (docs/BANQUE.md), puis relancez le test.'}</b></p>`}
+    $('dgb').innerHTML=(d.lignes||[]).map(l=>`<div class="dgl"><span style="color:${l.ok===null?'var(--blue)':l.ok?'var(--ok)':'var(--red)'}">${ic(l.ok===null?'info':l.ok?'check':'alert',20)}</span><div><b>${esc(l.titre)}</b>${l.detail?`<div class="sm mut" style="overflow-wrap:anywhere">${esc(l.detail)}</div>`:''}</div></div>`).join('')+`<p class="sm mt ${d.ok?'pos':'neg'}"><b>${d.ok?'Tout est en place : vous pouvez lier votre banque.':MAC?'Corrigez les points en rouge (mode d’emploi dans Mes banques), puis relancez le test.':'Corrigez les points en rouge dans la configuration du serveur (docs/BANQUE.md), puis relancez le test.'}</b></p>`}
   catch(e){if($('dgb'))$('dgb').innerHTML=`<p class="sm neg">${esc(e.message)}</p>`}
 }
 function bqCalendrier(){
@@ -1410,13 +1415,27 @@ async function bqDeco(){
   try{await bqApi('deconnecter',{method:'POST'});bqOublier();save();render();toast('Banque déconnectée')}catch(e){BQ.err=e.message;BQ.code=e.code||'';toast(e.message)}
   BQ.busy=false;renderBank();
 }
+/* Application Mac : mise en route de la liaison bancaire, sans serveur (une seule fois) */
+function bqMiseEnRoute(){
+  const R=(BQ.mac&&BQ.mac.retour)||'https://ikeupods-del.github.io/patrimoineai/';
+  return `<p class="sm mut">La liaison passe par <b>Enable Banking</b>, prestataire agréé d’accès aux comptes (DSP2). Tout se fait sur ce Mac : la clé de l’application est gardée par le trousseau, aucun serveur n’est nécessaire. À faire une seule fois :</p>
+  <ol class="sm" style="padding-left:20px;margin-top:8px;line-height:1.6">
+    <li>Créez un compte sur <a href="https://enablebanking.com/sign-in/" target="_blank" rel="noopener noreferrer">enablebanking.com</a>, puis <b>Control Panel → Applications → Register new application</b>.</li>
+    <li>Environnement <b>Production</b> (usage personnel, « restricted »), clé <b>générée dans le navigateur</b>, et adresse de retour (Redirect URL) exactement :<div class="row" style="gap:6px;margin:6px 0"><code style="overflow-wrap:anywhere">${esc(R)}</code><button class="btn sm sec" data-act="bqcopie">Copier</button></div>Un fichier <b>.pem</b> est téléchargé : gardez-le, ne l’envoyez à personne.</li>
+    <li>Dans le Control Panel, <b>liez votre compte Boursorama</b> à l’application (« Link accounts ») : en usage personnel, seuls les comptes liés là sont accessibles.</li>
+    <li>Ici : <b>Choisir le fichier .pem</b>, puis <b>Lier ma banque</b>.</li>
+  </ol>
+  <button class="btn blk mt" data-act="bqcle">${ic('key',18)}Choisir le fichier .pem</button>
+  <button class="btn sec blk mt" data-act="bqdemo">${ic('spark',18)}Essayer d’abord avec une banque de démonstration</button>`;
+}
 function renderBank(){
   const el=$('v-bank');if(!el||typing(el))return;
-  const B=D.bank,lie=bqLie(),j=bqJours(),base=bqBase(),cnx=typeof ID!=='undefined'&&!!ID.user;
+  const B=D.bank,lie=bqLie(),j=bqJours(),base=bqBase(),cnx=!!MAC||(typeof ID!=='undefined'&&!!ID.user);
   let h=`<div class="grid2"><section class="card span2"><div class="ct"><h3 style="display:flex;align-items:center;gap:8px">${ic('bank',18)}Ma banque</h3>${BQ.sim?'<span class="badge" style="--c:var(--blue)">Démonstration</span>':''}</div>`;
   if(!HOSTED)h+='<p class="sm mut">La liaison bancaire fonctionne quand l’application est ouverte en ligne.</p>';
-  else if(!base)h+='<p class="sm mut">La liaison bancaire n’est pas encore installée pour cette version : elle passe par un petit serveur (fonctions Netlify) qui garde la clé de l’application à l’abri. Son adresse se renseigne dans config.js (banqueApi) ; le mode d’emploi est dans docs/BANQUE.md.</p>';
+  else if(!base)h+=`<p class="sm mut">${lie?'Votre banque est liée depuis l’application Mac : ses soldes et ses opérations arrivent ici par la synchronisation.':'La liaison bancaire se fait depuis l’application Mac de Patrimoine AI (la clé d’accès reste sur votre Mac). Les soldes et les opérations arrivent ensuite ici par la synchronisation.'}</p>`;
   else if(!cnx)h+=`<p class="sm mut">La liaison bancaire est rattachée à votre compte Google : connectez-vous d’abord dans les réglages.</p><button class="btn blk mt" data-act="go" data-v="set">${ic('cloud',18)}Se connecter</button>`;
+  else if(BQ.conf===false&&MAC)h+=bqMiseEnRoute();
   else if(BQ.conf===false)h+=`<p class="sm mut">Le serveur bancaire répond, mais sa configuration est incomplète (${esc(BQ.manque.join(', '))}). Voir docs/BANQUE.md.</p>`;
   else if(!lie)h+=`<p class="sm mut">Aucun compte lié. Reliez votre compte Boursorama par Enable Banking, prestataire agréé d’accès aux comptes (DSP2) : vous vous identifiez sur le site de votre banque, jamais dans Patrimoine AI, et l’accès, en lecture seule, vaut 90 jours.</p><ul class="sm mut" style="padding-left:18px;margin-top:8px"><li>Lu : le nom des comptes, leurs soldes et leurs opérations.</li><li>Jamais : vos identifiants, ni aucun virement.</li></ul><button class="btn blk mt" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('bank',18)}${BQ.busy?'Connexion…':'Lier ma banque'}</button><button class="btn sec blk mt" data-act="bqdiag">${ic('shield',18)}Tester la configuration</button>`;
   else{
@@ -1425,7 +1444,8 @@ function renderBank(){
     if(exp||warn)h+=`<div class="box mt" style="border-color:${exp?'var(--red)':'var(--warn)'}"><b>${exp?'Votre accord avec la banque a expiré':'Votre accord avec la banque expire bientôt'}</b><div class="sm mut">La DSP2 limite l’accès à 90 jours : renouvelez-le en vous identifiant de nouveau sur le site de la banque. Les soldes déjà importés restent affichés.</div></div>`;
     h+=`<div class="g2 mt"><button class="btn${exp?' sec':''}" data-act="bqsync"${BQ.busy||exp?' disabled':''}>${ic('refresh',18)}${BQ.busy?'Synchronisation…':'Synchroniser'}</button>${exp||warn?`<button class="btn${exp?'':' sec'}" data-act="bqlier"${BQ.busy?' disabled':''}>${ic('key',18)}Renouveler</button>`:`<button class="btn dng" data-act="bqdeco"${BQ.busy?' disabled':''}>Déconnecter</button>`}</div>${exp||warn?'<button class="btn dng blk mt" data-act="bqdeco">Déconnecter</button>':''}<div class="g2 mt"><button class="btn sec sm" data-act="bqcal">${ic('cal',15)}Rappel au calendrier</button><button class="btn sec sm" data-act="bqdiag">${ic('shield',15)}Tester la configuration</button></div>`;
   }
-  if(BQ.mock&&cnx)h+='<div class="box mt sm" role="status" style="border-color:var(--warn)"><b>ENABLE_MOCK est encore à 1 sur Netlify</b> : la démonstration est ignorée puisque de vraies clés sont présentes. Retirez cette variable.</div>';
+  if(BQ.mock&&cnx)h+='<div class="box mt sm" role="status" style="border-color:var(--warn)"><b>Démonstration ignorée</b> : de vraies clés sont présentes, c’est votre vraie banque qui est interrogée.</div>';
+  if(MAC&&BQ.mac&&(BQ.mac.cle||BQ.mac.demo)&&BQ.conf!==false)h+=`<div class="row mt sm mut" style="gap:8px;flex-wrap:wrap"><span>${BQ.mac.cle?'Clé Enable Banking : '+esc(BQ.mac.appId.slice(0,8))+'…, gardée par le trousseau du Mac.':'Mode démonstration.'}</span><span style="display:flex;gap:6px"><button class="btn sm sec" data-act="bqcle">Changer de clé</button><button class="btn sm sec" data-act="bqoubli">${BQ.mac.cle?'Retirer la clé':'Quitter la démonstration'}</button></span></div>`;
   if(BQ.err)h+=`<div class="box mt" role="alert" style="border-color:var(--red)"><b class="neg">${esc(BQ.err)}</b>${/banque_indisponible|delai|reseau/.test(BQ.code)?'<div class="sm mut">C’est en général passager (maintenance de la banque) : réessayez plus tard.</div>':''}</div>`;
   h+='</section>';
   if(lie&&B.comptes&&B.comptes.length){const tot=B.comptes.filter(k=>k.inclus&&k.solde!=null).reduce((s,k)=>s+k.solde,0);
@@ -1829,6 +1849,7 @@ function macBar(){
 }
 /* Commandes du menu de l'application */
 window.patCmd=c=>{
+  if(c==='bqlie'){if($('modal').classList.contains('open'))closeM();clearInterval(BQ.poll);BQ.poll=0;BQ.busy=false;BQ.vu=0;bqEtat().then(()=>{if(bqLie()){toast((D.bank.banque||'Banque')+' liée');go('bank');bqSync(true,true)}});return}
   if(c==='reveil'){if(HOSTED){if(syncOn())syncNow();liveSync();if(FEED)FEED._poll();if(!document.hidden)mkRefresh()}rapNotifier();macBadge();macBar();return}
   if(document.body.classList.contains('locked')&&c!=='lock')return;
   const V={v1:'home',v2:'assets',v3:'budget',v4:'goals',v5:'mk',v6:'analyse',v7:'ai',v8:'tools',v9:'news'};
@@ -1849,6 +1870,7 @@ async function macInit(){
   try{MACST.sauv=await MAC.etatSauvegardes()}catch(e){}
   try{if(MAC.demarrage)MACST.login=!!(await MAC.demarrage())}catch(e){}
   macIaEtat();renderSet();macBar();macSave();
+  if(MAC.banque)setTimeout(()=>{bqEtat().then(bqAuto)},6000); /* liaison bancaire sur ce Mac : état puis synchronisation (6 h au plus souvent) */
   setTimeout(recapNotif,9000);setInterval(recapNotif,3600e3);
 }
 
@@ -3146,7 +3168,11 @@ const ACT={
   barm:d=>{D.set.barMode=d.v;save();renderSet();macBar()},
   lockm:d=>{D.set.lockMin=+d.v;save();renderSet();lockArm()},
   bqdiag:()=>bqDiag(),bqcal:()=>bqCalendrier(),rapics:()=>{dl('paiements-attendus.ics',CL.ics(D.rappels,today()),'text/calendar');toast('Ajoutez le fichier à votre calendrier (Google Agenda, Apple Calendrier…) : il sonnera chaque mois, même application fermée')},
-  bqlier:()=>bqLier(),bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},
+  bqlier:()=>bqLier(),
+  bqcle:async()=>{try{const r=await MAC.banque.choisirCle();if(r.annule)return;BQ.mac=r;toast('Clé enregistrée : vérifiez la configuration');BQ.vu=0;await bqEtat();bqDiag()}catch(e){toast(String(e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,''))}},
+  bqdemo:async()=>{BQ.mac=await MAC.banque.demo(true);BQ.vu=0;await bqEtat();toast('Banque de démonstration : touchez « Lier ma banque »')},
+  bqoubli:async()=>{if(!await ask(BQ.mac&&BQ.mac.cle?'Retirer la clé de ce Mac ?':'Quitter la démonstration ?','La liaison bancaire est arrêtée sur ce Mac. Les soldes déjà importés restent dans vos placements et vos opérations dans le budget.',BQ.mac&&BQ.mac.cle?'Retirer':'Quitter',true))return;BQ.mac=await MAC.banque.oublier();bqOublier();save();BQ.vu=0;await bqEtat();render()},
+  bqcopie:()=>{try{navigator.clipboard.writeText((BQ.mac&&BQ.mac.retour)||'https://ikeupods-del.github.io/patrimoineai/');toast('Adresse copiée')}catch(e){}},bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},
   rapoui:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;if(CL.montantHabituel(r)>0&&rapPlacements(r).length<=1)rapValider(r.id,d.m,CL.montantHabituel(r));else rapMontant(r.id,d.m)},
   rapok:d=>{const o=D.ops.find(x=>x.id===d.tx);if(o)rapValider(d.id,d.m,o.m,{tx:o.id,d:o.d})},
   rapautre:d=>rapMontant(d.id,d.m),rapnon:d=>rapNon(d.id,d.m),

@@ -1,8 +1,8 @@
 // GET /api/banque/operations?compte=uid&depuis=AAAA-MM-JJ[&suite=clé] : opérations d'un compte (GET /accounts/{uid}/transactions),
 // page après page avec la « continuation_key ». Pour rester sous la limite de durée de Netlify, la fonction s'arrête
 // après quelques secondes et renvoie « suite » : la page la rappelle avec cette clé.
-import { fonction, stockage, Erreur, DEP } from '../banque/commun.mjs';
-import { eb, etatLie, operation, noterExpire } from '../banque/enable-banking.mjs';
+import { fonction, stockage, Erreur, DEP } from '../commun.mjs';
+import { eb, etatLie, operation, noterExpire } from '../enable-banking.mjs';
 
 const MAX_JOUR = 300; /* appels par jour et par utilisateur : protège la banque d'une boucle */
 

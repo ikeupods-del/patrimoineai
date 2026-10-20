@@ -1,6 +1,6 @@
 // POST ou DELETE /api/banque/deconnecter : révoque la session chez Enable Banking (DELETE /sessions/{id}) et l'efface du compte.
-import { fonction, stockage } from '../banque/commun.mjs';
-import { eb } from '../banque/enable-banking.mjs';
+import { fonction, stockage } from '../commun.mjs';
+import { eb } from '../enable-banking.mjs';
 
 export default fonction(['POST', 'DELETE'], async ({ c, u }) => {
   const e = await stockage().lire(u, c);

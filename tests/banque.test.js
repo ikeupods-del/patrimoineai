@@ -3,11 +3,11 @@
 // Aucun réseau : Google, Enable Banking et Firestore sont imités. node tests/banque.test.js
 const assert = require('assert'), crypto = require('crypto'), path = require('path');
 let n = 0; const ok = (c, m) => { assert(c, m); n++; };
-const F = f => import(path.join(__dirname, '..', 'netlify', f));
+const F = f => import(path.join(__dirname, '..', 'banque', f));
 
 (async () => {
-  const { DEP } = await F('banque/commun.mjs');
-  const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) H[f] = (await F('functions/banque-' + f + '.mjs')).default;
+  const { DEP } = await F('commun.mjs');
+  const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) H[f] = (await F('routes/' + f + '.mjs')).default;
 
   /* horloge maîtrisée */
   let T = Date.parse('2026-10-16T10:00:00Z'); DEP.maintenant = () => T;
@@ -146,7 +146,7 @@ const F = f => import(path.join(__dirname, '..', 'netlify', f));
   const route1 = ebRoute;
   ebRoute = (m, u, c) => u.pathname === '/application' ? { name: 'Patrimoine AI', environment: 'SANDBOX', redirect_urls: ['https://autre.example/'] } : route1(m, u, c);
   r = await appel('diagnostic'); const ln = t => r.d.lignes.find(x => x.titre === t);
-  ok(r.st === 200 && r.d.ok === false && ln('Clé privée').ok && ln('Application Enable Banking').ok && ln('Adresse de retour').ok === false && /identiques/.test(ln('Adresse de retour').detail), 'diagnostic : adresse de retour différente de celle déclarée');
+  ok(r.st === 200 && r.d.ok === false && ln('Clé privée').ok && ln('Application Enable Banking').ok && ln('Adresse de retour').ok === false && /telle quelle/.test(ln('Adresse de retour').detail), 'diagnostic : adresse de retour différente de celle déclarée');
   ok(ln('Banque').ok && /BoursoBank/.test(ln('Banque').detail) && ln('Accès réservé').ok === null && ln('Stockage Firestore').ok, 'diagnostic : banque trouvée, accès non réservé signalé, stockage lisible');
   ebRoute = (m, u, c) => u.pathname === '/application' ? { name: 'Patrimoine AI', redirect_urls: ['https://ikeupods-del.github.io/patrimoineai'] } : route1(m, u, c);
   r = await appel('diagnostic'); ok(r.d.ok === true && ln('Adresse de retour').ok, 'diagnostic : tout est bon (barre finale ignorée)');
@@ -157,7 +157,7 @@ const F = f => import(path.join(__dirname, '..', 'netlify', f));
   r = await appel('diagnostic'); ok(ln('Banque').ok === false && /ENABLE_ASPSP_NAME/.test(ln('Banque').detail), 'diagnostic : banque introuvable, nom à préciser');
   ebRoute = route1;
   process.env.ENABLE_MOCK = '1'; r = await appel('etat'); ok(r.st === 200 && r.d.mockIgnore === true && r.d.simulation === false, 'ENABLE_MOCK oublié avec de vraies clés : ignoré, la vraie banque reste utilisée');
-  r = await appel('diagnostic'); ok(!ln('ENABLE_MOCK ignoré').ok, 'diagnostic : demande de retirer ENABLE_MOCK'); delete process.env.ENABLE_MOCK;
+  r = await appel('diagnostic'); ok(!ln('Démonstration ignorée').ok, 'diagnostic : demande de retirer ENABLE_MOCK'); delete process.env.ENABLE_MOCK;
   /* comptes sans détails : nom et IBAN demandés à la banque */
   ebRoute = (m, u, c) => u.pathname === '/sessions' && m === 'POST' ? { session_id: 'sess-9', aspsp: { name: 'BoursoBank' }, access: { valid_until: '2027-01-14T10:00:00+00:00' }, accounts: ['acc-9'] } : /\/accounts\/acc-9\/details$/.test(u.pathname) ? { name: 'Compte chèques', account_id: { iban: 'FR7612345678901234567890123' }, cash_account_type: 'CACC' } : route1(m, u, c);
   T += 2 * 864e5; await appel('demarrer', { methode: 'POST' }); const st9 = EB.filter(x => x.p === '/auth').pop().corps.state;

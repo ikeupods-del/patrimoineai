@@ -26,8 +26,8 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
 
 (async () => {
   /* fonctions Netlify : stockage en mémoire, clés « Google » de test */
-  const { DEP } = await import(path.join(ROOT, 'netlify/banque/commun.mjs'));
-  const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) H[f] = (await import(path.join(ROOT, 'netlify/functions/banque-' + f + '.mjs'))).default;
+  const { DEP } = await import(path.join(ROOT, 'banque/commun.mjs'));
+  const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) H[f] = (await import(path.join(ROOT, 'banque/routes/' + f + '.mjs'))).default;
   const g = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }), jwk = Object.assign(g.publicKey.export({ format: 'jwk' }), { kid: 'k1', alg: 'RS256' });
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url'), s = Math.floor(Date.now() / 1000);
   const hb = b64({ alg: 'RS256', kid: 'k1', typ: 'JWT' }) + '.' + b64({ aud: 'quentools-adca1', iss: 'https://securetoken.google.com/quentools-adca1', sub: 'uid-1', email: 'moi@exemple.fr', email_verified: true, iat: s - 5, exp: s + 3600 });
@@ -175,7 +175,7 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   ok(dl2.suggestedFilename() === 'renouvellement-banque.ics' && /SUMMARY:Renouveler l’accès/.test(ics2) && /DTSTART;VALUE=DATE:\d{8}/.test(ics2), 'calendrier : rappel de renouvellement de l’accord bancaire');
   /* --- test de la configuration --- */
   await pg.click('[data-act=bqdiag] >> nth=0'); await pg.waitForSelector('#dgb .dgl'); await audit(pg, 'test de configuration', '#modal');
-  ok(/Variables Netlify/.test(await pg.textContent('#dgb')) && /Mode démonstration/.test(await pg.textContent('#dgb')) && /Tout est en place/.test(await pg.textContent('#dgb')), 'test de la configuration : lignes claires, verdict');
+  ok(/Variables du serveur/.test(await pg.textContent('#dgb')) && /Mode démonstration/.test(await pg.textContent('#dgb')) && /Tout est en place/.test(await pg.textContent('#dgb')), 'test de la configuration : lignes claires, verdict');
   await pg.keyboard.press('Escape');
 
   /* --- compte d'épargne : opérations importées sur demande, sans fausser le budget --- */

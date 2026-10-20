@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('patrimoineMac', {
   cleCoffre: () => ipcRenderer.invoke('coffre:cle'),
   ouvrirDocument: (nom, octets) => ipcRenderer.invoke('coffre:ouvrir', nom, octets),
   connexionGoogle: () => ipcRenderer.invoke('google'),
+  banque: {
+    conf: () => ipcRenderer.invoke('banque:conf'),
+    choisirCle: () => ipcRenderer.invoke('banque:cle'),
+    demo: actif => ipcRenderer.invoke('banque:demo', actif),
+    oublier: () => ipcRenderer.invoke('banque:oublier')
+  },
   surVerrou: cb => { surVerrou = cb; },
   surCommande: cb => { surCommande = cb; }
 });

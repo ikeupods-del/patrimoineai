@@ -1,6 +1,7 @@
 # Nouveautés de Patrimoine AI pour Mac
 
 ## 6.6.0
+- **Mes banques, directement sur votre Mac** : reliez votre compte Boursorama sans aucun serveur. La clé d'accès et la session restent sur ce Mac, protégées par le trousseau ; votre téléphone reçoit soldes et opérations par la synchronisation. Mise en route guidée dans Mes banques, avec une banque de démonstration pour essayer d'abord.
 - **Toujours là, même fenêtre fermée** : fermer la fenêtre (⌘W) laisse Patrimoine AI ouvert en arrière-plan. La barre des menus, les rappels de paiement, les alertes de cours et le résumé du mois continuent de fonctionner ; ⌘Q quitte vraiment.
 - **Ouvrir à l'ouverture de session** (Réglages → Application Mac) : Patrimoine AI démarre avec votre Mac.
 - **Pastille sur l'icône du Dock** : le nombre de paiements à confirmer, sans montant.

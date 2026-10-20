@@ -1,8 +1,8 @@
-// Patrimoine AI — client de l'API Enable Banking (open banking DSP2), appelé uniquement par les fonctions Netlify.
+// Patrimoine AI — client de l'API Enable Banking (open banking DSP2), appelé uniquement par les fonctions bancaires (banque/routes).
 // Documentation suivie : https://enablebanking.com/docs/api/reference/ et les exemples officiels
 // (github.com/enablebanking/enablebanking-api-samples) : jeton JWT RS256, /aspsps, /auth, /sessions, /accounts.
 import crypto from 'node:crypto';
-import { DEP, Erreur, requete, stockage } from './commun.mjs';
+import { DEP, Erreur, requete, stockage, SANS_CLE } from './commun.mjs';
 import { simuler } from './simulateur.mjs';
 
 export const API = 'https://api.enablebanking.com';
@@ -10,12 +10,12 @@ export const API = 'https://api.enablebanking.com';
 /* Jeton d'accès de l'application : JWT signé RS256 avec sa clé privée, valable une heure au plus, refait à chaque appel */
 const b64u = s => Buffer.from(s).toString('base64url');
 export function jetonEB(c) {
-  if (!c.appId || !c.cle) throw new Erreur('non_configure', 'La liaison bancaire n’est pas encore configurée sur le serveur (ENABLE_APP_ID, ENABLE_PRIVATE_KEY).', 503);
+  if (!c.appId || !c.cle) throw new Erreur('non_configure', c.local ? SANS_CLE : 'La liaison bancaire n’est pas encore configurée sur le serveur (ENABLE_APP_ID, ENABLE_PRIVATE_KEY).', 503);
   const t = Math.floor(DEP.maintenant() / 1000);
   const h = b64u(JSON.stringify({ typ: 'JWT', alg: 'RS256', kid: c.appId }));
   const p = b64u(JSON.stringify({ iss: 'enablebanking.com', aud: 'api.enablebanking.com', iat: t, exp: t + 3600 }));
   let k;
-  try { k = crypto.createPrivateKey(c.cle); } catch (e) { throw new Erreur('non_configure', 'La clé privée ENABLE_PRIVATE_KEY est illisible : collez le contenu complet du fichier .pem.', 503); }
+  try { k = crypto.createPrivateKey(c.cle); } catch (e) { throw new Erreur('non_configure', c.local ? 'Le fichier .pem enregistré est illisible : choisissez de nouveau le fichier téléchargé chez Enable Banking.' : 'La clé privée ENABLE_PRIVATE_KEY est illisible : collez le contenu complet du fichier .pem.', 503); }
   return h + '.' + p + '.' + b64u(crypto.sign('RSA-SHA256', Buffer.from(h + '.' + p), k));
 }
 
@@ -26,7 +26,7 @@ function erreurEB(st, d, chemin) {
   if (session && (/expired|closed|revoked|session|consent|unauthori[sz]ed/.test(t) || st === 401 || st === 404)) return new Erreur('consentement_expire', 'Votre accord d’accès à la banque a expiré ou a été retiré : touchez « Renouveler ».', 401);
   if (st === 429 || /rate.?limit|too many/.test(t)) return new Erreur('limite', 'La banque limite le nombre de consultations (règle de la DSP2) : réessayez dans quelques heures.', 429);
   if (st >= 500 || /aspsp|bank.*(unavailable|error)|service unavailable|maintenance/.test(t)) return new Erreur('banque_indisponible', 'La banque ne répond pas pour le moment. Vos derniers soldes restent affichés ; réessayez plus tard.', 502);
-  if (st === 401 || st === 403) return new Erreur('configuration', 'Enable Banking refuse l’accès de l’application : vérifiez ENABLE_APP_ID et ENABLE_PRIVATE_KEY, et que votre compte est bien lié dans le Control Panel.', 502);
+  if (st === 401 || st === 403) return new Erreur('configuration', 'Enable Banking refuse l’accès de l’application : vérifiez que le fichier .pem est celui de l’application (ENABLE_APP_ID, ENABLE_PRIVATE_KEY), qu’elle est active et que votre compte est bien lié dans le Control Panel.', 502);
   return new Erreur('requete', 'Enable Banking a refusé la demande' + (m.trim() ? ' : ' + m.trim().slice(0, 180) : '.'), 502);
 }
 

@@ -1,7 +1,7 @@
 // GET /api/banque/etat : la liaison bancaire est-elle configurée, active, expirée ? (aucune donnée bancaire demandée à la banque,
 // sauf une vérification de l'accord au plus une fois par heure)
-import { fonction, stockage, manquantes, DEP } from '../banque/commun.mjs';
-import { eb, resume, noterExpire } from '../banque/enable-banking.mjs';
+import { fonction, stockage, manquantes, DEP } from '../commun.mjs';
+import { eb, resume, noterExpire } from '../enable-banking.mjs';
 
 export default fonction(['GET'], async ({ c, u }) => {
   const m = manquantes(c);

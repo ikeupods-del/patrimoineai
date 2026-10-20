@@ -6,4 +6,5 @@ const FICHIERS = ['index.html', 'config.js', 'marches.js', 'calculs.js', 'manife
 fs.rmSync(DEST, { recursive: true, force: true }); fs.mkdirSync(DEST, { recursive: true });
 for (const f of FICHIERS) fs.copyFileSync(path.join(SRC, f), path.join(DEST, f));
 fs.cpSync(path.join(SRC, 'vendor'), path.join(DEST, 'vendor'), { recursive: true });
-console.log('Application copiée dans mac/app :', FICHIERS.length, 'fichiers + vendor/');
+fs.cpSync(path.join(SRC, 'banque'), path.join(DEST, 'banque'), { recursive: true }); // liaison bancaire (exécutée par banque-locale.js)
+console.log('Application copiée dans mac/app :', FICHIERS.length, 'fichiers + vendor/ + banque/');
