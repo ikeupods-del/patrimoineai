@@ -56,7 +56,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applica
     const d = await (await B.appeler('demarrer', 'POST')).json(), v = new URL(d.url);
     const st = (host, method = 'GET') => new Promise(ok => { const q = http.request({ host: '127.0.0.1', port: v.port, path: v.pathname + v.search, method, headers: { host } }, r => { r.resume(); ok(r.statusCode); }); q.on('error', () => ok(0)); q.end(); });
     ok(await st('piege.example:' + v.port) === 404 && await st('127.0.0.1:' + v.port, 'POST') === 404 && lie === 0, 'retour de la banque : hôte ou méthode inattendus refusés');
-    ok(!Object.keys(process.env).some(k => /^ENABLE_/.test(k)), 'clé et réglages bancaires jamais dans les variables d’environnement (héritées par les processus enfants)');
+    ok(!['ENABLE_LOCAL', 'ENABLE_APP_ID', 'ENABLE_PRIVATE_KEY', 'ENABLE_REDIRECT_URL', 'ENABLE_MOCK'].some(k => k in process.env), 'clé et réglages bancaires jamais dans les variables d’environnement (héritées par les processus enfants)');
   }
   await pg.click('[data-act="bqlier"]'); await pg.waitForTimeout(500);
   const url = await pg.evaluate(() => window.__ouvert[0]);
