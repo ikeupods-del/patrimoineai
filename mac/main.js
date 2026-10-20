@@ -20,7 +20,11 @@ const DEPOT = 'ikeupods-del/patrimoineai';
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true } }]);
 
 if (!app.requestSingleInstanceLock()) app.quit();
-let win = null, tray = null, ia = null;
+let win = null, tray = null, ia = null, quitter = false;
+// Fermer la fenêtre (⌘W, bouton rouge) la cache seulement : l'application reste ouverte en arrière-plan (barre des menus,
+// rappels de paiement, alertes de cours, résumé du mois) ; ⌘Q quitte vraiment.
+app.on('before-quit', () => { quitter = true; });
+const montrer = () => { if (!win) return ouvrir(); if (win.isMinimized()) win.restore(); win.show(); win.focus(); };
 const depuisNotrePage = e => !!win && !win.isDestroyed() && e.sender === win.webContents;
 const garde = fn => async (e, ...a) => { if (!depuisNotrePage(e)) throw new Error('refusé'); return fn(e, ...a); };
 const envoyer = (canal, ...a) => { if (win && !win.isDestroyed()) win.webContents.send(canal, ...a); };
@@ -117,7 +121,7 @@ ipcMain.handle('touch:demander', garde(async (e, raison) => {
 ipcMain.handle('notif', garde((e, titre, corps) => {
   if (!Notification.isSupported()) return false;
   const n = new Notification({ title: String(titre || '').slice(0, 120), body: String(corps || '').slice(0, 300), silent: false });
-  n.on('click', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+  n.on('click', montrer);
   n.show(); return true;
 }));
 
@@ -175,10 +179,23 @@ ipcMain.handle('barre', garde((e, texte) => {
   if (!tray) {
     tray = new Tray(nativeImage.createEmpty());
     tray.setToolTip('Patrimoine AI');
-    tray.on('click', () => { if (win) { win.show(); win.focus(); } else ouvrir(); });
+    tray.on('click', montrer);
+    tray.on('right-click', () => tray.popUpContextMenu(Menu.buildFromTemplate([
+      { label: 'Ouvrir Patrimoine AI', click: montrer },
+      { label: 'Verrouiller', click: cmd('lock') },
+      { type: 'separator' }, { label: 'Quitter Patrimoine AI', click: () => app.quit() }])));
   }
   tray.setTitle(t, { fontType: 'monospacedDigit' });
   return true;
+}));
+
+/* ---------- Pastille du Dock : paiements à confirmer (nombre seul, jamais de montant) ---------- */
+ipcMain.handle('badge', garde((e, n) => { const k = Math.max(0, Math.min(99, Math.round(+n) || 0)); if (app.dock) app.dock.setBadge(k ? String(k) : ''); return k; }));
+
+/* ---------- Ouverture à l'ouverture de session (la fenêtre se ferme d'un ⌘W : l'application reste dans la barre des menus) ---------- */
+ipcMain.handle('demarrage', garde((e, actif) => {
+  if (typeof actif === 'boolean' && app.isPackaged) app.setLoginItemSettings({ openAtLogin: actif });
+  return !!app.getLoginItemSettings().openAtLogin;
 }));
 
 /* ---------- Connexion Google : dans le navigateur du Mac (Google refuse les fenêtres intégrées) ----------
@@ -296,12 +313,17 @@ function ouvrir() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith(ORIGINE + '/')) { e.preventDefault(); if (/^https?:\/\//.test(url)) shell.openExternal(url); } });
   win.webContents.session.on('will-download', (e, item) => { item.setSaveDialogOptions({ defaultPath: path.join(app.getPath('documents'), item.getFilename()) }); });
-  win.on('close', () => { try { fs.writeFileSync(FICHIER_FENETRE(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (e) { /* sans importance */ } });
+  win.on('close', e => {
+    try { fs.writeFileSync(FICHIER_FENETRE(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (er) { /* sans importance */ }
+    if (!quitter && !AUTOTEST) { e.preventDefault(); if (win.isFullScreen()) { win.once('leave-full-screen', () => win.hide()); win.setFullScreen(false); } else win.hide(); }
+  });
   win.on('closed', () => { win = null; });
   if (AUTOTEST) autotest();
 }
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+app.on('second-instance', montrer);
 ['lock-screen', 'suspend'].forEach(ev => powerMonitor.on(ev, () => envoyer('verrou')));
+// réveil du Mac : les flux de cours coupés pendant la veille sont rouverts, la synchronisation et les rappels relancés
+powerMonitor.on('resume', () => setTimeout(() => envoyer('commande', 'reveil'), 3000));
 
 /* ---------- Essai automatique de l'application construite (workflow, sur un vrai Mac) ---------- */
 function autotest() {
@@ -340,7 +362,11 @@ function autotest() {
 
 app.whenReady().then(() => {
   servir(); reseau(); menu(); ouvrir();
+  if (app.dock) app.dock.setMenu(Menu.buildFromTemplate([
+    { label: 'Nouveau placement…', click: () => { montrer(); cmd('add')(); } },
+    { label: 'Poser une question à l’assistant', click: () => { montrer(); cmd('ask')(); } },
+    { label: 'Verrouiller', click: cmd('lock') }]));
   if (!AUTOTEST) { setTimeout(verifierMaj, 8000); setInterval(verifierMaj, 6 * 3600 * 1000); }
 });
-app.on('activate', () => { if (!win) ouvrir(); else win.show(); });
+app.on('activate', montrer);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin' || AUTOTEST) app.quit(); });

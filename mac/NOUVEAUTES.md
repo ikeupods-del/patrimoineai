@@ -1,6 +1,12 @@
 # Nouveautés de Patrimoine AI pour Mac
 
-## 6.5.2
+## 6.6.0
+- **Toujours là, même fenêtre fermée** : fermer la fenêtre (⌘W) laisse Patrimoine AI ouvert en arrière-plan. La barre des menus, les rappels de paiement, les alertes de cours et le résumé du mois continuent de fonctionner ; ⌘Q quitte vraiment.
+- **Ouvrir à l'ouverture de session** (Réglages → Application Mac) : Patrimoine AI démarre avec votre Mac.
+- **Pastille sur l'icône du Dock** : le nombre de paiements à confirmer, sans montant.
+- **Menus rapides** : clic droit sur l'icône du Dock (nouveau placement, question à l'assistant, verrouiller) et sur celle de la barre des menus (ouvrir, verrouiller, quitter).
+- **Réveil du Mac** : les cours en direct, la synchronisation et les rappels repartent tout seuls après la veille.
+- **Export pour un tableur plus sûr** : un nom qui commence par « = » n'est plus lu comme une formule.
 - **Verrouillage plus discret** : quand Patrimoine AI est verrouillé, la barre des menus masque aussi votre patrimoine.
 - **Délai de verrouillage au choix** : 1, 5, 15 ou 30 minutes d'inactivité (Réglages → Application Mac).
 - **Fenêtre retrouvée** : si vous débranchez un écran externe, la fenêtre s'ouvre sur l'écran du Mac au lieu de rester hors de vue.

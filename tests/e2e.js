@@ -184,6 +184,7 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
         maj: { etat: r({ etat: 'a-jour', version: '9.9.9' }), verifier: r({}), installer: r(false), surChangement: () => {} },
         sauvegarder: r({ n: 1 }), etatSauvegardes: r({ n: 0 }), sauvegardes: r([]), lireSauvegarde: r('{}'), ouvrirSauvegardes: r(''),
         touchDispo: r(true), touchID: () => Promise.resolve(window.__touch), notifier: r(true), pdf: r({ ok: true }), barre: t => { window.__barre.push(t); return Promise.resolve(true); },
+        badge: n => { window.__badge = n; return Promise.resolve(n); }, demarrage: a => { if (typeof a === 'boolean') window.__login = a; return Promise.resolve(!!window.__login); },
         cleCoffre: r('x'.repeat(44)), ouvrirDocument: r({ ok: true }), connexionGoogle: r({}), surVerrou: cb => { window.__verrou = cb; }, surCommande: () => {} };
     });
     await pm.goto(base); await pm.waitForTimeout(1200);
@@ -196,6 +197,13 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
     await pm.evaluate(() => { document.body.classList.remove('locked'); go('set'); }); await pm.waitForTimeout(300);
     await pm.click('[data-act="lockm"][data-v="15"]'); await pm.waitForTimeout(100);
     ok(await pm.evaluate(() => D.set.lockMin === 15 && lockMin() === 15 && /après 15 minutes/.test(document.body.textContent)), 'Mac : délai de verrouillage réglable (15 min)');
+    await pm.click('[data-act="tog"][data-k="login"]'); await pm.waitForTimeout(150);
+    ok(await pm.evaluate(() => window.__login === true && MACST.login === true && document.querySelector('[data-k="login"]').getAttribute('aria-checked') === 'true'), 'Mac : ouverture à l’ouverture de session activée');
+    const nb = await pm.evaluate(() => { D.rappels = [{ id: 'r1', nom: 'Bricks', jour: 8, montant: 10, actif: true, debut: '2026-01' }]; render(); return { badge: window.__badge, dus: rapDus().length }; });
+    ok(nb.dus > 0 && nb.badge === nb.dus, 'Mac : pastille du Dock = paiements à confirmer (' + JSON.stringify(nb) + ')');
+    const csv = await pm.evaluate(() => { let t = ''; const d0 = window.dl; window.dl = (n, c) => { t = c; }; D.assets.push({ id: 'z9', cat: 'autre', name: '=HYPERLINK("http://x")', amount: -5 }); expCSV(); window.dl = d0; D.assets.pop(); return t; });
+    ok(/'=HYPERLINK/.test(csv) && /;-5;/.test(csv), 'export CSV : formule neutralisée, nombre négatif gardé');
+    ok(await pm.evaluate(() => { const n = window.__ws.length; window.patCmd('reveil'); return window.__ws.length >= n; }), 'Mac : réveil du Mac → flux et rappels relancés sans erreur');
     ok(!errsMac.length, 'Mac : aucune erreur JavaScript : ' + errsMac.join(' | '));
     await pm.close(); }
   /* bureau */

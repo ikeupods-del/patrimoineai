@@ -774,7 +774,7 @@ function applyTheme(){
   const light=t==='light'||(t==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches);
   const m=document.querySelector('meta[name=theme-color]');if(m)m.content=light?'#f3f4f1':'#151311';
 }
-function render(){renderHome();renderAssets();renderBudget();renderGoals();renderBank();mkRender();renderNews();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc()}
+function render(){renderHome();renderAssets();renderBudget();renderGoals();renderBank();mkRender();renderNews();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc();macBadge()}
 
 /* ===================== Accueil ===================== */
 const actBtn=a=>`<button class="btn sm sec" data-act="${a.a}"${a.id?` data-id="${esc(a.id)}"`:''}${a.v?` data-v="${a.v}"`:''}${a.c?` data-c="${a.c}"`:''}>${esc(a.l)}</button>`;
@@ -1788,13 +1788,16 @@ function localAnalyze(t){const T=t.replace(/\s+/g,' '),n=x=>parseFloat(x.replace
  return{name:f(/(?:[Pp]rojet|[Pp]rogramme|[Oo]pération|[Rr]ésidence)\s*[:«"]?\s*([A-ZÀ-Ý][^.,;:\n]{3,50})/),plat:Object.keys(PL).find(x=>new RegExp(x,'i').test(T)),prom:f(/(?:[Pp]romoteur|[Pp]orteur de projet|[Ee]mprunteur|[Ss]ociété emprunteuse)\s*[:«"]?\s*([A-ZÀ-Ý][A-Za-zÀ-ÿ0-9 &'-]{2,40})/),amount:am?n(am):null,rate:rt?n(rt):null,dur:mo?+mo:(yr?yr*12:null),g,fl}}
 
 /* ===================== Application Mac : réglages, verrouillage, sauvegardes, barre des menus ===================== */
-const MACST={maj:null,sauv:null,touch:false};
+const MACST={maj:null,sauv:null,touch:false,login:false};
+/* pastille du Dock : nombre de paiements à confirmer (jamais de montant) */
+let MBADGE=-1;function macBadge(){if(!MAC||!MAC.badge)return;let n=0;try{n=rapDus().length}catch(e){}if(n!==MBADGE){MBADGE=n;MAC.badge(n).catch(()=>{})}}
 const MAJTXT={rien:'',recherche:'Recherche d’une nouvelle version…','a-jour':'Vous avez la dernière version.',telechargement:'Téléchargement de la nouvelle version…',installation:'Préparation de la nouvelle version…',pret:'Nouvelle version prête.',erreur:'Mise à jour impossible pour le moment.',inactif:'Mises à jour automatiques désactivées sur cette copie.'};
 function macSetHTML(){
   if(!MAC)return '';const m=MACST.maj||{},s=MACST.sauv||{};
   let h=`<section class="card span2"><h3>Application Mac</h3><div class="macup mt" style="margin-top:8px"><div><b>Patrimoine AI ${esc(m.version||VER)}</b><div class="sm mut">${esc(m.etat==='telechargement'?MAJTXT.telechargement+' '+(m.progres||0)+' %':MAJTXT[m.etat]||'')}${m.etat==='erreur'&&m.erreur?' '+esc(m.erreur):''}</div></div>${m.etat==='pret'?`<button class="btn" data-act="majgo">Redémarrer pour installer ${esc(m.nouvelle||'')}</button>`:`<button class="btn sm sec" data-act="majchk">${ic('refresh',16)}Rechercher une mise à jour</button>`}</div>`;
   h+=`<div class="set" style="margin-top:12px;border-top:1px solid var(--line)"><div><b>Verrouiller avec Touch ID</b><div class="hint">${MACST.touch?'Au lancement, après '+lockMin()+' minute'+(lockMin()>1?'s':'')+' d’inactivité et quand le Mac se met en veille. Un écran de confidentialité : les données restent lisibles par votre session macOS.':'Touch ID n’est pas disponible sur ce Mac (ou n’est pas configuré dans Réglages Système).'}</div>${MACST.touch&&D.set.lock?`<div class="chips" style="margin-top:8px">${[1,5,15,30].map(k=>`<button class="chip${lockMin()===k?' on':''}" data-act="lockm" data-v="${k}">${k} min</button>`).join('')}</div>`:''}</div>${MACST.touch?sw('lock',D.set.lock,'Verrouiller avec Touch ID'):''}</div>`;
   h+=`<div class="set"><div><b>Patrimoine dans la barre des menus</b><div class="hint">En haut de l’écran, sans ouvrir l’application. Le montant est visible par qui regarde votre écran : il est masqué quand vous masquez les montants et quand l’application est verrouillée.</div>${D.set.bar?`<div class="chips" style="margin-top:8px">${[['jour','Variation du jour'],['net','Patrimoine net'],['les2','Les deux']].map(([k,l])=>`<button class="chip${(D.set.barMode||'jour')===k?' on':''}" data-act="barm" data-v="${k}">${l}</button>`).join('')}</div>`:''}</div>${sw('bar',D.set.bar,'Patrimoine dans la barre des menus')}</div>`;
+  if(MAC.demarrage)h+=`<div class="set"><div><b>Ouvrir à l’ouverture de session</b><div class="hint">Patrimoine AI démarre avec le Mac : la barre des menus, les rappels de paiement et les alertes de cours fonctionnent sans y penser. Fermer la fenêtre (⌘W) laisse l’application ouverte en arrière-plan ; ⌘Q la quitte.</div></div>${sw('login',MACST.login,'Ouvrir à l’ouverture de session')}</div>`;
   h+=`<div class="set"><div><b>Résumé du mois en notification</b><div class="hint">Le 1er du mois : évolution du patrimoine et dépenses du mois écoulé (sans montant si vous les masquez).</div></div>${sw('recap',D.set.recap!==false,'Résumé du mois en notification')}</div>`;
   h+=`<div class="set"><div><b>Sauvegardes automatiques</b><div class="hint">${s.n?s.n+' sauvegarde(s) sur ce Mac, la dernière le '+esc(fd(new Date(s.dernier||Date.now())))+'. Une par jour, gardées 60 jours.':'Une copie par jour est gardée 60 jours sur ce Mac.'}</div></div><button class="btn sm sec" data-act="sauvlist">Voir</button></div></section>`;
   return h;
@@ -1826,6 +1829,7 @@ function macBar(){
 }
 /* Commandes du menu de l'application */
 window.patCmd=c=>{
+  if(c==='reveil'){if(HOSTED){if(syncOn())syncNow();liveSync();if(FEED)FEED._poll();if(!document.hidden)mkRefresh()}rapNotifier();macBadge();macBar();return}
   if(document.body.classList.contains('locked')&&c!=='lock')return;
   const V={v1:'home',v2:'assets',v3:'budget',v4:'goals',v5:'mk',v6:'analyse',v7:'ai',v8:'tools',v9:'news'};
   if(V[c]){if($('modal').classList.contains('open'))closeM();go(V[c]);return}
@@ -1843,6 +1847,7 @@ async function macInit(){
   if(MAC.surVerrou)MAC.surVerrou(()=>lockNow());
   if(MAC.surCommande)MAC.surCommande(c=>window.patCmd(c));
   try{MACST.sauv=await MAC.etatSauvegardes()}catch(e){}
+  try{if(MAC.demarrage)MACST.login=!!(await MAC.demarrage())}catch(e){}
   macIaEtat();renderSet();macBar();macSave();
   setTimeout(recapNotif,9000);setInterval(recapNotif,3600e3);
 }
@@ -3009,7 +3014,8 @@ function palRun(i){const x=PALI[i];closePal();if(x){if($('modal').classList.cont
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 function exp(){D.lastBackup=Date.now();save();dl('patrimoine-'+today()+'.json',JSON.stringify(D),'application/json');toast('Sauvegarde exportée');render()}
 function expCSV(){
-  const q=x=>{x=String(x??'');return /[;"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
+  /* une cellule qui commence par = + - @ serait lue comme une formule par le tableur : apostrophe devant (sauf un nombre) */
+  const q=x=>{const nb=typeof x==='number';x=String(x??'');if(!nb&&/^[=+\-@\t\r]/.test(x))x="'"+x;return /[;"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
   const rows=D.assets.map(a=>[a.cat,a.name,a.plat||'',a.cat==='bourse'?inv(a):a.amount??'',a.cat==='bourse'?val(a):a.value??'',a.rate??'',a.dur??'',a.status||'cours',a.date||'',a.cat==='bourse'?a.qty:'',a.cat==='bourse'?a.pru:'',a.tick||''].map(q).join(';'));
   dl('patrimoine-'+today()+'.csv','\ufeff'+CSVT.split('\n')[0]+'\n'+rows.join('\n')+'\n','text/csv');toast('CSV exporté');
 }
@@ -3072,7 +3078,7 @@ const ACT={
   range:d=>{UI.range=d.r;renderHome()},
   tool:d=>{UI.tool=d.t;renderTools(true)},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
-  tog:d=>{if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
+  tog:d=>{if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
   sauvlist:()=>openSauv(),sauvdir:()=>MAC&&MAC.ouvrirSauvegardes(),sauvrest:d=>sauvRest(d.f),
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
@@ -4002,7 +4008,8 @@ function init(){
     setInterval(()=>{if(!document.hidden&&syncOn())syncNow()},90e3);
     let LHID=0;
     document.addEventListener('visibilitychange',()=>{
-      if(document.hidden){clearTimeout(LHID);LHID=setTimeout(()=>{if(FEED)FEED.close();mkStatus()},60e3);if(LSAVE){clearTimeout(LSAVE);LSAVE=0;save()}}
+      /* sur le Mac, la fenêtre fermée reste ouverte en arrière-plan : le flux des cours continue pour les alertes et la barre des menus */
+      if(document.hidden){clearTimeout(LHID);LHID=setTimeout(()=>{if(MAC&&(D.set.bar||D.alerts.some(a=>!a.hit)))return;if(FEED)FEED.close();mkStatus()},60e3);if(LSAVE){clearTimeout(LSAVE);LSAVE=0;save()}}
       else{clearTimeout(LHID);if(syncOn())syncNow();mkRefresh();liveSync();if(FEED)FEED._poll();rapNotifier();if(UI.view==='home')renderHome()}
     });
     window.addEventListener('online',()=>{if(syncOn())syncNow()});

@@ -1,7 +1,7 @@
 {
   "name": "patrimoine-ai",
   "productName": "Patrimoine AI",
-  "version": "6.5.2",
+  "version": "6.6.0",
   "description": "Patrimoine, budget, objectifs, marchés en direct et IA du Mac : produit par QuenTools",
   "main": "main.js",
   "private": true,
