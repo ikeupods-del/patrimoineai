@@ -33,6 +33,21 @@ jobs:
       - name: Construire l'application
         working-directory: mac
         run: npm run dist
+      - name: Contrôler les verrous de sécurité de l'application
+        working-directory: mac
+        run: |
+          node -e '
+            const { getCurrentFuseWire, FuseV1Options: O } = require("@electron/fuses"), fs = require("fs");
+            (async () => {
+              const app = "dist/mac-arm64/Patrimoine AI.app", w = await getCurrentFuseWire(app), etat = o => String.fromCharCode(w[o]), ko = [];
+              const voulu = { EnableNodeCliInspectArguments: "0", EnableNodeOptionsEnvironmentVariable: "0", OnlyLoadAppFromAsar: "1", EnableCookieEncryption: "1", GrantFileProtocolExtraPrivileges: "0" };
+              for (const [k, v] of Object.entries(voulu)) { console.log(k, etat(O[k])); if (etat(O[k]) !== v) ko.push(k); }
+              console.log("EnableEmbeddedAsarIntegrityValidation", etat(O.EnableEmbeddedAsarIntegrityValidation));
+              const u = app + "/Contents/Resources/app.asar.unpacked/app/banque";
+              if (!fs.existsSync(u + "/commun.mjs") || !fs.existsSync(u + "/routes/demarrer.mjs")) ko.push("fichiers de la banque absents");
+              if (ko.length) { console.log("Verrous manquants :", ko.join(", ")); process.exit(1); } else console.log("Verrous de sécurité en place");
+            })();'
+          npx --yes @electron/asar list "dist/mac-arm64/Patrimoine AI.app/Contents/Resources/app.asar" | grep -q "/app/banque-empreintes.json$" || { echo "Empreintes de la banque absentes"; exit 1; }
       - name: IA du Mac — modèle de langage (gardé en cache entre deux essais)
         uses: actions/cache@v4
         with:

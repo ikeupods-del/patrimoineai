@@ -6,13 +6,14 @@ import crypto from 'node:crypto';
 /* Dépendances remplaçables par les tests : réseau, horloge, stockage */
 /* utilisateur : remplace la vérification du compte Google (application Mac : l'utilisateur est celui du Mac) ;
    prefixeEtat : début du « state » (application Mac : port local où la banque renvoie, voir mac/banque-locale.js) */
-export const DEP = { fetch: (...a) => globalThis.fetch(...a), maintenant: () => Date.now(), stockage: null, utilisateur: null, prefixeEtat: '' };
+/* env : réglages fournis directement (application Mac) au lieu des variables d'environnement, que les processus enfants hériteraient */
+export const DEP = { fetch: (...a) => globalThis.fetch(...a), maintenant: () => Date.now(), stockage: null, utilisateur: null, prefixeEtat: '', env: null };
 
 export class Erreur extends Error {
   constructor(code, message, statut = 400) { super(message); this.code = code; this.statut = statut; }
 }
 
-const env = k => String(process.env[k] || '').trim();
+const env = k => String((DEP.env || process.env)[k] || '').trim();
 /* Clé privée : contenu du fichier .pem collé tel quel, avec des \n, ou encodé en base64 */
 function pem(v) {
   let t = v.replace(/\\n/g, '\n').replace(/^["']|["']$/g, '').trim();

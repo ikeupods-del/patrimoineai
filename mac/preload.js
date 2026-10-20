@@ -8,6 +8,8 @@ ipcRenderer.on('maj:etat', (e, etat) => { if (surMaj) surMaj(etat); });
 ipcRenderer.on('verrou', () => { if (surVerrou) surVerrou(); });
 ipcRenderer.on('commande', (e, c) => { if (surCommande) surCommande(String(c)); });
 contextBridge.exposeInMainWorld('patrimoineMac', {
+  // données chiffrées par le trousseau (liste fermée de clés, voir main.js) : lecture et écriture synchrones, comme le stockage du navigateur
+  stockageSur: { tout: () => ipcRenderer.sendSync('stock:tout'), ecrire: (k, v) => ipcRenderer.sendSync('stock:ecrire', String(k), v == null ? null : String(v)) },
   ia: {
     etat: () => ipcRenderer.invoke('ia:etat'),
     installer: cb => { surProgres = cb; return ipcRenderer.invoke('ia:installer'); },

@@ -379,6 +379,16 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
 const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.4';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
+/* Application Mac : le patrimoine, la phrase secrète et les clés d'IA ne sont jamais écrits en clair sur le disque. Ces clés du
+   stockage local sont confiées à l'application, qui les chiffre avec le trousseau du Mac ; une valeur encore en clair est déplacée
+   puis effacée. Sans trousseau (cas rare), le stockage habituel reste utilisé. */
+(()=>{if(!MAC||!MAC.stockageSur)return;const S=new Set(['pat_data','pat_ai_key','pat_xai_key','pat_pass']);let M;try{M=MAC.stockageSur.tout()}catch(e){M=null}if(!M||typeof M!=='object')return;
+  const P=Storage.prototype,g=P.getItem,s=P.setItem,r=P.removeItem;
+  S.forEach(k=>{const v=g.call(localStorage,k);if(v==null)return;if(M[k]==null&&MAC.stockageSur.ecrire(k,v))M[k]=v;if(M[k]!=null)r.call(localStorage,k)});
+  P.getItem=function(k){return this===localStorage&&S.has(k)?(M[k]??null):g.call(this,k)};
+  P.setItem=function(k,v){if(this===localStorage&&S.has(k)){v=String(v);if(!MAC.stockageSur.ecrire(k,v))throw new DOMException('Stockage chiffré du Mac indisponible','QuotaExceededError');M[k]=v;return}return s.call(this,k,v)};
+  P.removeItem=function(k){if(this===localStorage&&S.has(k)){MAC.stockageSur.ecrire(k,null);delete M[k];return}return r.call(this,k)};
+})();
 /* Retour de la banque pour l'application Mac : la page en ligne (adresse déclarée chez Enable Banking) le renvoie aussitôt
    à l'application, qui l'attend sur ce Mac (port écrit au début du « state » : mac<port>-…, voir mac/banque-locale.js) */
 (()=>{try{const q=new URLSearchParams(location.search),m=/^mac(\d{2,5})-[0-9a-f]{16,}$/.exec(q.get('state')||'');if(m&&!MAC&&(q.get('code')||q.get('error')))location.replace('http://127.0.0.1:'+m[1]+'/banque'+location.search)}catch(e){}})();
@@ -1832,7 +1842,7 @@ async function openSauv(){
 async function sauvRest(f){
   try{const t=await MAC.lireSauvegarde(f),d=JSON.parse(t);if(!d||!Array.isArray(d.assets))throw Error('fichier illisible');IMP.rest=d;
     sheet('Restaurer cette sauvegarde',`<p>Elle contient <b>${d.assets.length}</b> élément(s). Que voulez-vous faire ?</p><div class="stack mt"><button class="btn" data-act="restmerge">Ajouter à mes données actuelles</button><button class="btn dng" data-act="restrep">Remplacer toutes mes données</button><button class="btn sec" data-act="closeM">Annuler</button></div>`)}
-  catch(e){toast('Restauration impossible : '+e.message)}
+  catch(e){toast('Restauration impossible : '+String(e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,''))}
 }
 /* Verrouillage Touch ID */
 let LOCKT=0;
@@ -3169,7 +3179,7 @@ const ACT={
   lockm:d=>{D.set.lockMin=+d.v;save();renderSet();lockArm()},
   bqdiag:()=>bqDiag(),bqcal:()=>bqCalendrier(),rapics:()=>{dl('paiements-attendus.ics',CL.ics(D.rappels,today()),'text/calendar');toast('Ajoutez le fichier à votre calendrier (Google Agenda, Apple Calendrier…) : il sonnera chaque mois, même application fermée')},
   bqlier:()=>bqLier(),
-  bqcle:async()=>{try{const r=await MAC.banque.choisirCle();if(r.annule)return;BQ.mac=r;toast('Clé enregistrée : vérifiez la configuration');BQ.vu=0;await bqEtat();bqDiag()}catch(e){toast(String(e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,''))}},
+  bqcle:async()=>{try{const r=await MAC.banque.choisirCle();if(r.annule)return;BQ.mac=r;toast(r.corbeille?'Clé enregistrée dans le trousseau, fichier mis à la corbeille':'Clé enregistrée dans le trousseau du Mac');BQ.vu=0;await bqEtat();bqDiag()}catch(e){toast(String(e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,''))}},
   bqdemo:async()=>{BQ.mac=await MAC.banque.demo(true);BQ.vu=0;await bqEtat();toast('Banque de démonstration : touchez « Lier ma banque »')},
   bqoubli:async()=>{if(!await ask(BQ.mac&&BQ.mac.cle?'Retirer la clé de ce Mac ?':'Quitter la démonstration ?','La liaison bancaire est arrêtée sur ce Mac. Les soldes déjà importés restent dans vos placements et vos opérations dans le budget.',BQ.mac&&BQ.mac.cle?'Retirer':'Quitter',true))return;BQ.mac=await MAC.banque.oublier();bqOublier();save();BQ.vu=0;await bqEtat();render()},
   bqcopie:()=>{try{navigator.clipboard.writeText((BQ.mac&&BQ.mac.retour)||'https://ikeupods-del.github.io/patrimoineai/');toast('Adresse copiée')}catch(e){}},bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},

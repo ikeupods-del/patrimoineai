@@ -52,6 +52,12 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applica
   // démonstration : liaison complète par le « navigateur » (retour sur 127.0.0.1, comme la vraie banque)
   await pg.click('[data-act="bqdemo"]'); await pg.waitForTimeout(500);
   ok(/Lier ma banque/.test(await pg.textContent('#v-bank')), 'démonstration : bouton « Lier ma banque »');
+  { // serveur de retour : une page qui se fait passer pour 127.0.0.1 (DNS rebinding) ou une autre méthode est refusée
+    const d = await (await B.appeler('demarrer', 'POST')).json(), v = new URL(d.url);
+    const st = (host, method = 'GET') => new Promise(ok => { const q = http.request({ host: '127.0.0.1', port: v.port, path: v.pathname + v.search, method, headers: { host } }, r => { r.resume(); ok(r.statusCode); }); q.on('error', () => ok(0)); q.end(); });
+    ok(await st('piege.example:' + v.port) === 404 && await st('127.0.0.1:' + v.port, 'POST') === 404 && lie === 0, 'retour de la banque : hôte ou méthode inattendus refusés');
+    ok(!Object.keys(process.env).some(k => /^ENABLE_/.test(k)), 'clé et réglages bancaires jamais dans les variables d’environnement (héritées par les processus enfants)');
+  }
   await pg.click('[data-act="bqlier"]'); await pg.waitForTimeout(500);
   const url = await pg.evaluate(() => window.__ouvert[0]);
   ok(/^http:\/\/127\.0\.0\.1:\d+\/banque\?code=demo-[0-9a-f]+&state=mac\d+-[0-9a-f]{48}$/.test(url || ''), 'liaison : la banque renvoie vers l’application sur ce Mac (' + url + ')');
@@ -85,6 +91,21 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applica
   ok(vers === 'http://127.0.0.1:43210/banque?code=abc&state=mac43210-' + 'ab'.repeat(24), 'page en ligne : retour de la banque renvoyé à l’application Mac');
   await pw.close();
 
+  { // fichiers de la banque modifiés sur le disque : la liaison refuse de démarrer
+    const copie = fs.mkdtempSync(path.join(os.tmpdir(), 'pat-integrite-')), E = {};
+    fs.cpSync(path.join(ROOT, 'banque'), path.join(copie, 'banque'), { recursive: true });
+    (function parcourir(d, rel) { for (const f of fs.readdirSync(d)) { const p = path.join(d, f), r = rel ? rel + '/' + f : f; if (fs.statSync(p).isDirectory()) parcourir(p, r); else E[r] = crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex'); } })(path.join(copie, 'banque'), '');
+    fs.writeFileSync(path.join(copie, 'empreintes.json'), JSON.stringify(E));
+    const coffre = { chiffrer: t => Buffer.from(t), dechiffrer: b => b.toString() };
+    const sain = require('../mac/banque-locale').creer({ dossier: path.join(copie, 'd1'), racine: path.join(copie, 'banque'), empreintes: path.join(copie, 'empreintes.json'), coffre });
+    ok((await sain.appeler('etat')).status === 200, 'intégrité : fichiers d’origine acceptés');
+    fs.appendFileSync(path.join(copie, 'banque', 'routes', 'comptes.mjs'), '\n// ajout malveillant\n');
+    delete require.cache[require.resolve('../mac/banque-locale')];
+    const pirate = require('../mac/banque-locale').creer({ dossier: path.join(copie, 'd2'), racine: path.join(copie, 'banque'), empreintes: path.join(copie, 'empreintes.json'), coffre });
+    const rp = await pirate.appeler('etat'), jp = await rp.json();
+    ok(rp.status === 500 && jp.code === 'integrite' && /routes\/comptes\.mjs/.test(jp.message), 'intégrité : fichier de la banque modifié → banque bloquée (' + jp.message + ')');
+    fs.rmSync(copie, { recursive: true, force: true });
+  }
   ok(!errs.length, 'aucune erreur JavaScript : ' + errs.join(' | '));
   console.log('banque (Mac) :', n, 'contrôles réussis'); B.arreter(); await b.close(); srv.close(); fs.rmSync(dossier, { recursive: true, force: true });
 })().catch(e => { console.error('ÉCHEC :', e.message); process.exit(1); });

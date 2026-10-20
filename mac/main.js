@@ -19,6 +19,8 @@ const DEPOT = 'ikeupods-del/patrimoineai';
 // L'application est servie par une adresse interne stable (app://patrimoine) : ses données y restent attachées d'une version à l'autre.
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true } }]);
 
+// Application installée : jamais lancée avec un débogueur ou une console de développement (moyen de lire les données déchiffrées)
+if (app.isPackaged && ['remote-debugging-port', 'remote-debugging-pipe', 'inspect', 'inspect-brk', 'inspect-port', 'js-flags'].some(s => app.commandLine.hasSwitch(s))) app.exit(1);
 if (!app.requestSingleInstanceLock()) app.quit();
 let win = null, tray = null, ia = null, quitter = false;
 // Fermer la fenêtre (⌘W, bouton rouge) la cache seulement : l'application reste ouverte en arrière-plan (barre des menus,
@@ -30,7 +32,20 @@ const garde = fn => async (e, ...a) => { if (!depuisNotrePage(e)) throw new Erro
 const envoyer = (canal, ...a) => { if (win && !win.isDestroyed()) win.webContents.send(canal, ...a); };
 
 /* ---------- Fichiers de l'application ---------- */
+// Politique de sécurité des pages : même si un texte piégé réussissait à exécuter du code dans la page, il ne pourrait charger
+// aucun script ni envoyer de données ailleurs que vers les services dont l'application a besoin (cours, actualités, compte Google,
+// IA choisie, relais des cours). Les échanges avec la banque passent par l'application elle-même (app://).
+function securite() {
+  let relais = '';
+  try { const m = /marketProxy:\s*'([^']*)'/.exec(fs.readFileSync(path.join(RACINE, 'config.js'), 'utf8')); if (m && /^https:\/\/[\w.-]+(:\d+)?(\/|$)/.test(m[1])) relais = new URL(m[1]).origin; } catch (e) { /* sans relais personnel */ }
+  return ["default-src 'self'", "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com", "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:", "font-src 'self' data:", "media-src 'self' blob:", "worker-src 'self' blob:", "object-src 'none'", "base-uri 'none'", "form-action 'none'",
+    "frame-src https://quentools-adca1.firebaseapp.com", "frame-ancestors 'none'",
+    "connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://finance.yahoo.com wss://streamer.finance.yahoo.com wss://stream.binance.com:9443 https://news.google.com https://*.googleapis.com https://quentools-adca1.firebaseapp.com https://www.gstatic.com https://api.x.ai https://corsproxy.io https://api.allorigins.win" + (relais ? ' ' + relais : '')].join('; ');
+}
+let CSP = '';
 function servir() {
+  CSP = securite();
   protocol.handle('app', async req => {
     const u = new URL(req.url);
     if (u.host !== 'patrimoine') return new Response('Introuvable', { status: 404 });
@@ -38,6 +53,9 @@ function servir() {
     // liaison bancaire : les fonctions de banque/routes tournent dans l'application (aucun serveur en ligne)
     if (p.startsWith('/api/banque/')) {
       const corps = req.method === 'POST' || req.method === 'DELETE' ? await req.text() : '';
+      // lier ou déconnecter la banque : Touch ID demandé par l'application elle-même (une page détournée ne peut pas s'en passer)
+      if ((p === '/api/banque/demarrer' || p === '/api/banque/deconnecter') && !(await exigerTouchID(p.endsWith('demarrer') ? 'lier votre banque à Patrimoine AI' : 'déconnecter votre banque')))
+        return new Response(JSON.stringify({ code: 'touch_id', message: 'Touch ID non confirmé : rien n’a été fait.' }), { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } });
       if (corps.length > 4000) return new Response(JSON.stringify({ code: 'requete', message: 'Demande trop volumineuse.' }), { status: 413 });
       return BANQUE().appeler(p.slice(12), req.method, corps, u.search);
     }
@@ -47,6 +65,7 @@ function servir() {
     const r = await net.fetch(pathToFileURL(f).toString());
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
     const h = new Headers(r.headers); const t = types[path.extname(f)]; if (t) h.set('content-type', t);
+    if (path.extname(f) === '.html') { h.set('content-security-policy', CSP); h.set('x-content-type-options', 'nosniff'); h.set('referrer-policy', 'no-referrer'); }
     return new Response(r.body, { status: 200, headers: h });
   });
 }
@@ -93,22 +112,37 @@ ipcMain.handle('ia:ecrire', garde((e, m) => {
   return IA().ecrire({ systeme: s(m && m.systeme, 4000), demande: s(m && m.demande, 30000), maxTokens: Math.min(1500, Math.max(50, +(m && m.maxTokens) || 800)), temperature: Math.min(1, Math.max(0, +(m && m.temperature) || 0.3)) });
 }));
 
+/* ---------- Touch ID exigé pour les actions sensibles (banque, clé, restauration) : seulement si le Mac en a un ---------- */
+async function exigerTouchID(raison) {
+  if (AUTOTEST) return true;
+  let dispo = false; try { dispo = process.platform === 'darwin' && systemPreferences.canPromptTouchID(); } catch (e) { dispo = false; }
+  if (!dispo) return true;
+  try { await systemPreferences.promptTouchID(raison); return true; } catch (e) { return false; }
+}
+const avecTouchID = (raison, fn) => async (...a) => { if (!(await exigerTouchID(raison))) throw new Error('Touch ID non confirmé : rien n’a été fait.'); return fn(...a); };
+
 /* ---------- Liaison bancaire (Enable Banking) : clé gardée par le trousseau, session sur ce Mac (banque-locale.js) ---------- */
 let banque = null;
 const BANQUE = () => banque || (banque = require('./banque-locale').creer({
   dossier: app.getPath('userData'),
+  empreintes: path.join(__dirname, 'app', 'banque-empreintes.json'), // dans l'archive de l'application : les fichiers sortis de l'archive sont vérifiés
   racine: path.join(__dirname, 'app', 'banque').replace('app.asar' + path.sep, 'app.asar.unpacked' + path.sep), // modules .mjs lus hors de l'archive
   coffre: { chiffrer: t => { if (!safeStorage.isEncryptionAvailable()) throw new Error('trousseau indisponible'); return safeStorage.encryptString(t); }, dechiffrer: b => safeStorage.decryptString(b) },
   quandLiee: ok => { if (ok) { montrer(); envoyer('commande', 'bqlie'); } }
 }));
 ipcMain.handle('banque:conf', garde(() => BANQUE().etatConf()));
 ipcMain.handle('banque:demo', garde((e, actif) => BANQUE().demo(!!actif)));
-ipcMain.handle('banque:oublier', garde(() => BANQUE().oublier()));
+ipcMain.handle('banque:oublier', garde(avecTouchID('retirer la clé de votre banque', () => BANQUE().oublier())));
 ipcMain.handle('banque:cle', garde(async () => {
+  if (!(await exigerTouchID('enregistrer la clé d’accès à votre banque'))) throw new Error('Touch ID non confirmé : rien n’a été fait.');
   const r = await dialog.showOpenDialog(win, { title: 'Clé de l’application Enable Banking', message: 'Choisissez le fichier .pem téléchargé chez Enable Banking', properties: ['openFile'], filters: [{ name: 'Clé privée', extensions: ['pem'] }] });
   if (r.canceled || !r.filePaths[0]) return { annule: true, ...BANQUE().etatConf() };
   const f = r.filePaths[0]; if (fs.statSync(f).size > 20000) throw new Error('Fichier trop gros pour une clé .pem.');
-  return BANQUE().enregistrerCle(path.basename(f), fs.readFileSync(f, 'utf8'));
+  const etat = BANQUE().enregistrerCle(path.basename(f), fs.readFileSync(f, 'utf8'));
+  // la clé est désormais gardée par le trousseau : la copie en clair (Téléchargements…) n'a plus à traîner sur le disque
+  const q = await dialog.showMessageBox(win, { type: 'question', buttons: ['Mettre à la corbeille', 'Garder le fichier'], defaultId: 0, cancelId: 1, message: 'Clé enregistrée dans le trousseau du Mac', detail: 'Le fichier « ' + path.basename(f) + ' » n’est plus nécessaire. Le mettre à la corbeille évite qu’il reste lisible sur votre Mac (videz ensuite la corbeille). Gardez une copie seulement sur un support sûr.' });
+  if (q.response === 0) { try { await shell.trashItem(f); etat.corbeille = true; } catch (e) { etat.corbeille = false; } }
+  return etat;
 }));
 
 /* ---------- Sauvegardes automatiques : une par jour, 60 jours, dans le dossier de l'application ---------- */
@@ -118,6 +152,14 @@ function listeSauv() {
   const d = DOSSIER_SAUV(); if (!fs.existsSync(d)) return [];
   return fs.readdirSync(d).filter(n => RE_SAUV.test(n)).sort().reverse().map(nom => ({ nom, date: RE_SAUV.exec(nom)[1], taille: fs.statSync(path.join(d, nom)).size }));
 }
+// Sauvegardes chiffrées par le trousseau du Mac (« PATENC1: » + texte chiffré) ; les anciennes, en clair, sont chiffrées au passage
+const ENTETE = 'PATENC1:';
+const chiffrerSauv = t => { if (!safeStorage.isEncryptionAvailable()) throw new Error('trousseau indisponible'); return ENTETE + safeStorage.encryptString(t).toString('base64'); };
+const lireSauvFichier = f => { const t = fs.readFileSync(f, 'utf8'); return t.startsWith(ENTETE) ? safeStorage.decryptString(Buffer.from(t.slice(ENTETE.length), 'base64')) : t; };
+function chiffrerAnciennes() {
+  if (!safeStorage.isEncryptionAvailable()) return;
+  for (const x of listeSauv()) { const f = path.join(DOSSIER_SAUV(), x.nom); try { const t = fs.readFileSync(f, 'utf8'); if (!t.startsWith(ENTETE)) { fs.writeFileSync(f + '.tmp', chiffrerSauv(t), { mode: 0o600 }); fs.renameSync(f + '.tmp', f); } } catch (e) { /* laissée telle quelle */ } }
+}
 const etatSauv = () => { const L = listeSauv(); return { n: L.length, dernier: L.length ? Date.parse(L[0].date + 'T12:00:00') : 0, dossier: DOSSIER_SAUV() }; };
 ipcMain.handle('sauv:ecrire', garde((e, texte) => {
   const t = String(texte || '');
@@ -125,14 +167,39 @@ ipcMain.handle('sauv:ecrire', garde((e, texte) => {
   JSON.parse(t); // n'enregistre que des données lisibles
   const d = DOSSIER_SAUV(); fs.mkdirSync(d, { recursive: true });
   const jour = new Date().toLocaleDateString('sv-SE'), f = path.join(d, `patrimoine-${jour}.json`), tmp = f + '.tmp';
-  fs.writeFileSync(tmp, t, { mode: 0o600 }); fs.renameSync(tmp, f);
+  fs.writeFileSync(tmp, chiffrerSauv(t), { mode: 0o600 }); fs.renameSync(tmp, f);
   listeSauv().slice(60).forEach(x => fs.rmSync(path.join(d, x.nom), { force: true }));
   return etatSauv();
 }));
 ipcMain.handle('sauv:etat', garde(() => etatSauv()));
 ipcMain.handle('sauv:liste', garde(() => listeSauv()));
-ipcMain.handle('sauv:lire', garde((e, nom) => { if (!RE_SAUV.test(String(nom))) throw new Error('nom invalide'); return fs.readFileSync(path.join(DOSSIER_SAUV(), String(nom)), 'utf8'); }));
+ipcMain.handle('sauv:lire', garde(avecTouchID('restaurer une sauvegarde de Patrimoine AI', (e, nom) => { if (!RE_SAUV.test(String(nom))) throw new Error('nom invalide'); return lireSauvFichier(path.join(DOSSIER_SAUV(), String(nom))); })));
 ipcMain.handle('sauv:ouvrir', garde(() => { fs.mkdirSync(DOSSIER_SAUV(), { recursive: true }); return shell.openPath(DOSSIER_SAUV()); }));
+
+/* ---------- Données de l'application chiffrées sur le disque ----------
+   Le patrimoine, la phrase secrète et les clés d'IA ne sont pas laissés en clair dans le stockage du navigateur intégré :
+   la page les confie ici (appels synchrones, liste fermée de clés), chiffrés par le trousseau du Mac (donnees.bin). */
+const CLES_SURES = new Set(['pat_data', 'pat_ai_key', 'pat_xai_key', 'pat_pass']);
+const FICHIER_DONNEES = () => path.join(app.getPath('userData'), 'donnees.bin');
+let DONNEES = null;
+function donnees() {
+  if (DONNEES) return DONNEES;
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  const f = FICHIER_DONNEES();
+  DONNEES = fs.existsSync(f) ? JSON.parse(safeStorage.decryptString(fs.readFileSync(f))) : {};
+  return DONNEES;
+}
+ipcMain.on('stock:tout', e => { try { e.returnValue = depuisNotrePage(e) ? donnees() : null; } catch (er) { e.returnValue = null; } });
+ipcMain.on('stock:ecrire', (e, k, v) => {
+  try {
+    if (!depuisNotrePage(e) || !CLES_SURES.has(k) || (v != null && (typeof v !== 'string' || v.length > 60e6))) { e.returnValue = false; return; }
+    const D = donnees(); if (!D) { e.returnValue = false; return; }
+    if (v == null) delete D[k]; else D[k] = v;
+    const f = FICHIER_DONNEES(), tmp = f + '.tmp';
+    fs.writeFileSync(tmp, safeStorage.encryptString(JSON.stringify(D)), { mode: 0o600 }); fs.renameSync(tmp, f);
+    e.returnValue = true;
+  } catch (er) { e.returnValue = false; }
+});
 
 /* ---------- Touch ID ---------- */
 ipcMain.handle('touch:dispo', garde(() => { try { return process.platform === 'darwin' && systemPreferences.canPromptTouchID(); } catch (e) { return false; } }));
@@ -393,7 +460,7 @@ function autotest() {
 }
 
 app.whenReady().then(() => {
-  servir(); reseau(); menu(); ouvrir();
+  servir(); reseau(); menu(); ouvrir(); setTimeout(chiffrerAnciennes, 5000);
   if (app.dock) app.dock.setMenu(Menu.buildFromTemplate([
     { label: 'Nouveau placement…', click: () => { montrer(); cmd('add')(); } },
     { label: 'Poser une question à l’assistant', click: () => { montrer(); cmd('ask')(); } },

@@ -180,7 +180,8 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
     await pm.addInitScript(() => {
       const d = JSON.parse(localStorage.getItem('pat_data')); d.set = Object.assign({}, d.set, { lock: true, bar: true, barMode: 'net' }); localStorage.setItem('pat_data', JSON.stringify(d));
       window.__barre = []; window.__touch = false; const r = v => () => Promise.resolve(v);
-      window.patrimoineMac = { ia: { etat: r({ installee: false }), installer: r({}), ecrire: r('') }, dictee: { etat: r({}), micro: r(false), installer: r({}), ecouter: r('') },
+      window.__sur = { pat_ai_key: 'cle-gemini-deja-chiffree' }; localStorage.setItem('pat_xai_key', 'cle-xai-en-clair');
+      window.patrimoineMac = { stockageSur: { tout: () => window.__sur, ecrire: (k, v) => { if (v == null) delete window.__sur[k]; else window.__sur[k] = v; return true; } }, ia: { etat: r({ installee: false }), installer: r({}), ecrire: r('') }, dictee: { etat: r({}), micro: r(false), installer: r({}), ecouter: r('') },
         maj: { etat: r({ etat: 'a-jour', version: '9.9.9' }), verifier: r({}), installer: r(false), surChangement: () => {} },
         sauvegarder: r({ n: 1 }), etatSauvegardes: r({ n: 0 }), sauvegardes: r([]), lireSauvegarde: r('{}'), ouvrirSauvegardes: r(''),
         touchDispo: r(true), touchID: () => Promise.resolve(window.__touch), notifier: r(true), pdf: r({ ok: true }), barre: t => { window.__barre.push(t); return Promise.resolve(true); },
@@ -189,6 +190,8 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
     });
     await pm.goto(base); await pm.waitForTimeout(1200);
     ok(await pm.evaluate(() => document.body.classList.contains('locked')), 'Mac : verrouillé au lancement');
+    const sur = await pm.evaluate(() => ({ cles: Object.keys(localStorage), data: !!window.__sur.pat_data && JSON.parse(window.__sur.pat_data).assets.length, xai: window.__sur.pat_xai_key, lu: localStorage.getItem('pat_ai_key'), actifs: D.assets.length }));
+    ok(!sur.cles.includes('pat_data') && !sur.cles.includes('pat_xai_key') && sur.data === 3 && sur.xai === 'cle-xai-en-clair' && sur.lu === 'cle-gemini-deja-chiffree' && sur.actifs === 3, 'Mac : patrimoine et clés confiés au stockage chiffré, plus rien en clair (' + JSON.stringify(sur) + ')');
     ok(await pm.evaluate(() => window.__barre.length > 0 && window.__barre.every(t => !/\d/.test(t))), 'Mac : aucun montant dans la barre des menus tant que l’application est verrouillée : ' + await pm.evaluate(() => JSON.stringify(window.__barre)));
     await pm.evaluate(() => { window.__touch = true; }); await pm.click('#unl'); await pm.waitForTimeout(300);
     ok(await pm.evaluate(() => !document.body.classList.contains('locked') && /\d/.test(window.__barre[window.__barre.length - 1])), 'Mac : Touch ID déverrouille, le patrimoine revient dans la barre des menus');
