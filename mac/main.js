@@ -201,6 +201,21 @@ ipcMain.on('stock:ecrire', (e, k, v) => {
   } catch (er) { e.returnValue = false; }
 });
 
+/* ---------- Fenêtre invisible aux captures d'écran et aux enregistrements (logiciels espions, partage d'écran) ---------- */
+const FICHIER_CAPTURES = () => path.join(app.getPath('userData'), 'captures-autorisees');
+const protectionDesactivee = () => fs.existsSync(FICHIER_CAPTURES());
+ipcMain.handle('captures', garde((e, autoriser) => {
+  if (typeof autoriser === 'boolean') { if (autoriser) fs.writeFileSync(FICHIER_CAPTURES(), ''); else fs.rmSync(FICHIER_CAPTURES(), { force: true }); if (win) win.setContentProtection(!autoriser); }
+  return { protegee: !protectionDesactivee() };
+}));
+
+/* ---------- Toute fenêtre ou intégration étrangère est refusée, quelle que soit la page ---------- */
+app.on('web-contents-created', (e, wc) => {
+  wc.on('will-attach-webview', ev => ev.preventDefault());
+  wc.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  wc.on('will-navigate', (ev, url) => { if (!url.startsWith(ORIGINE + '/')) { ev.preventDefault(); if (/^https?:\/\//.test(url)) shell.openExternal(url); } });
+});
+
 /* ---------- Touch ID ---------- */
 ipcMain.handle('touch:dispo', garde(() => { try { return process.platform === 'darwin' && systemPreferences.canPromptTouchID(); } catch (e) { return false; } }));
 ipcMain.handle('touch:demander', garde(async (e, raison) => {
@@ -399,6 +414,8 @@ function ouvrir() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false }
   });
   if (b.max) win.maximize();
+  win.setContentProtection(!protectionDesactivee()); // fenêtre invisible aux captures d'écran et enregistrements (réglable)
+  win.on('minimize', () => envoyer('verrou'));
   win.loadURL(ORIGINE + '/index.html');
   win.once('ready-to-show', () => { if (!AUTOTEST) win.show(); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
@@ -406,7 +423,7 @@ function ouvrir() {
   win.webContents.session.on('will-download', (e, item) => { item.setSaveDialogOptions({ defaultPath: path.join(app.getPath('documents'), item.getFilename()) }); });
   win.on('close', e => {
     try { fs.writeFileSync(FICHIER_FENETRE(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (er) { /* sans importance */ }
-    if (!quitter && !AUTOTEST) { e.preventDefault(); if (win.isFullScreen()) { win.once('leave-full-screen', () => win.hide()); win.setFullScreen(false); } else win.hide(); }
+    if (!quitter && !AUTOTEST) { e.preventDefault(); envoyer('verrou'); if (win.isFullScreen()) { win.once('leave-full-screen', () => win.hide()); win.setFullScreen(false); } else win.hide(); }
   });
   win.on('closed', () => { win = null; });
   if (AUTOTEST) autotest();

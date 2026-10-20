@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('patrimoineMac', {
   pdf: (html, nom) => ipcRenderer.invoke('pdf', html, nom),
   barre: texte => ipcRenderer.invoke('barre', texte),
   badge: n => ipcRenderer.invoke('badge', n),
+  captures: autoriser => ipcRenderer.invoke('captures', autoriser),
   demarrage: actif => ipcRenderer.invoke('demarrage', actif),
   cleCoffre: () => ipcRenderer.invoke('coffre:cle'),
   ouvrirDocument: (nom, octets) => ipcRenderer.invoke('coffre:ouvrir', nom, octets),

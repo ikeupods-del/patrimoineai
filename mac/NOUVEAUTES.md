@@ -3,6 +3,10 @@
 ## 6.6.0
 - **Mes banques, directement sur votre Mac** : reliez votre compte Boursorama sans aucun serveur. La clé d'accès et la session restent sur ce Mac, protégées par le trousseau ; votre téléphone reçoit soldes et opérations par la synchronisation. Mise en route guidée dans Mes banques, avec une banque de démonstration pour essayer d'abord.
 - **Sécurité renforcée** : sur ce Mac, votre patrimoine, votre phrase secrète, vos clés d'IA et vos sauvegardes quotidiennes sont désormais chiffrés par le trousseau (plus rien en clair sur le disque). Touch ID est demandé pour lier ou déconnecter la banque, changer sa clé et restaurer une sauvegarde. L'application refuse d'être ouverte avec des outils d'espionnage (débogueur), vérifie ses fichiers bancaires avant chaque usage et ne peut envoyer vos données qu'aux services dont elle a besoin.
+- **Invisible aux captures d'écran** : la fenêtre n'apparaît ni dans les captures, ni dans les enregistrements ou partages d'écran (désactivable dans les réglages le temps d'une capture).
+- **Verrouillage automatique** : avec Touch ID, l'application se verrouille d'office (désactivable), et aussi dès que vous fermez ou réduisez la fenêtre.
+- **Sauvegardes exportées chiffrées** : le fichier exporté est protégé par un mot de passe (illisible sans lui, même envoyé par e-mail) ; l'export en clair reste possible sur demande.
+- **Phrase secrète plus solide** : 12 caractères au moins pour un nouveau compte, les mots de passe trop faciles sont refusés.
 - **Toujours là, même fenêtre fermée** : fermer la fenêtre (⌘W) laisse Patrimoine AI ouvert en arrière-plan. La barre des menus, les rappels de paiement, les alertes de cours et le résumé du mois continuent de fonctionner ; ⌘Q quitte vraiment.
 - **Ouvrir à l'ouverture de session** (Réglages → Application Mac) : Patrimoine AI démarre avec votre Mac.
 - **Pastille sur l'icône du Dock** : le nombre de paiements à confirmer, sans montant.

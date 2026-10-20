@@ -185,7 +185,7 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
         maj: { etat: r({ etat: 'a-jour', version: '9.9.9' }), verifier: r({}), installer: r(false), surChangement: () => {} },
         sauvegarder: r({ n: 1 }), etatSauvegardes: r({ n: 0 }), sauvegardes: r([]), lireSauvegarde: r('{}'), ouvrirSauvegardes: r(''),
         touchDispo: r(true), touchID: () => Promise.resolve(window.__touch), notifier: r(true), pdf: r({ ok: true }), barre: t => { window.__barre.push(t); return Promise.resolve(true); },
-        badge: n => { window.__badge = n; return Promise.resolve(n); }, demarrage: a => { if (typeof a === 'boolean') window.__login = a; return Promise.resolve(!!window.__login); },
+        badge: n => { window.__badge = n; return Promise.resolve(n); }, captures: a => { if (typeof a === 'boolean') window.__capt = a; return Promise.resolve({ protegee: window.__capt !== true }); }, demarrage: a => { if (typeof a === 'boolean') window.__login = a; return Promise.resolve(!!window.__login); },
         cleCoffre: r('x'.repeat(44)), ouvrirDocument: r({ ok: true }), connexionGoogle: r({}), surVerrou: cb => { window.__verrou = cb; }, surCommande: () => {} };
     });
     await pm.goto(base); await pm.waitForTimeout(1200);
@@ -207,6 +207,22 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
     const csv = await pm.evaluate(() => { let t = ''; const d0 = window.dl; window.dl = (n, c) => { t = c; }; D.assets.push({ id: 'z9', cat: 'autre', name: '=HYPERLINK("http://x")', amount: -5 }); expCSV(); window.dl = d0; D.assets.pop(); return t; });
     ok(/'=HYPERLINK/.test(csv) && /;-5;/.test(csv), 'export CSV : formule neutralisée, nombre négatif gardé');
     ok(await pm.evaluate(() => { const n = window.__ws.length; window.patCmd('reveil'); return window.__ws.length >= n; }), 'Mac : réveil du Mac → flux et rappels relancés sans erreur');
+    await pm.evaluate(() => { closeM(); go('set'); }); await pm.waitForTimeout(200);
+    ok(await pm.evaluate(() => document.querySelector('[data-k="capt"]').getAttribute('aria-checked') === 'true'), 'Mac : fenêtre invisible aux captures par défaut');
+    await pm.click('[data-act="tog"][data-k="capt"]'); await pm.waitForTimeout(150);
+    ok(await pm.evaluate(() => window.__capt === true && MACST.protegee === false), 'Mac : captures autorisées sur demande');
+    // sauvegarde exportée : chiffrée par défaut, mot de passe faible refusé, relue avec le bon mot de passe seulement
+    const ex = await pm.evaluate(async () => {
+      let t = ''; const d0 = window.dl; window.dl = (n, c) => { t = c; };
+      exp(); $('ex-p').value = $('ex-p2').value = 'azerty123'; await expChif(); const faible = t;
+      $('ex-p').value = $('ex-p2').value = 'le chat dort sur le toit'; await expChif(); window.dl = d0;
+      const o = JSON.parse(t); let mauvais = '';
+      try { await unsealExport(o, 'autre phrase longue ici'); } catch (e) { mauvais = e.message; }
+      const lu = await unsealExport(o, 'le chat dort sur le toit');
+      return { faible, clair: /Livret A|assets/.test(t), it: o.it, mauvais, n: lu.assets.length, attendu: D.assets.length };
+    });
+    ok(!ex.faible && !ex.clair && ex.it === 600000 && /incorrect/.test(ex.mauvais) && ex.n === ex.attendu, 'sauvegarde exportée chiffrée, illisible sans le bon mot de passe (' + JSON.stringify(ex) + ')');
+    ok(await pm.evaluate(() => !!forcePhrase('Patrimoine123') && !!forcePhrase('aaaaaaaaaaaaaa') && !forcePhrase('mon vélo bleu de 2019')), 'phrase secrète : courte, courante ou répétitive refusée');
     ok(!errsMac.length, 'Mac : aucune erreur JavaScript : ' + errsMac.join(' | '));
     await pm.close(); }
   /* bureau */
