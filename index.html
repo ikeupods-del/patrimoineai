@@ -1793,8 +1793,8 @@ const MAJTXT={rien:'',recherche:'Recherche d’une nouvelle version…','a-jour'
 function macSetHTML(){
   if(!MAC)return '';const m=MACST.maj||{},s=MACST.sauv||{};
   let h=`<section class="card span2"><h3>Application Mac</h3><div class="macup mt" style="margin-top:8px"><div><b>Patrimoine AI ${esc(m.version||VER)}</b><div class="sm mut">${esc(m.etat==='telechargement'?MAJTXT.telechargement+' '+(m.progres||0)+' %':MAJTXT[m.etat]||'')}${m.etat==='erreur'&&m.erreur?' '+esc(m.erreur):''}</div></div>${m.etat==='pret'?`<button class="btn" data-act="majgo">Redémarrer pour installer ${esc(m.nouvelle||'')}</button>`:`<button class="btn sm sec" data-act="majchk">${ic('refresh',16)}Rechercher une mise à jour</button>`}</div>`;
-  h+=`<div class="set" style="margin-top:12px;border-top:1px solid var(--line)"><div><b>Verrouiller avec Touch ID</b><div class="hint">${MACST.touch?'Au lancement, après 5 minutes d’inactivité et quand le Mac se met en veille. Un écran de confidentialité : les données restent lisibles par votre session macOS.':'Touch ID n’est pas disponible sur ce Mac (ou n’est pas configuré dans Réglages Système).'}</div></div>${MACST.touch?sw('lock',D.set.lock,'Verrouiller avec Touch ID'):''}</div>`;
-  h+=`<div class="set"><div><b>Patrimoine dans la barre des menus</b><div class="hint">En haut de l’écran, sans ouvrir l’application. Le montant est visible par qui regarde votre écran : il est masqué quand vous masquez les montants.</div>${D.set.bar?`<div class="chips" style="margin-top:8px">${[['jour','Variation du jour'],['net','Patrimoine net'],['les2','Les deux']].map(([k,l])=>`<button class="chip${(D.set.barMode||'jour')===k?' on':''}" data-act="barm" data-v="${k}">${l}</button>`).join('')}</div>`:''}</div>${sw('bar',D.set.bar,'Patrimoine dans la barre des menus')}</div>`;
+  h+=`<div class="set" style="margin-top:12px;border-top:1px solid var(--line)"><div><b>Verrouiller avec Touch ID</b><div class="hint">${MACST.touch?'Au lancement, après '+lockMin()+' minute'+(lockMin()>1?'s':'')+' d’inactivité et quand le Mac se met en veille. Un écran de confidentialité : les données restent lisibles par votre session macOS.':'Touch ID n’est pas disponible sur ce Mac (ou n’est pas configuré dans Réglages Système).'}</div>${MACST.touch&&D.set.lock?`<div class="chips" style="margin-top:8px">${[1,5,15,30].map(k=>`<button class="chip${lockMin()===k?' on':''}" data-act="lockm" data-v="${k}">${k} min</button>`).join('')}</div>`:''}</div>${MACST.touch?sw('lock',D.set.lock,'Verrouiller avec Touch ID'):''}</div>`;
+  h+=`<div class="set"><div><b>Patrimoine dans la barre des menus</b><div class="hint">En haut de l’écran, sans ouvrir l’application. Le montant est visible par qui regarde votre écran : il est masqué quand vous masquez les montants et quand l’application est verrouillée.</div>${D.set.bar?`<div class="chips" style="margin-top:8px">${[['jour','Variation du jour'],['net','Patrimoine net'],['les2','Les deux']].map(([k,l])=>`<button class="chip${(D.set.barMode||'jour')===k?' on':''}" data-act="barm" data-v="${k}">${l}</button>`).join('')}</div>`:''}</div>${sw('bar',D.set.bar,'Patrimoine dans la barre des menus')}</div>`;
   h+=`<div class="set"><div><b>Résumé du mois en notification</b><div class="hint">Le 1er du mois : évolution du patrimoine et dépenses du mois écoulé (sans montant si vous les masquez).</div></div>${sw('recap',D.set.recap!==false,'Résumé du mois en notification')}</div>`;
   h+=`<div class="set"><div><b>Sauvegardes automatiques</b><div class="hint">${s.n?s.n+' sauvegarde(s) sur ce Mac, la dernière le '+esc(fd(new Date(s.dernier||Date.now())))+'. Une par jour, gardées 60 jours.':'Une copie par jour est gardée 60 jours sur ce Mac.'}</div></div><button class="btn sm sec" data-act="sauvlist">Voir</button></div></section>`;
   return h;
@@ -1813,14 +1813,15 @@ async function sauvRest(f){
 }
 /* Verrouillage Touch ID */
 let LOCKT=0;
-function lockNow(force){if(!MAC||!D.set.lock||(!MACST.touch&&!force))return;closePal();document.body.classList.add('locked');$('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller avec Touch ID</button>`;setTimeout(()=>{const b=$('unl');if(b)b.focus()},50)}
-async function unlock(){try{const ok=await MAC.touchID('déverrouiller Patrimoine AI');if(ok){document.body.classList.remove('locked');lockArm()}}catch(e){toast('Touch ID : '+e.message)}}
-function lockArm(){clearTimeout(LOCKT);if(MAC&&D.set.lock&&MACST.touch)LOCKT=setTimeout(lockNow,5*60e3)}
+const lockMin=()=>[1,5,15,30].includes(+D.set.lockMin)?+D.set.lockMin:5;
+function lockNow(force){if(!MAC||!D.set.lock||(!MACST.touch&&!force))return;closePal();document.body.classList.add('locked');macBar();$('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller avec Touch ID</button>`;setTimeout(()=>{const b=$('unl');if(b)b.focus()},50)}
+async function unlock(){try{const ok=await MAC.touchID('déverrouiller Patrimoine AI');if(ok){document.body.classList.remove('locked');lockArm();macBar()}}catch(e){toast('Touch ID : '+e.message)}}
+function lockArm(){clearTimeout(LOCKT);if(MAC&&D.set.lock&&MACST.touch)LOCKT=setTimeout(lockNow,lockMin()*60e3)}
 ['pointerdown','keydown','wheel'].forEach(ev=>document.addEventListener(ev,()=>{if(!document.body.classList.contains('locked'))lockArm()},{passive:true}));
 /* Barre des menus */
 function macBar(){
   if(!MAC||!MAC.barre)return;if(!D.set.bar){MAC.barre('');return}
-  const d=dayGain(),j=d&&d.pct!=null?(d.pct>=0?'▲ ':'▼ ')+nf(Math.abs(d.pct),2)+' %':'',n=D.assets.length?(HIDE?'•••• €':nf(totals().net)+' €'):'',m=D.set.barMode||'jour';
+  const d=dayGain(),j=d&&d.pct!=null?(d.pct>=0?'▲ ':'▼ ')+nf(Math.abs(d.pct),2)+' %':'',n=D.assets.length?(HIDE||document.body.classList.contains('locked')?'•••• €':nf(totals().net)+' €'):'',m=D.set.barMode||'jour';
   MAC.barre(m==='net'?n:m==='les2'?[n,j].filter(Boolean).join('  '):j);
 }
 /* Commandes du menu de l'application */
@@ -3137,6 +3138,7 @@ const ACT={
   recapok:()=>{D.set.recapVu=moisDecale(moisCourant(),-1);save();renderHome()},
   docs:()=>openDocs(),docadd:()=>{const i=$('doc-f');if(i)i.click()},docopen:d=>docOuvrir(d.id),docdl:d=>docTelecharger(d.id),docdel:d=>docSuppr(d.id),
   barm:d=>{D.set.barMode=d.v;save();renderSet();macBar()},
+  lockm:d=>{D.set.lockMin=+d.v;save();renderSet();lockArm()},
   bqdiag:()=>bqDiag(),bqcal:()=>bqCalendrier(),rapics:()=>{dl('paiements-attendus.ics',CL.ics(D.rappels,today()),'text/calendar');toast('Ajoutez le fichier à votre calendrier (Google Agenda, Apple Calendrier…) : il sonnera chaque mois, même application fermée')},
   bqlier:()=>bqLier(),bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},
   rapoui:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;if(CL.montantHabituel(r)>0&&rapPlacements(r).length<=1)rapValider(r.id,d.m,CL.montantHabituel(r));else rapMontant(r.id,d.m)},

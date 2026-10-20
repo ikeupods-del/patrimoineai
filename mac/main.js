@@ -2,7 +2,7 @@
 // l'accès direct aux cours (sans relais), l'IA du Mac, le verrouillage Touch ID, les sauvegardes automatiques,
 // les notifications, le bilan PDF et les mises à jour automatiques. Produit par QuenTools.
 'use strict';
-const { app, BrowserWindow, Menu, shell, ipcMain, protocol, net, session, dialog, Notification, systemPreferences, powerMonitor, Tray, nativeImage, nativeTheme, safeStorage } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, protocol, net, session, dialog, Notification, systemPreferences, powerMonitor, Tray, nativeImage, nativeTheme, safeStorage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -168,7 +168,7 @@ ipcMain.handle('pdf', garde(async (e, html, nom) => {
   } finally { w.destroy(); }
 }));
 
-/* ---------- Barre des menus : variation du jour (jamais de montant) ---------- */
+/* ---------- Barre des menus : variation du jour, patrimoine net (masqué avec les montants) ou les deux ---------- */
 ipcMain.handle('barre', garde((e, texte) => {
   const t = String(texte || '').slice(0, 24);
   if (!t) { if (tray) { tray.destroy(); tray = null; } return false; }
@@ -273,7 +273,15 @@ function menu() {
 
 /* ---------- Fenêtre ---------- */
 const FICHIER_FENETRE = () => path.join(app.getPath('userData'), 'fenetre.json');
-function bornes() { try { const b = JSON.parse(fs.readFileSync(FICHIER_FENETRE(), 'utf8')); if (b.width >= 960 && b.height >= 640) return b; } catch (e) { /* première ouverture */ } return { width: 1360, height: 880 }; }
+// position gardée seulement si la fenêtre reste visible sur un écran branché (écran externe débranché : fenêtre recentrée sur l'écran du Mac)
+const visible = b => b.x == null || screen.getAllDisplays().some(d => { const a = d.workArea; return b.x + 100 <= a.x + a.width && b.x + b.width - 100 >= a.x && b.y >= a.y - 10 && b.y + 60 <= a.y + a.height; });
+function bornes() {
+  try { const b = JSON.parse(fs.readFileSync(FICHIER_FENETRE(), 'utf8')); if (b.width >= 960 && b.height >= 640) {
+    if (visible(b)) return b;
+    const a = screen.getPrimaryDisplay().workArea; return { width: Math.min(b.width, a.width), height: Math.min(b.height, a.height), max: b.max };
+  } } catch (e) { /* première ouverture */ }
+  return { width: 1360, height: 880 };
+}
 function ouvrir() {
   const b = bornes();
   win = new BrowserWindow({

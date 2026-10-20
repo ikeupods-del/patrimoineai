@@ -1,5 +1,11 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.5.2
+- **Verrouillage plus discret** : quand Patrimoine AI est verrouillé, la barre des menus masque aussi votre patrimoine.
+- **Délai de verrouillage au choix** : 1, 5, 15 ou 30 minutes d'inactivité (Réglages → Application Mac).
+- **Fenêtre retrouvée** : si vous débranchez un écran externe, la fenêtre s'ouvre sur l'écran du Mac au lieu de rester hors de vue.
+- **Mises à jour plus sûres** : la nouvelle version est vérifiée avant d'être installée, rien n'est remplacé tant que l'application est encore ouverte, et l'ancienne version est gardée jusqu'au démarrage réussi de la nouvelle.
+
 ## 6.5.1
 - **Épargne de précaution suivie** : « À surveiller » prévient quand vos liquidités ne couvrent pas encore le nombre de mois de dépenses choisi dans le budget, avec la somme qui manque.
 - **Argent qui dort** : quand vos liquidités dépassent largement votre épargne de précaution, l'application vous le signale pour que cette somme serve un projet ou un objectif.

@@ -175,6 +175,29 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /revenus passifs sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
   ok(await pg.evaluate(() => { const n = D.ops.length, lib = D.ops[0].lib, P = JSON.parse(JSON.stringify(payload())); P.mt = Object.assign({}, P.mt, { ops: Date.now() + 1e6 }); const big = JSON.stringify(payload()).length; mergeRemote(P); return Array.isArray(P.ops[0]) && D.ops.length === n && D.ops[0].lib === lib.slice(0, 60) && typeof D.ops[0].m === 'number' && big < 400000; }), 'opérations synchronisées en format compact puis relues');
   ok(!errs.length, 'aucune erreur JavaScript (version 6.3) : ' + errs.join(' | '));
+  /* application Mac (pont simulé) : verrouillage Touch ID, délai réglable, montant masqué dans la barre des menus */
+  { const pm = await ctx.newPage(); const errsMac = []; pm.on('pageerror', e => errsMac.push(e.message));
+    await pm.addInitScript(() => {
+      const d = JSON.parse(localStorage.getItem('pat_data')); d.set = Object.assign({}, d.set, { lock: true, bar: true, barMode: 'net' }); localStorage.setItem('pat_data', JSON.stringify(d));
+      window.__barre = []; window.__touch = false; const r = v => () => Promise.resolve(v);
+      window.patrimoineMac = { ia: { etat: r({ installee: false }), installer: r({}), ecrire: r('') }, dictee: { etat: r({}), micro: r(false), installer: r({}), ecouter: r('') },
+        maj: { etat: r({ etat: 'a-jour', version: '9.9.9' }), verifier: r({}), installer: r(false), surChangement: () => {} },
+        sauvegarder: r({ n: 1 }), etatSauvegardes: r({ n: 0 }), sauvegardes: r([]), lireSauvegarde: r('{}'), ouvrirSauvegardes: r(''),
+        touchDispo: r(true), touchID: () => Promise.resolve(window.__touch), notifier: r(true), pdf: r({ ok: true }), barre: t => { window.__barre.push(t); return Promise.resolve(true); },
+        cleCoffre: r('x'.repeat(44)), ouvrirDocument: r({ ok: true }), connexionGoogle: r({}), surVerrou: cb => { window.__verrou = cb; }, surCommande: () => {} };
+    });
+    await pm.goto(base); await pm.waitForTimeout(1200);
+    ok(await pm.evaluate(() => document.body.classList.contains('locked')), 'Mac : verrouillé au lancement');
+    ok(await pm.evaluate(() => window.__barre.length > 0 && window.__barre.every(t => !/\d/.test(t))), 'Mac : aucun montant dans la barre des menus tant que l’application est verrouillée : ' + await pm.evaluate(() => JSON.stringify(window.__barre)));
+    await pm.evaluate(() => { window.__touch = true; }); await pm.click('#unl'); await pm.waitForTimeout(300);
+    ok(await pm.evaluate(() => !document.body.classList.contains('locked') && /\d/.test(window.__barre[window.__barre.length - 1])), 'Mac : Touch ID déverrouille, le patrimoine revient dans la barre des menus');
+    await pm.evaluate(() => { window.__verrou(); }); await pm.waitForTimeout(100);
+    ok(await pm.evaluate(() => document.body.classList.contains('locked') && !/\d/.test(window.__barre[window.__barre.length - 1])), 'Mac : mise en veille → verrouillé, montant masqué');
+    await pm.evaluate(() => { document.body.classList.remove('locked'); go('set'); }); await pm.waitForTimeout(300);
+    await pm.click('[data-act="lockm"][data-v="15"]'); await pm.waitForTimeout(100);
+    ok(await pm.evaluate(() => D.set.lockMin === 15 && lockMin() === 15 && /après 15 minutes/.test(document.body.textContent)), 'Mac : délai de verrouillage réglable (15 min)');
+    ok(!errsMac.length, 'Mac : aucune erreur JavaScript : ' + errsMac.join(' | '));
+    await pm.close(); }
   /* bureau */
   await pg.setViewportSize({ width: 1280, height: 800 }); await pg.click('.side [data-nav=mk]'); await pg.waitForTimeout(300);
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'bureau.png') });
