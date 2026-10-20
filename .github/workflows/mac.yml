@@ -107,6 +107,8 @@ jobs:
           name: Patrimoine-AI-mac
           path: mac/dist/*.dmg
       - name: Publier la version
+        # Seule la branche principale publie : une branche de travail ne doit jamais occuper un numéro de version.
+        if: github.ref == 'refs/heads/main'
         working-directory: mac
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
