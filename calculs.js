@@ -508,7 +508,7 @@
       return true;
     });
   }
-  /* Opérations reçues de la banque (fonctions Netlify) → opérations du budget réel. Les opérations en attente et en
+  /* Opérations reçues de la banque (application Mac) → opérations du budget réel. Les opérations en attente et en
      devise sont ignorées ; une opération déjà importée par un relevé (même montant, à 2 jours près) n'est pas reprise. */
   function opsBanque(L, ref, existantes) {
     const ops = (L || []).filter(t => t && t.id && t.etat !== 'PDNG' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && isFinite(t.m) && t.m !== 0 && (!t.dev || t.dev === 'EUR'))

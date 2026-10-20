@@ -1,5 +1,8 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.6.1
+- **Mes banques fonctionne enfin** : la version 6.6.0 installée sur certains Mac était une version de travail, qui parlait encore d'un serveur et ne permettait pas de lier la banque. Celle-ci contient bien la liaison bancaire directement sur votre Mac, avec toutes les nouveautés de la 6.6.0 ci-dessous.
+
 ## 6.6.0
 - **Mes banques, directement sur votre Mac** : reliez votre compte Boursorama sans aucun serveur. La clé d'accès et la session restent sur ce Mac, protégées par le trousseau ; votre téléphone reçoit soldes et opérations par la synchronisation. Mise en route guidée dans Mes banques, avec une banque de démonstration pour essayer d'abord.
 - **Sécurité renforcée** : sur ce Mac, votre patrimoine, votre phrase secrète, vos clés d'IA et vos sauvegardes quotidiennes sont désormais chiffrés par le trousseau (plus rien en clair sur le disque). Touch ID est demandé pour lier ou déconnecter la banque, changer sa clé et restaurer une sauvegarde. L'application refuse d'être ouverte avec des outils d'espionnage (débogueur), vérifie ses fichiers bancaires avant chaque usage et ne peut envoyer vos données qu'aux services dont elle a besoin.

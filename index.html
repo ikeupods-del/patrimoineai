@@ -1304,8 +1304,8 @@ function recapNotif(){
 }
 
 /* ===================== Mes banques : comptes liés par Enable Banking (open banking DSP2) =====================
-   Les échanges avec la banque passent par les fonctions Netlify (netlify/functions) : la clé de l'application et la session
-   bancaire ne sont jamais dans la page. Ici ne restent que le nom des comptes, leurs soldes (comptés dans le patrimoine) et
+   Les échanges avec la banque passent par l'application Mac (banque/routes, mac/banque-locale.js) : la clé de l'application et
+   la session bancaire ne sont jamais dans la page. Ici ne restent que le nom des comptes, leurs soldes (comptés dans le patrimoine) et
    les opérations du compte courant, rangées dans le budget réel comme un relevé importé. Mode d'emploi : docs/BANQUE.md. */
 const BQ={busy:false,err:'',code:'',conf:null,sim:false,mock:false,vu:0,manque:[],poll:0};
 const BQTYPE={CACC:'Compte courant',SVGS:'Compte d’épargne',CARD:'Carte',LOAN:'Crédit',CASH:'Compte espèces',TRAN:'Compte de transactions',OTHR:'Autre compte'};
