@@ -2,7 +2,7 @@
 // l'accès direct aux cours (sans relais), l'IA du Mac, le verrouillage Touch ID, les sauvegardes automatiques,
 // les notifications, le bilan PDF et les mises à jour automatiques. Produit par QuenTools.
 'use strict';
-const { app, BrowserWindow, Menu, shell, ipcMain, protocol, net, session, dialog, Notification, systemPreferences, powerMonitor, Tray, nativeImage, nativeTheme, safeStorage } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, protocol, net, session, dialog, Notification, systemPreferences, powerMonitor, Tray, nativeImage, nativeTheme, safeStorage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -19,24 +19,53 @@ const DEPOT = 'ikeupods-del/patrimoineai';
 // L'application est servie par une adresse interne stable (app://patrimoine) : ses données y restent attachées d'une version à l'autre.
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true } }]);
 
+// Application installée : jamais lancée avec un débogueur ou une console de développement (moyen de lire les données déchiffrées)
+if (app.isPackaged && ['remote-debugging-port', 'remote-debugging-pipe', 'inspect', 'inspect-brk', 'inspect-port', 'js-flags'].some(s => app.commandLine.hasSwitch(s))) app.exit(1);
 if (!app.requestSingleInstanceLock()) app.quit();
-let win = null, tray = null, ia = null;
+let win = null, tray = null, ia = null, quitter = false;
+// Fermer la fenêtre (⌘W, bouton rouge) la cache seulement : l'application reste ouverte en arrière-plan (barre des menus,
+// rappels de paiement, alertes de cours, résumé du mois) ; ⌘Q quitte vraiment.
+app.on('before-quit', () => { quitter = true; });
+const montrer = () => { if (!win) return ouvrir(); if (win.isMinimized()) win.restore(); win.show(); win.focus(); };
 const depuisNotrePage = e => !!win && !win.isDestroyed() && e.sender === win.webContents;
 const garde = fn => async (e, ...a) => { if (!depuisNotrePage(e)) throw new Error('refusé'); return fn(e, ...a); };
 const envoyer = (canal, ...a) => { if (win && !win.isDestroyed()) win.webContents.send(canal, ...a); };
 
 /* ---------- Fichiers de l'application ---------- */
+// Politique de sécurité des pages : même si un texte piégé réussissait à exécuter du code dans la page, il ne pourrait charger
+// aucun script ni envoyer de données ailleurs que vers les services dont l'application a besoin (cours, actualités, compte Google,
+// IA choisie, relais des cours). Les échanges avec la banque passent par l'application elle-même (app://).
+function securite() {
+  let relais = '';
+  try { const m = /marketProxy:\s*'([^']*)'/.exec(fs.readFileSync(path.join(RACINE, 'config.js'), 'utf8')); if (m && /^https:\/\/[\w.-]+(:\d+)?(\/|$)/.test(m[1])) relais = new URL(m[1]).origin; } catch (e) { /* sans relais personnel */ }
+  return ["default-src 'self'", "script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com", "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:", "font-src 'self' data:", "media-src 'self' blob:", "worker-src 'self' blob:", "object-src 'none'", "base-uri 'none'", "form-action 'none'",
+    "frame-src https://quentools-adca1.firebaseapp.com", "frame-ancestors 'none'",
+    "connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://finance.yahoo.com wss://streamer.finance.yahoo.com wss://stream.binance.com:9443 https://news.google.com https://*.googleapis.com https://quentools-adca1.firebaseapp.com https://www.gstatic.com https://api.x.ai https://corsproxy.io https://api.allorigins.win" + (relais ? ' ' + relais : '')].join('; ');
+}
+let CSP = '';
 function servir() {
+  CSP = securite();
   protocol.handle('app', async req => {
     const u = new URL(req.url);
     if (u.host !== 'patrimoine') return new Response('Introuvable', { status: 404 });
     let p = decodeURIComponent(u.pathname);
+    // liaison bancaire : les fonctions de banque/routes tournent dans l'application (aucun serveur en ligne)
+    if (p.startsWith('/api/banque/')) {
+      const corps = req.method === 'POST' || req.method === 'DELETE' ? await req.text() : '';
+      // lier ou déconnecter la banque : Touch ID demandé par l'application elle-même (une page détournée ne peut pas s'en passer)
+      if ((p === '/api/banque/demarrer' || p === '/api/banque/deconnecter') && !(await exigerTouchID(p.endsWith('demarrer') ? 'lier votre banque à Patrimoine AI' : 'déconnecter votre banque')))
+        return new Response(JSON.stringify({ code: 'touch_id', message: 'Touch ID non confirmé : rien n’a été fait.' }), { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } });
+      if (corps.length > 4000) return new Response(JSON.stringify({ code: 'requete', message: 'Demande trop volumineuse.' }), { status: 413 });
+      return BANQUE().appeler(p.slice(12), req.method, corps, u.search);
+    }
     if (!p || p === '/') p = '/index.html';
     const f = path.normalize(path.join(RACINE, p));
     if (!f.startsWith(RACINE + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) return new Response('Introuvable', { status: 404 });
     const r = await net.fetch(pathToFileURL(f).toString());
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
     const h = new Headers(r.headers); const t = types[path.extname(f)]; if (t) h.set('content-type', t);
+    if (path.extname(f) === '.html') { h.set('content-security-policy', CSP); h.set('x-content-type-options', 'nosniff'); h.set('referrer-policy', 'no-referrer'); }
     return new Response(r.body, { status: 200, headers: h });
   });
 }
@@ -83,12 +112,53 @@ ipcMain.handle('ia:ecrire', garde((e, m) => {
   return IA().ecrire({ systeme: s(m && m.systeme, 4000), demande: s(m && m.demande, 30000), maxTokens: Math.min(1500, Math.max(50, +(m && m.maxTokens) || 800)), temperature: Math.min(1, Math.max(0, +(m && m.temperature) || 0.3)) });
 }));
 
+/* ---------- Touch ID exigé pour les actions sensibles (banque, clé, restauration) : seulement si le Mac en a un ---------- */
+async function exigerTouchID(raison) {
+  if (AUTOTEST) return true;
+  let dispo = false; try { dispo = process.platform === 'darwin' && systemPreferences.canPromptTouchID(); } catch (e) { dispo = false; }
+  if (!dispo) return true;
+  try { await systemPreferences.promptTouchID(raison); return true; } catch (e) { return false; }
+}
+const avecTouchID = (raison, fn) => async (...a) => { if (!(await exigerTouchID(raison))) throw new Error('Touch ID non confirmé : rien n’a été fait.'); return fn(...a); };
+
+/* ---------- Liaison bancaire (Enable Banking) : clé gardée par le trousseau, session sur ce Mac (banque-locale.js) ---------- */
+let banque = null;
+const BANQUE = () => banque || (banque = require('./banque-locale').creer({
+  dossier: app.getPath('userData'),
+  empreintes: path.join(__dirname, 'app', 'banque-empreintes.json'), // dans l'archive de l'application : les fichiers sortis de l'archive sont vérifiés
+  racine: path.join(__dirname, 'app', 'banque').replace('app.asar' + path.sep, 'app.asar.unpacked' + path.sep), // modules .mjs lus hors de l'archive
+  coffre: { chiffrer: t => { if (!safeStorage.isEncryptionAvailable()) throw new Error('trousseau indisponible'); return safeStorage.encryptString(t); }, dechiffrer: b => safeStorage.decryptString(b) },
+  quandLiee: ok => { if (ok) { montrer(); envoyer('commande', 'bqlie'); } }
+}));
+ipcMain.handle('banque:conf', garde(() => BANQUE().etatConf()));
+ipcMain.handle('banque:demo', garde((e, actif) => BANQUE().demo(!!actif)));
+ipcMain.handle('banque:oublier', garde(avecTouchID('retirer la clé de votre banque', () => BANQUE().oublier())));
+ipcMain.handle('banque:cle', garde(async () => {
+  if (!(await exigerTouchID('enregistrer la clé d’accès à votre banque'))) throw new Error('Touch ID non confirmé : rien n’a été fait.');
+  const r = await dialog.showOpenDialog(win, { title: 'Clé de l’application Enable Banking', message: 'Choisissez le fichier .pem téléchargé chez Enable Banking', properties: ['openFile'], filters: [{ name: 'Clé privée', extensions: ['pem'] }] });
+  if (r.canceled || !r.filePaths[0]) return { annule: true, ...BANQUE().etatConf() };
+  const f = r.filePaths[0]; if (fs.statSync(f).size > 20000) throw new Error('Fichier trop gros pour une clé .pem.');
+  const etat = BANQUE().enregistrerCle(path.basename(f), fs.readFileSync(f, 'utf8'));
+  // la clé est désormais gardée par le trousseau : la copie en clair (Téléchargements…) n'a plus à traîner sur le disque
+  const q = await dialog.showMessageBox(win, { type: 'question', buttons: ['Mettre à la corbeille', 'Garder le fichier'], defaultId: 0, cancelId: 1, message: 'Clé enregistrée dans le trousseau du Mac', detail: 'Le fichier « ' + path.basename(f) + ' » n’est plus nécessaire. Le mettre à la corbeille évite qu’il reste lisible sur votre Mac (videz ensuite la corbeille). Gardez une copie seulement sur un support sûr.' });
+  if (q.response === 0) { try { await shell.trashItem(f); etat.corbeille = true; } catch (e) { etat.corbeille = false; } }
+  return etat;
+}));
+
 /* ---------- Sauvegardes automatiques : une par jour, 60 jours, dans le dossier de l'application ---------- */
 const DOSSIER_SAUV = () => path.join(app.getPath('userData'), 'Sauvegardes');
 const RE_SAUV = /^patrimoine-(\d{4}-\d{2}-\d{2})\.json$/;
 function listeSauv() {
   const d = DOSSIER_SAUV(); if (!fs.existsSync(d)) return [];
   return fs.readdirSync(d).filter(n => RE_SAUV.test(n)).sort().reverse().map(nom => ({ nom, date: RE_SAUV.exec(nom)[1], taille: fs.statSync(path.join(d, nom)).size }));
+}
+// Sauvegardes chiffrées par le trousseau du Mac (« PATENC1: » + texte chiffré) ; les anciennes, en clair, sont chiffrées au passage
+const ENTETE = 'PATENC1:';
+const chiffrerSauv = t => { if (!safeStorage.isEncryptionAvailable()) throw new Error('trousseau indisponible'); return ENTETE + safeStorage.encryptString(t).toString('base64'); };
+const lireSauvFichier = f => { const t = fs.readFileSync(f, 'utf8'); return t.startsWith(ENTETE) ? safeStorage.decryptString(Buffer.from(t.slice(ENTETE.length), 'base64')) : t; };
+function chiffrerAnciennes() {
+  if (!safeStorage.isEncryptionAvailable()) return;
+  for (const x of listeSauv()) { const f = path.join(DOSSIER_SAUV(), x.nom); try { const t = fs.readFileSync(f, 'utf8'); if (!t.startsWith(ENTETE)) { fs.writeFileSync(f + '.tmp', chiffrerSauv(t), { mode: 0o600 }); fs.renameSync(f + '.tmp', f); } } catch (e) { /* laissée telle quelle */ } }
 }
 const etatSauv = () => { const L = listeSauv(); return { n: L.length, dernier: L.length ? Date.parse(L[0].date + 'T12:00:00') : 0, dossier: DOSSIER_SAUV() }; };
 ipcMain.handle('sauv:ecrire', garde((e, texte) => {
@@ -97,14 +167,54 @@ ipcMain.handle('sauv:ecrire', garde((e, texte) => {
   JSON.parse(t); // n'enregistre que des données lisibles
   const d = DOSSIER_SAUV(); fs.mkdirSync(d, { recursive: true });
   const jour = new Date().toLocaleDateString('sv-SE'), f = path.join(d, `patrimoine-${jour}.json`), tmp = f + '.tmp';
-  fs.writeFileSync(tmp, t, { mode: 0o600 }); fs.renameSync(tmp, f);
+  fs.writeFileSync(tmp, chiffrerSauv(t), { mode: 0o600 }); fs.renameSync(tmp, f);
   listeSauv().slice(60).forEach(x => fs.rmSync(path.join(d, x.nom), { force: true }));
   return etatSauv();
 }));
 ipcMain.handle('sauv:etat', garde(() => etatSauv()));
 ipcMain.handle('sauv:liste', garde(() => listeSauv()));
-ipcMain.handle('sauv:lire', garde((e, nom) => { if (!RE_SAUV.test(String(nom))) throw new Error('nom invalide'); return fs.readFileSync(path.join(DOSSIER_SAUV(), String(nom)), 'utf8'); }));
+ipcMain.handle('sauv:lire', garde(avecTouchID('restaurer une sauvegarde de Patrimoine AI', (e, nom) => { if (!RE_SAUV.test(String(nom))) throw new Error('nom invalide'); return lireSauvFichier(path.join(DOSSIER_SAUV(), String(nom))); })));
 ipcMain.handle('sauv:ouvrir', garde(() => { fs.mkdirSync(DOSSIER_SAUV(), { recursive: true }); return shell.openPath(DOSSIER_SAUV()); }));
+
+/* ---------- Données de l'application chiffrées sur le disque ----------
+   Le patrimoine, la phrase secrète et les clés d'IA ne sont pas laissés en clair dans le stockage du navigateur intégré :
+   la page les confie ici (appels synchrones, liste fermée de clés), chiffrés par le trousseau du Mac (donnees.bin). */
+const CLES_SURES = new Set(['pat_data', 'pat_ai_key', 'pat_xai_key', 'pat_pass']);
+const FICHIER_DONNEES = () => path.join(app.getPath('userData'), 'donnees.bin');
+let DONNEES = null;
+function donnees() {
+  if (DONNEES) return DONNEES;
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  const f = FICHIER_DONNEES();
+  DONNEES = fs.existsSync(f) ? JSON.parse(safeStorage.decryptString(fs.readFileSync(f))) : {};
+  return DONNEES;
+}
+ipcMain.on('stock:tout', e => { try { e.returnValue = depuisNotrePage(e) ? donnees() : null; } catch (er) { e.returnValue = null; } });
+ipcMain.on('stock:ecrire', (e, k, v) => {
+  try {
+    if (!depuisNotrePage(e) || !CLES_SURES.has(k) || (v != null && (typeof v !== 'string' || v.length > 60e6))) { e.returnValue = false; return; }
+    const D = donnees(); if (!D) { e.returnValue = false; return; }
+    if (v == null) delete D[k]; else D[k] = v;
+    const f = FICHIER_DONNEES(), tmp = f + '.tmp';
+    fs.writeFileSync(tmp, safeStorage.encryptString(JSON.stringify(D)), { mode: 0o600 }); fs.renameSync(tmp, f);
+    e.returnValue = true;
+  } catch (er) { e.returnValue = false; }
+});
+
+/* ---------- Fenêtre invisible aux captures d'écran et aux enregistrements (logiciels espions, partage d'écran) ---------- */
+const FICHIER_CAPTURES = () => path.join(app.getPath('userData'), 'captures-autorisees');
+const protectionDesactivee = () => fs.existsSync(FICHIER_CAPTURES());
+ipcMain.handle('captures', garde((e, autoriser) => {
+  if (typeof autoriser === 'boolean') { if (autoriser) fs.writeFileSync(FICHIER_CAPTURES(), ''); else fs.rmSync(FICHIER_CAPTURES(), { force: true }); if (win) win.setContentProtection(!autoriser); }
+  return { protegee: !protectionDesactivee() };
+}));
+
+/* ---------- Toute fenêtre ou intégration étrangère est refusée, quelle que soit la page ---------- */
+app.on('web-contents-created', (e, wc) => {
+  wc.on('will-attach-webview', ev => ev.preventDefault());
+  wc.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  wc.on('will-navigate', (ev, url) => { if (!url.startsWith(ORIGINE + '/')) { ev.preventDefault(); if (/^https?:\/\//.test(url)) shell.openExternal(url); } });
+});
 
 /* ---------- Touch ID ---------- */
 ipcMain.handle('touch:dispo', garde(() => { try { return process.platform === 'darwin' && systemPreferences.canPromptTouchID(); } catch (e) { return false; } }));
@@ -117,7 +227,7 @@ ipcMain.handle('touch:demander', garde(async (e, raison) => {
 ipcMain.handle('notif', garde((e, titre, corps) => {
   if (!Notification.isSupported()) return false;
   const n = new Notification({ title: String(titre || '').slice(0, 120), body: String(corps || '').slice(0, 300), silent: false });
-  n.on('click', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+  n.on('click', montrer);
   n.show(); return true;
 }));
 
@@ -168,17 +278,30 @@ ipcMain.handle('pdf', garde(async (e, html, nom) => {
   } finally { w.destroy(); }
 }));
 
-/* ---------- Barre des menus : variation du jour (jamais de montant) ---------- */
+/* ---------- Barre des menus : variation du jour, patrimoine net (masqué avec les montants) ou les deux ---------- */
 ipcMain.handle('barre', garde((e, texte) => {
   const t = String(texte || '').slice(0, 24);
   if (!t) { if (tray) { tray.destroy(); tray = null; } return false; }
   if (!tray) {
     tray = new Tray(nativeImage.createEmpty());
     tray.setToolTip('Patrimoine AI');
-    tray.on('click', () => { if (win) { win.show(); win.focus(); } else ouvrir(); });
+    tray.on('click', montrer);
+    tray.on('right-click', () => tray.popUpContextMenu(Menu.buildFromTemplate([
+      { label: 'Ouvrir Patrimoine AI', click: montrer },
+      { label: 'Verrouiller', click: cmd('lock') },
+      { type: 'separator' }, { label: 'Quitter Patrimoine AI', click: () => app.quit() }])));
   }
   tray.setTitle(t, { fontType: 'monospacedDigit' });
   return true;
+}));
+
+/* ---------- Pastille du Dock : paiements à confirmer (nombre seul, jamais de montant) ---------- */
+ipcMain.handle('badge', garde((e, n) => { const k = Math.max(0, Math.min(99, Math.round(+n) || 0)); if (app.dock) app.dock.setBadge(k ? String(k) : ''); return k; }));
+
+/* ---------- Ouverture à l'ouverture de session (la fenêtre se ferme d'un ⌘W : l'application reste dans la barre des menus) ---------- */
+ipcMain.handle('demarrage', garde((e, actif) => {
+  if (typeof actif === 'boolean' && app.isPackaged) app.setLoginItemSettings({ openAtLogin: actif });
+  return !!app.getLoginItemSettings().openAtLogin;
 }));
 
 /* ---------- Connexion Google : dans le navigateur du Mac (Google refuse les fenêtres intégrées) ----------
@@ -217,7 +340,7 @@ const verifierMaj = () => maj.verifier().then(e => { envoyer('maj:etat', e); ret
 ipcMain.handle('maj:etat', garde(() => maj.etat));
 ipcMain.handle('maj:verifier', garde(() => verifierMaj()));
 ipcMain.handle('maj:installer', garde(() => { if (maj.installer(true)) setTimeout(() => app.quit(), 200); return maj.etat; }));
-app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); if (dictee) dictee.arreter(); });
+app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); if (dictee) dictee.arreter(); if (banque) banque.arreter(); });
 
 /* ---------- Menus ---------- */
 const cmd = c => () => { if (!win) ouvrir(); envoyer('commande', c); };
@@ -273,7 +396,15 @@ function menu() {
 
 /* ---------- Fenêtre ---------- */
 const FICHIER_FENETRE = () => path.join(app.getPath('userData'), 'fenetre.json');
-function bornes() { try { const b = JSON.parse(fs.readFileSync(FICHIER_FENETRE(), 'utf8')); if (b.width >= 960 && b.height >= 640) return b; } catch (e) { /* première ouverture */ } return { width: 1360, height: 880 }; }
+// position gardée seulement si la fenêtre reste visible sur un écran branché (écran externe débranché : fenêtre recentrée sur l'écran du Mac)
+const visible = b => b.x == null || screen.getAllDisplays().some(d => { const a = d.workArea; return b.x + 100 <= a.x + a.width && b.x + b.width - 100 >= a.x && b.y >= a.y - 10 && b.y + 60 <= a.y + a.height; });
+function bornes() {
+  try { const b = JSON.parse(fs.readFileSync(FICHIER_FENETRE(), 'utf8')); if (b.width >= 960 && b.height >= 640) {
+    if (visible(b)) return b;
+    const a = screen.getPrimaryDisplay().workArea; return { width: Math.min(b.width, a.width), height: Math.min(b.height, a.height), max: b.max };
+  } } catch (e) { /* première ouverture */ }
+  return { width: 1360, height: 880 };
+}
 function ouvrir() {
   const b = bornes();
   win = new BrowserWindow({
@@ -283,17 +414,24 @@ function ouvrir() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false }
   });
   if (b.max) win.maximize();
+  win.setContentProtection(!protectionDesactivee()); // fenêtre invisible aux captures d'écran et enregistrements (réglable)
+  win.on('minimize', () => envoyer('verrou'));
   win.loadURL(ORIGINE + '/index.html');
   win.once('ready-to-show', () => { if (!AUTOTEST) win.show(); });
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, url) => { if (!url.startsWith(ORIGINE + '/')) { e.preventDefault(); if (/^https?:\/\//.test(url)) shell.openExternal(url); } });
   win.webContents.session.on('will-download', (e, item) => { item.setSaveDialogOptions({ defaultPath: path.join(app.getPath('documents'), item.getFilename()) }); });
-  win.on('close', () => { try { fs.writeFileSync(FICHIER_FENETRE(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (e) { /* sans importance */ } });
+  win.on('close', e => {
+    try { fs.writeFileSync(FICHIER_FENETRE(), JSON.stringify({ ...win.getNormalBounds(), max: win.isMaximized() })); } catch (er) { /* sans importance */ }
+    if (!quitter && !AUTOTEST) { e.preventDefault(); envoyer('verrou'); if (win.isFullScreen()) { win.once('leave-full-screen', () => win.hide()); win.setFullScreen(false); } else win.hide(); }
+  });
   win.on('closed', () => { win = null; });
   if (AUTOTEST) autotest();
 }
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
+app.on('second-instance', montrer);
 ['lock-screen', 'suspend'].forEach(ev => powerMonitor.on(ev, () => envoyer('verrou')));
+// réveil du Mac : les flux de cours coupés pendant la veille sont rouverts, la synchronisation et les rappels relancés
+powerMonitor.on('resume', () => setTimeout(() => envoyer('commande', 'reveil'), 3000));
 
 /* ---------- Essai automatique de l'application construite (workflow, sur un vrai Mac) ---------- */
 function autotest() {
@@ -324,6 +462,14 @@ function autotest() {
       res.iaReponse = await js(`(async()=>{await macIaEtat();if(!MACIA.installee)return{installee:false};const t0=Date.now();
         try{const m=await macAnswer('Combien dois-je investir chaque mois ?',[],{max:200});return{installee:true,src:m.src,note:m.note||'',texte:String(m.t).slice(0,1200),ms:Date.now()-t0}}
         catch(e){return{installee:true,erreur:String(e.message||e),ms:Date.now()-t0}}})()`);
+      // liaison bancaire sans serveur, banque de démonstration : route app://, retour sur 127.0.0.1, session confiée au trousseau
+      res.banque = await (async () => { const b = BANQUE(), r = {};
+        try { b.demo(true); r.page = await js(`fetch('/api/banque/etat').then(r=>r.json())`);
+          const d = await (await b.appeler('demarrer', 'POST')).json(); r.retour = (await net.fetch(d.url)).status;
+          r.comptes = ((await (await b.appeler('comptes')).json()).comptes || []).length;
+          r.ops = ((await (await b.appeler('operations', 'GET', '', '?compte=demo-courant')).json()).operations || []).length;
+          r.trousseau = !fs.readFileSync(path.join(app.getPath('userData'), 'banque-session.bin')).toString('latin1').includes('"iv"');
+        } catch (e) { r.erreur = e.message; } finally { b.oublier(); } return r; })();
       res.erreursPage = await js(`window.__erreurs||[]`);
     } catch (e) { res.erreur = e.message; }
     fin();
@@ -331,8 +477,12 @@ function autotest() {
 }
 
 app.whenReady().then(() => {
-  servir(); reseau(); menu(); ouvrir();
+  servir(); reseau(); menu(); ouvrir(); setTimeout(chiffrerAnciennes, 5000);
+  if (app.dock) app.dock.setMenu(Menu.buildFromTemplate([
+    { label: 'Nouveau placement…', click: () => { montrer(); cmd('add')(); } },
+    { label: 'Poser une question à l’assistant', click: () => { montrer(); cmd('ask')(); } },
+    { label: 'Verrouiller', click: cmd('lock') }]));
   if (!AUTOTEST) { setTimeout(verifierMaj, 8000); setInterval(verifierMaj, 6 * 3600 * 1000); }
 });
-app.on('activate', () => { if (!win) ouvrir(); else win.show(); });
+app.on('activate', montrer);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin' || AUTOTEST) app.quit(); });

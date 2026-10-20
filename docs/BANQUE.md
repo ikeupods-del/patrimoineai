@@ -1,7 +1,7 @@
 # Liaison bancaire (Enable Banking) et rappels de paiement
 
 ## Ce que ça fait
-- **Mes banques** (menu Patrimoine, ou « Plus » sur téléphone) : relie votre compte Boursorama (BoursoBank) par **Enable Banking**, prestataire agréé d'accès aux comptes (open banking DSP2). Vous vous identifiez **sur le site de la banque**, jamais dans Patrimoine AI. L'accès est **en lecture seule** et dure **90 jours** au plus (règle de la DSP2), puis se renouvelle en une minute.
+- **Mes banques** (application Mac) : relie votre compte Boursorama (BoursoBank) par **Enable Banking**, prestataire agréé d'accès aux comptes (open banking DSP2). Vous vous identifiez **sur le site de la banque**, jamais dans Patrimoine AI. L'accès est **en lecture seule** et dure **90 jours** au plus (règle de la DSP2), puis se renouvelle en une minute.
 - Les **soldes** des comptes liés entrent dans le patrimoine (Livrets et liquidités), avec la date de dernière synchronisation. Un interrupteur par compte permet de ne pas le compter.
 - Les **opérations du compte courant** (90 derniers jours au premier passage) sont classées comme un relevé importé : elles alimentent le budget réel, les dépassements et les abonnements repérés. Les opérations en attente sont ignorées ; une opération déjà importée par un relevé CSV (même jour, même montant) n'est pas reprise.
 - **PEA et compte-titres** : l'open banking ne couvre que les comptes de paiement. S'ils n'apparaissent pas dans les comptes liés, c'est que la banque ne les transmet pas : leurs positions se suivent à la main (type Bourse, avec le ticker) ou par import CSV. Rien n'est inventé.
@@ -16,48 +16,41 @@
 - **Comptes d'épargne** : par défaut seul le solde d'un livret est lu. L'interrupteur « Importer aussi ses opérations » les ajoute ; elles restent neutres dans le budget (un virement vers le livret est déjà compté « mis de côté ») et les intérêts comptent en revenu.
 - **Relevés CSV et banque ensemble** : une opération reçue par les deux est comptée une seule fois (même montant, à deux jours près ; deux achats identiques le même jour restent deux opérations).
 
+## Où ça tourne : dans l'application Mac, sans serveur
+Aucun Netlify ni autre hébergeur : seul GitHub sert (le site et l'application Mac). Les fonctions bancaires (`banque/routes/*.mjs`, avec `banque/commun.mjs`, `banque/enable-banking.mjs` et la banque de démonstration `banque/simulateur.mjs`) sont exécutées par l'application Mac elle-même (`mac/banque-locale.js`), appelées par la page à l'adresse interne `app://patrimoine/api/banque/…`. La version en ligne (téléphone, navigateur) ne parle jamais à la banque : elle reçoit les soldes et les opérations par la synchronisation chiffrée habituelle.
+
 ## Comment c'est protégé
-- La **clé privée** de l'application Enable Banking et son identifiant ne sont **jamais** dans la page ni dans le dépôt : uniquement dans les variables d'environnement Netlify, lues par les fonctions `netlify/functions/banque-*.mjs`.
-- Chaque appel exige votre **connexion Google** (la même que la synchronisation) : le jeton est vérifié par le serveur avec les clés publiques de Google. Vous pouvez en plus réserver l'accès à votre seule adresse (`ENABLE_ALLOWED_EMAILS`).
-- La **session bancaire** est gardée dans votre compte Firestore (`users/{uid}/apps/patrimoine/banque/etat`, mêmes règles que la synchronisation), **chiffrée par le serveur** (AES-256-GCM) : ni la page ni Google ne peuvent la lire. Aucun identifiant ni mot de passe bancaire n'est jamais stocké ; l'IBAN n'est conservé que par ses 4 derniers chiffres.
-- Le « state » de la connexion est aléatoire, gardé côté serveur, vérifié au retour, valable 30 minutes et utilisable une seule fois.
-- Pas de consultation en boucle : soldes gardés 10 minutes (1 minute quand vous touchez « Synchroniser »), synchronisation automatique au plus toutes les 6 heures à l'ouverture, 300 appels par jour au plus. Votre adresse IP et votre navigateur sont transmis à la banque (en-têtes `Psu-Ip-Address`, `Psu-User-Agent`) : une consultation faite en votre présence échappe à la limite de 4 accès par jour de la DSP2.
+- La **clé privée** de l'application Enable Banking (fichier `.pem`) n'est **jamais** dans le dépôt ni en ligne : choisie une fois dans Mes banques, elle est chiffrée par le **trousseau du Mac** (`banque.json` du dossier de l'application, clé illisible sans la session macOS).
+- La **session bancaire** est gardée sur ce Mac (`banque-session.bin`), chiffrée deux fois : AES-256-GCM avec une clé dérivée de la clé privée, puis par le trousseau. Aucun identifiant ni mot de passe bancaire n'est jamais stocké ; l'IBAN n'est conservé que par ses 4 derniers chiffres.
+- **Retour de la banque** : l'adresse déclarée chez Enable Banking est la page en ligne de l'application (`https://ikeupods-del.github.io/patrimoineai/`). Le « state » commence par `mac<port>-` : la page renvoie aussitôt le retour vers `http://127.0.0.1:<port>/banque`, où l'application Mac attend (seulement pendant une liaison, 35 minutes au plus). Le « state » est aléatoire, vérifié, valable 30 minutes et utilisable une seule fois.
+- Seule la page de l'application peut appeler ces fonctions (protocole interne de l'application, origine vérifiée). **Touch ID** (si le Mac en a un) est exigé par l'application elle-même, hors de la page, pour lier ou déconnecter la banque, enregistrer ou retirer la clé, et restaurer une sauvegarde.
+- **Intégrité** : les fichiers de `banque/` (sortis de l'archive à l'installation) sont comparés à leurs empreintes SHA-256, gardées dans l'archive de l'application, avant d'être exécutés ; un fichier modifié bloque la banque.
+- **Application verrouillée** (« fuses » d'Electron, posés à la construction et contrôlés par le workflow) : pas de débogueur (`--inspect`, `--remote-debugging-port` : l'application refuse de démarrer), pas d'options Node par l'environnement, code chargé seulement depuis l'archive, archive vérifiée à l'ouverture quand son empreinte est dans Info.plist. La page a une politique de sécurité (CSP) qui n'autorise que les services utiles (cours, actualités, compte Google, IA choisie) : un texte piégé ne pourrait rien envoyer ailleurs.
+- **Au repos sur le Mac** : patrimoine, phrase secrète, clés d'IA (`donnees.bin`), sauvegardes quotidiennes, clé `.pem` et session bancaire sont chiffrés par le trousseau. Après l'enregistrement de la clé, l'application propose de mettre le fichier `.pem` à la corbeille.
+- Le serveur de retour sur 127.0.0.1 n'existe que pendant une liaison, n'accepte que `GET /banque` adressé à `127.0.0.1:<port>` (protection contre le « DNS rebinding ») et répond avec une page sans script. La clé n'est jamais placée dans les variables d'environnement (héritées par les processus de l'IA et de la dictée).
+- **Écran et fenêtre** : fenêtre exclue des captures, enregistrements et partages d'écran (`setContentProtection`, réglable) ; verrouillage Touch ID activé d'office quand le Mac en a un, et déclenché à la fermeture ou à la réduction de la fenêtre, à la veille et au verrouillage de la session ; toute fenêtre ou intégration étrangère (webview, nouvelle fenêtre, navigation hors de l'application) est refusée.
+- **Fichiers exportés** : sauvegarde chiffrée par défaut (AES-GCM 256, PBKDF2 600 000 tours, sel propre au fichier, mot de passe de 12 caractères au moins) ; export en clair seulement après confirmation.
+- Limites honnêtes : un logiciel malveillant qui contrôle déjà votre session macOS (administrateur, enregistreur de frappe) peut toujours voir ce que vous voyez à l'écran ; l'application n'est signée qu'en local (pas de certificat Apple Developer), donc pas notariée par Apple. Gardez macOS à jour, FileVault activé et un mot de passe de session solide.
+- Pas de consultation en boucle : soldes gardés 10 minutes (1 minute quand vous touchez « Synchroniser »), synchronisation automatique au plus toutes les 6 heures, 300 appels par jour au plus. Sans serveur, l'adresse IP n'est pas transmise à la banque : la règle de la DSP2 (4 consultations automatiques par jour et par compte) s'applique, ce que la synchronisation toutes les 6 heures respecte.
 
-## Variables d'environnement Netlify
-Netlify → votre site → **Site configuration → Environment variables** (portée : Functions).
+## Mise en route, pas à pas (une seule fois)
+1. **Essai sans banque** : application Mac → Mes banques → « Essayer d'abord avec une banque de démonstration » → « Lier ma banque » : le navigateur s'ouvre, revient tout de suite, deux comptes fictifs apparaissent (signalés « Mode démonstration »). « Quitter la démonstration » remet tout à zéro.
+2. **Enable Banking** : créez un compte sur enablebanking.com, puis **Control Panel → Applications → Register new application** :
+   - environnement **Production**, usage personnel (« restricted production ») ;
+   - **Redirect URL** : exactement `https://ikeupods-del.github.io/patrimoineai/` (bouton « Copier » dans Mes banques) ;
+   - « générer la clé dans le navigateur » : un fichier `xxxxxxxx-xxxx-….pem` est téléchargé. Son nom est l'identifiant de l'application. Gardez-le, ne l'envoyez à personne, ne le mettez jamais dans le dépôt.
+3. Dans le Control Panel, **liez votre compte Boursorama** à l'application (en production restreinte, seuls les comptes liés là sont accessibles).
+4. Application Mac → Mes banques → **Choisir le fichier .pem** : le test de la configuration s'affiche (clé, application reconnue, adresse de retour identique à celle déclarée, banque trouvée, stockage). Tout doit être au vert.
+5. **Lier ma banque** → identification sur le site de Boursorama → la page en ligne vous renvoie dans l'application → soldes et opérations importés. Tous les 90 jours : **Renouveler** (l'application prévient 14 jours avant ; « Rappel au calendrier » ajoute une alarme).
+6. Si la synchronisation échoue plus de 3 jours, « À surveiller » l'indique avec le dernier message. « Changer de clé » remplace le fichier .pem ; « Retirer la clé » arrête la liaison sur ce Mac (soldes et opérations déjà importés gardés).
 
-| Variable | Obligatoire | Contenu |
-|---|---|---|
-| `ENABLE_APP_ID` | oui | Identifiant de l'application Enable Banking (le nom du fichier `.pem` téléchargé, sans `.pem`). |
-| `ENABLE_PRIVATE_KEY` | oui | Contenu **complet** du fichier `.pem` (de `-----BEGIN PRIVATE KEY-----` à `-----END PRIVATE KEY-----`). Collé tel quel, ou sur une ligne avec des `\n`, ou encodé en base64. |
-| `ENABLE_REDIRECT_URL` | oui | Adresse de l'application où revenir après la banque, **identique** à celle déclarée dans Enable Banking. Ex. `https://ikeupods-del.github.io/patrimoineai/` (ou l'adresse du site Netlify). |
-| `ENABLE_ALLOWED_EMAILS` | conseillé | Votre adresse Gmail : personne d'autre ne peut utiliser la liaison. Plusieurs adresses : séparées par des virgules. |
-| `ENABLE_ALLOWED_ORIGINS` | non | Sites autorisés à appeler les fonctions. Par défaut `https://ikeupods-del.github.io,app://patrimoine` (version en ligne et application Mac) ; le site Netlify lui-même est toujours autorisé. |
-| `ENABLE_ASPSP_NAME` / `ENABLE_ASPSP_COUNTRY` | non | Banque visée. Par défaut : la banque française dont le nom contient « Bourso ». Pour la banque de test du sandbox : son nom exact tel qu'il apparaît dans la liste d'Enable Banking, et son pays. |
-| `ENABLE_STORE_KEY` | non | Clé de chiffrement de la session (texte long et aléatoire). Par défaut, elle est dérivée de la clé privée. |
-| `ENABLE_MOCK` | non | `1` = **banque de démonstration** : tout le parcours sans Enable Banking ni vraie banque (comptes et opérations fictifs, signalés « Démonstration »). **Ignoré dès que `ENABLE_APP_ID` et `ENABLE_PRIVATE_KEY` sont renseignées** (l'application et le test de configuration vous le signalent) : un oubli ne masque jamais la vraie banque. |
-| `FIREBASE_PROJECT_ID` | non | `quentools-adca1` par défaut. |
-
-Attention : Netlify limite l'ensemble des variables des fonctions à environ 4 Ko. Une clé RSA de 2048 bits tient sans problème ; si le déploiement se plaint de la taille, retirez les variables inutiles.
-
-## Mise en route, pas à pas
-1. **Netlify** : *Add new site → Import an existing project → GitHub → ikeupods-del/patrimoineai*. Le fichier `netlify.toml` fait le reste (site dans `_site`, fonctions dans `netlify/functions`). Notez l'adresse du site (ex. `https://patrimoine-ai.netlify.app`).
-2. **Essai sans banque** : ajoutez `ENABLE_MOCK = 1` et `ENABLE_REDIRECT_URL` (l'adresse de l'application), puis redéployez (*Deploys → Trigger deploy*).
-3. **Adresse du serveur dans l'application** : dans `config.js`, `banqueApi: 'https://patrimoine-ai.netlify.app'` (indispensable pour la version GitHub Pages et l'application Mac ; inutile si vous utilisez directement le site Netlify). Si vous ouvrez l'application depuis l'adresse Netlify, ajoutez ce domaine dans Firebase → Authentication → Settings → **Authorized domains**, sinon la connexion Google sera refusée.
-4. Ouvrez **Mes banques** → **Tester la configuration** : une liste de vérifications (variables, clé, application Enable Banking, adresse de retour identique à celle déclarée, banque trouvée, stockage) dit précisément ce qui manque. Puis **Lier ma banque** : en démonstration, vous revenez aussitôt avec deux comptes fictifs. Vérifiez soldes, opérations, rappels.
-5. **Enable Banking** : créez un compte sur enablebanking.com, puis dans le **Control Panel → Applications**, enregistrez une application :
-   - environnement **Sandbox** d'abord (essai avec la banque de test), puis **Production** ;
-   - **Redirect URL** : exactement la valeur de `ENABLE_REDIRECT_URL` ;
-   - choisissez « générer la clé dans le navigateur » : un fichier `xxxxxxxx-xxxx-….pem` est téléchargé. Son nom (sans `.pem`) est `ENABLE_APP_ID`, son contenu est `ENABLE_PRIVATE_KEY`. Gardez-le en lieu sûr, ne l'envoyez à personne, ne le mettez jamais dans le dépôt.
-6. **Sandbox** : renseignez `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY` (application sandbox), `ENABLE_ASPSP_NAME` et `ENABLE_ASPSP_COUNTRY` (banque de test), retirez `ENABLE_MOCK`, redéployez, liez la banque de test avec les identifiants de test indiqués par Enable Banking.
-7. **Production, usage personnel (« Restricted Production »)** : dans le Control Panel, passez l'application en production restreinte et **liez vos propres comptes** en suivant les écrans d'Enable Banking (en mode restreint, seuls les comptes liés là sont accessibles). Remplacez `ENABLE_APP_ID` / `ENABLE_PRIVATE_KEY` par ceux de l'application de production, retirez `ENABLE_ASPSP_NAME` / `ENABLE_ASPSP_COUNTRY` (Boursorama est trouvée toute seule), ajoutez `ENABLE_ALLOWED_EMAILS`, redéployez.
-8. Dans l'application : **Mes banques → Tester la configuration** (tout doit être au vert), puis **Lier ma banque** → identification sur Boursorama → retour automatique, soldes et opérations importés. Tous les 90 jours : **Renouveler** (l'application prévient 14 jours avant ; « Rappel au calendrier » ajoute une alarme).
-9. Si la synchronisation échoue plus de 3 jours, « À surveiller » l'indique avec le dernier message. Les erreurs côté serveur (code et statut, jamais de montant ni de compte) sont dans Netlify → *Logs → Functions*.
+## Hébergement facultatif des fonctions
+Les routes de `banque/routes/` sont des fonctions web standard (`Request` → `Response`) : elles peuvent aussi tourner chez un hébergeur de fonctions, avec les variables `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY`, `ENABLE_REDIRECT_URL`, `ENABLE_ALLOWED_EMAILS`, `ENABLE_ALLOWED_ORIGINS`, `ENABLE_ASPSP_NAME` / `ENABLE_ASPSP_COUNTRY`, `ENABLE_STORE_KEY`, `ENABLE_MOCK`, `FIREBASE_PROJECT_ID` (compte Google vérifié, session dans Firestore) et `banqueApi` dans `config.js`. Ce n'est pas utilisé : le propriétaire a choisi de n'utiliser que GitHub.
 
 ## Limites à connaître
 - Les noms des champs viennent de la documentation et des exemples officiels d'Enable Banking ; si Enable Banking change son API, un message clair s'affiche (« Enable Banking a refusé la demande… »).
-- iPhone, application installée sur l'écran d'accueil : iOS peut terminer la connexion bancaire dans Safari. Si vous n'y êtes pas encore connecté à Google, le retour de la banque est gardé : connectez-vous (Réglages) et la liaison se termine toute seule. La banque est liée à votre compte, l'application installée la retrouve ensuite.
-- Application Mac : la connexion à la banque s'ouvre dans le navigateur et se termine sur la version en ligne ; l'application Mac détecte la fin de la liaison toute seule (relecture toutes les 4 secondes, 10 minutes au plus) et se met à jour. Un retour direct dans l'application, sans passer par la version en ligne, demanderait une adresse de retour locale acceptée par Enable Banking : non vérifié.
+- La liaison et la synchronisation de la banque se font depuis l'application Mac (ouverte, même fenêtre fermée) : le téléphone affiche ce qui a été synchronisé. Le retour de la banque passe par la page en ligne : elle doit être publiée (GitHub Pages) et l'application Mac ouverte pendant la liaison.
+- Les noms des champs de l'API et le parcours réel avec Boursorama n'ont pas pu être essayés depuis l'environnement de développement (banque de démonstration seulement) : le premier essai réel se fait avec « Tester la configuration ».
 - Une modification à la main du solde d'un compte lié est remplacée à la synchronisation suivante.
 - Les sommes versées dans un « Portefeuille » de plateforme restent comptées jusqu'à ce que vous confirmiez le retrait (proposé automatiquement quand le virement arrive sur le compte lié ; à la main sinon, en modifiant le portefeuille).
 - Sans banque liée, ou si la plateforme utilise un libellé inattendu, le retrait n'est pas détecté : indiquez le mot du libellé dans le rappel.
@@ -65,6 +58,7 @@ Attention : Netlify limite l'ensemble des variables des fonctions à environ 4 K
 
 ## Contrôles
 - `node tests/banque.test.js` : fonctions (jeton JWT, state, chiffrement, cache, pagination, expiration, erreurs, diagnostic, démonstration).
+- `node tests/banque-mac.js` : liaison de l'application Mac sans serveur (vrai module `mac/banque-locale.js`, banque de démonstration) : mise en route, retour sur 127.0.0.1, soldes, opérations, clé .pem, diagnostic, renvoi depuis la page en ligne. L'essai automatique de l'application construite (workflow Mac) refait la liaison de démonstration sur un vrai Mac.
 - `node tests/banque-e2e.js` : parcours complet dans le navigateur (liaison, soldes, rappels, retraits, calendrier, doublons, épargne, échecs, rendement vérifié sur des prêts à 7 % dont le résultat est connu). Avec `AXE=/chemin/axe.min.js` : audit d'accessibilité WCAG AA (axe-core) en thèmes clair et sombre.
 - `node tests/calculs.test.js` : calculs des rappels (jours ouvrés, fériés, retraits, doublons, calendrier).
 - Sur GitHub : `.github/workflows/tests.yml` lance tout à chaque modification ; la publication sur GitHub Pages attend les contrôles rapides.

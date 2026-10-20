@@ -1,7 +1,7 @@
 {
   "name": "patrimoine-ai",
   "productName": "Patrimoine AI",
-  "version": "6.5.1",
+  "version": "6.6.0",
   "description": "Patrimoine, budget, objectifs, marchés en direct et IA du Mac : produit par QuenTools",
   "main": "main.js",
   "private": true,
@@ -23,6 +23,7 @@
       "ia-worker.js",
       "dictee.js",
       "dictee-worker.js",
+      "banque-locale.js",
       "package.json",
       "app/**"
     ],
@@ -46,10 +47,12 @@
     "asarUnpack": [
       "node_modules/node-llama-cpp/**",
       "node_modules/@node-llama-cpp/**",
-      "node_modules/sherpa-onnx-*/**"
+      "node_modules/sherpa-onnx-*/**",
+      "app/banque/**"
     ]
   },
   "devDependencies": {
+    "@electron/fuses": "^1.8.0",
     "electron": "43.7.5",
     "electron-builder": "^25.1.8"
   },

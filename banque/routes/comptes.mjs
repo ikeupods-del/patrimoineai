@@ -1,7 +1,7 @@
 // GET /api/banque/comptes[?force=1] : comptes liés et leurs soldes (GET /accounts/{uid}/balances).
 // Soldes gardés 10 minutes (1 minute avec « force ») pour ne pas solliciter la banque à chaque affichage.
-import { fonction, stockage, DEP } from '../banque/commun.mjs';
-import { eb, etatLie, resume, solde, noterExpire } from '../banque/enable-banking.mjs';
+import { fonction, stockage, DEP } from '../commun.mjs';
+import { eb, etatLie, resume, solde, noterExpire } from '../enable-banking.mjs';
 
 export default fonction(['GET'], async ({ c, u, psu, url }) => {
   const e = await etatLie(u, c), force = url.searchParams.get('force') === '1', age = DEP.maintenant() - (e.soldesAt || 0);

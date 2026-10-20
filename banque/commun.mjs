@@ -1,15 +1,19 @@
-// Patrimoine AI — fonctions bancaires (Netlify Functions) : configuration, accès, compte Google, stockage, réponses.
-// Aucune clé dans le dépôt : tout vient des variables d'environnement Netlify (liste et mode d'emploi : docs/BANQUE.md).
+// Patrimoine AI — fonctions bancaires : configuration, accès, compte Google, stockage, réponses.
+// Elles tournent dans l'application Mac (mac/banque-locale.js, ENABLE_LOCAL=1 : clé gardée par le trousseau, session sur le Mac),
+// ou derrière n'importe quel hébergeur de fonctions web standard. Aucune clé dans le dépôt (mode d'emploi : docs/BANQUE.md).
 import crypto from 'node:crypto';
 
 /* Dépendances remplaçables par les tests : réseau, horloge, stockage */
-export const DEP = { fetch: (...a) => globalThis.fetch(...a), maintenant: () => Date.now(), stockage: null };
+/* utilisateur : remplace la vérification du compte Google (application Mac : l'utilisateur est celui du Mac) ;
+   prefixeEtat : début du « state » (application Mac : port local où la banque renvoie, voir mac/banque-locale.js) */
+/* env : réglages fournis directement (application Mac) au lieu des variables d'environnement, que les processus enfants hériteraient */
+export const DEP = { fetch: (...a) => globalThis.fetch(...a), maintenant: () => Date.now(), stockage: null, utilisateur: null, prefixeEtat: '', env: null };
 
 export class Erreur extends Error {
   constructor(code, message, statut = 400) { super(message); this.code = code; this.statut = statut; }
 }
 
-const env = k => String(process.env[k] || '').trim();
+const env = k => String((DEP.env || process.env)[k] || '').trim();
 /* Clé privée : contenu du fichier .pem collé tel quel, avec des \n, ou encodé en base64 */
 function pem(v) {
   let t = v.replace(/\\n/g, '\n').replace(/^["']|["']$/g, '').trim();
@@ -29,10 +33,12 @@ export function conf() {
     projet: env('FIREBASE_PROJECT_ID') || 'quentools-adca1',
     emails: env('ENABLE_ALLOWED_EMAILS').toLowerCase().split(/[,;\s]+/).filter(Boolean),
     origines: (env('ENABLE_ALLOWED_ORIGINS') || 'https://ikeupods-del.github.io,app://patrimoine').split(/[,\s]+/).filter(Boolean).map(o => o.replace(/\/$/, '')),
-    cleStockage: env('ENABLE_STORE_KEY')
+    cleStockage: env('ENABLE_STORE_KEY'),
+    local: env('ENABLE_LOCAL') === '1'
   };
 }
 /* Variables manquantes (hors mode simulation) */
+export const SANS_CLE = 'Ajoutez d’abord la clé de votre application Enable Banking : Mes banques → « Choisir le fichier .pem ».';
 export const manquantes = c => c.simulation ? [] : [['ENABLE_APP_ID', c.appId], ['ENABLE_PRIVATE_KEY', c.cle], ['ENABLE_REDIRECT_URL', c.retour]].filter(x => !x[1]).map(x => x[0]);
 
 /* --- Requête avec délai maximal (Netlify coupe une fonction au bout de 10 s) --- */
@@ -151,7 +157,7 @@ export function fonction(methodes, traiter) {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
     if (!methodes.includes(req.method)) return json({ code: 'methode', message: 'Méthode non prise en charge.' }, 405, h);
     try {
-      const u = await utilisateur(req, c);
+      const u = DEP.utilisateur ? await DEP.utilisateur(req, c) : await utilisateur(req, c);
       return json(await traiter({ req, c, u, psu: presence(req, context), url: new URL(req.url) }), 200, h);
     } catch (e) {
       const er = e instanceof Erreur ? e : new Erreur('erreur', 'Erreur inattendue du service bancaire. Réessayez plus tard.', 500);

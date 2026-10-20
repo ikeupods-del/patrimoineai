@@ -6,7 +6,7 @@ name: Patrimoine AI — application Mac
 on:
   workflow_dispatch:
   push:
-    paths: ['index.html', 'config.js', 'marches.js', 'calculs.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
+    paths: ['index.html', 'config.js', 'marches.js', 'calculs.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'banque/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
 
 concurrency:
   group: patrimoine-mac
@@ -33,6 +33,21 @@ jobs:
       - name: Construire l'application
         working-directory: mac
         run: npm run dist
+      - name: Contrôler les verrous de sécurité de l'application
+        working-directory: mac
+        run: |
+          node -e '
+            const { getCurrentFuseWire, FuseV1Options: O } = require("@electron/fuses"), fs = require("fs");
+            (async () => {
+              const app = "dist/mac-arm64/Patrimoine AI.app", w = await getCurrentFuseWire(app), etat = o => String.fromCharCode(w[o]), ko = [];
+              const voulu = { EnableNodeCliInspectArguments: "0", EnableNodeOptionsEnvironmentVariable: "0", OnlyLoadAppFromAsar: "1", EnableCookieEncryption: "1", GrantFileProtocolExtraPrivileges: "0" };
+              for (const [k, v] of Object.entries(voulu)) { console.log(k, etat(O[k])); if (etat(O[k]) !== v) ko.push(k); }
+              console.log("EnableEmbeddedAsarIntegrityValidation", etat(O.EnableEmbeddedAsarIntegrityValidation));
+              const u = app + "/Contents/Resources/app.asar.unpacked/app/banque";
+              if (!fs.existsSync(u + "/commun.mjs") || !fs.existsSync(u + "/routes/demarrer.mjs")) ko.push("fichiers de la banque absents");
+              if (ko.length) { console.log("Verrous manquants :", ko.join(", ")); process.exit(1); } else console.log("Verrous de sécurité en place");
+            })();'
+          npx --yes @electron/asar list "dist/mac-arm64/Patrimoine AI.app/Contents/Resources/app.asar" | grep -q "/app/banque-empreintes.json$" || { echo "Empreintes de la banque absentes"; exit 1; }
       - name: IA du Mac — modèle de langage (gardé en cache entre deux essais)
         uses: actions/cache@v4
         with:
@@ -74,12 +89,14 @@ jobs:
             if (!r.sauvegarde || !(r.sauvegarde.n >= 1)) ko.push("sauvegarde : " + JSON.stringify(r.sauvegarde));
             if (!r.pdf || !r.pdf.ok || !(r.pdf.taille > 20000)) ko.push("bilan PDF : " + JSON.stringify(r.pdf));
             if (!r.maj || !r.maj.version) ko.push("mises à jour : " + JSON.stringify(r.maj));
+            const bq = r.banque || {};
+            if (!bq.page || bq.page.configure !== true || bq.retour !== 200 || bq.comptes !== 2 || !(bq.ops > 10) || !bq.trousseau) ko.push("liaison bancaire (démonstration) : " + JSON.stringify(bq));
             if (ko.length) { console.log("Échecs :", ko.join(" ; ")); process.exit(1); } else console.log("Application : tout fonctionne");'
       - name: Contrôler que tous les fichiers sont dans l'application
         working-directory: mac
         run: |
           npx --yes @electron/asar list "dist/mac-arm64/Patrimoine AI.app/Contents/Resources/app.asar" > contenu.txt
-          for f in main.js preload.js maj.js ia-locale.js ia-worker.js app/index.html app/marches.js app/calculs.js app/config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
+          for f in main.js preload.js maj.js ia-locale.js ia-worker.js banque-locale.js app/index.html app/marches.js app/calculs.js app/config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
       - name: Contrôler que l'application tourne sur puce Apple
         working-directory: mac
         run: |

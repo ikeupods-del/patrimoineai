@@ -78,8 +78,9 @@ async function telecharger(info, dossier, onProgress, fichier = 'QuentMovie') {
 
 const lancer = (cmd, args) => new Promise((ok, ko) => execFile(cmd, args, (e, out, err) => (e ? ko(new Error((err || e.message).trim())) : ok(out))));
 
-// Ouvre le .dmg et copie la nouvelle application à côté de l'ancienne (« QuentMovie.app.nouvelle »)
-async function extraire(dmg, appActuelle, nomApp = 'QuentMovie') {
+// Ouvre le .dmg et copie la nouvelle application à côté de l'ancienne (« QuentMovie.app.nouvelle ») ;
+// version : celle annoncée par GitHub, comparée à celle de l'application extraite (Info.plist) avant d'accepter le remplacement
+async function extraire(dmg, appActuelle, nomApp = 'QuentMovie', version = '') {
   const mnt = fs.mkdtempSync(path.join(os.tmpdir(), 'qm-maj-'));
   const nouvelle = appActuelle + '.nouvelle';
   await lancer('hdiutil', ['attach', '-nobrowse', '-readonly', '-noautoopen', '-mountpoint', mnt, dmg]);
@@ -89,23 +90,30 @@ async function extraire(dmg, appActuelle, nomApp = 'QuentMovie') {
     fs.rmSync(nouvelle, { recursive: true, force: true });
     await lancer('ditto', [src, nouvelle]);
   } finally { await lancer('hdiutil', ['detach', mnt, '-force']).catch(() => {}); fs.rmSync(mnt, { recursive: true, force: true }); }
+  if (version) {
+    const lue = (await lancer('plutil', ['-extract', 'CFBundleShortVersionString', 'raw', '-o', '-', path.join(nouvelle, 'Contents', 'Info.plist')]).catch(() => '')).trim();
+    if (lue !== version) { fs.rmSync(nouvelle, { recursive: true, force: true }); throw new Error(`Fichier de mise à jour inattendu (version ${lue || 'inconnue'} au lieu de ${version})`); }
+  }
   await lancer('xattr', ['-dr', 'com.apple.quarantine', nouvelle]).catch(() => {});
   return nouvelle;
 }
 
 // Script lancé au moment de quitter : attend la fermeture, échange les deux versions, relance si demandé.
+// L'application encore ouverte après l'attente (export qui retient la fermeture) : rien n'est touché.
+// L'ancienne version est gardée (« .ancienne ») jusqu'au démarrage réussi suivant (voir Maj.verifier).
 const q = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
-function scriptRemplacement({ app, nouvelle, pid, relancer }) {
+function scriptRemplacement({ app, nouvelle, pid, relancer, attente = 120 }) {
   return `#!/bin/sh
-# Mise à jour de l'application : la remplace une fois fermée.
+# Mise à jour de QuentMovie : remplace l'application une fois fermée.
 APP=${q(app)}
 NOUV=${q(nouvelle)}
 n=0
-while kill -0 ${+pid} 2>/dev/null && [ $n -lt 240 ]; do sleep 0.5; n=$((n+1)); done
+while kill -0 ${+pid} 2>/dev/null && [ $n -lt ${Math.max(1, Math.round(attente * 2))} ]; do sleep 0.5; n=$((n+1)); done
+kill -0 ${+pid} 2>/dev/null && exit 0
 if [ -d "$NOUV" ]; then
   rm -rf "$APP.ancienne"
   if mv "$APP" "$APP.ancienne"; then
-    if mv "$NOUV" "$APP"; then rm -rf "$APP.ancienne"; else mv "$APP.ancienne" "$APP"; fi
+    mv "$NOUV" "$APP" || mv "$APP.ancienne" "$APP"
   fi
 fi
 ${relancer ? 'open "$APP"' : ''}
@@ -134,9 +142,9 @@ function peutRemplacer(app, nom = 'QuentMovie') {
 // État partagé avec la fenêtre (via le serveur local)
 class Maj {
   // nom : nom de l'application (« Studio Posts ») ; fichier : début du nom du .dmg publié (« Studio-Posts »)
-  constructor({ version, dossier, app, api, actif, nom = 'QuentMovie', fichier, depot = DEPOT }) {
+  constructor({ version, dossier, app, api, actif, nom = 'QuentMovie', fichier, attente, depot = DEPOT }) {
     fichier = fichier || nom.replace(/\s+/g, '-');
-    Object.assign(this, { version, dossier, app, api, actif: !!actif, nom, fichier, depot, motif: motifDe(fichier) });
+    Object.assign(this, { version, dossier, app, api, actif: !!actif, nom, fichier, depot, motif: motifDe(fichier), attente, relancer: false });
     this.etat = { etat: actif ? 'rien' : 'inactif', version, nouvelle: null, progres: 0, notes: '', erreur: '' };
     this.cours = null; this.lance = false;
   }
@@ -144,6 +152,8 @@ class Maj {
   verifier() {
     if (!this.actif) return Promise.resolve(this.etat);
     if (this.cours) return this.cours;
+    // première recherche (quelques secondes après un démarrage réussi) : l'ancienne version gardée par la dernière mise à jour est effacée
+    if (this.app && !this.nettoye) { this.nettoye = true; try { fs.rmSync(this.app + '.ancienne', { recursive: true, force: true }); } catch (e) { /* gardée */ } }
     this.cours = (async () => {
       const e = this.etat; e.erreur = '';
       try {
@@ -155,7 +165,7 @@ class Maj {
           Object.assign(e, { etat: 'telechargement', nouvelle: info.version, notes: info.notes, progres: 0 });
           const dmg = await telecharger(info, this.dossier, (r, t) => { e.progres = t ? Math.round(r / t * 100) : 0; }, this.fichier);
           e.etat = 'installation';
-          this.nouvelleApp = await extraire(dmg, this.app, this.nom);
+          this.nouvelleApp = await extraire(dmg, this.app, this.nom, info.version);
           fs.rmSync(dmg, { force: true });
           e.etat = 'pret';
         }
@@ -165,11 +175,13 @@ class Maj {
     })();
     return this.cours;
   }
-  // À appeler juste avant de quitter l'application
+  // installer(true) : « Redémarrer pour installer » (relance retenue, l'application se ferme ensuite) ;
+  // installer(false) : au will-quit, la fermeture est réelle : le script de remplacement est lancé (relance si demandée avant)
   installer(relancer) {
     if (this.etat.etat !== 'pret' || this.lance) return false;
+    if (relancer) { this.relancer = true; return true; }
     this.lance = true;
-    lancerRemplacement({ app: this.app, nouvelle: this.nouvelleApp, pid: process.pid, relancer }, this.dossier);
+    lancerRemplacement({ app: this.app, nouvelle: this.nouvelleApp, pid: process.pid, relancer: this.relancer, attente: this.attente }, this.dossier);
     return true;
   }
 }

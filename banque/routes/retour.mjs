@@ -1,8 +1,8 @@
 // POST /api/banque/retour { code, state } : au retour de la banque, vérifie le « state », ouvre la session (POST /sessions)
 // et la garde, chiffrée, dans le compte de l'utilisateur. Un ancien accord est révoqué.
 import crypto from 'node:crypto';
-import { fonction, stockage, corps, Erreur, DEP } from '../banque/commun.mjs';
-import { eb, compte, comptesComplets, resume } from '../banque/enable-banking.mjs';
+import { fonction, stockage, corps, Erreur, DEP } from '../commun.mjs';
+import { eb, compte, comptesComplets, resume } from '../enable-banking.mjs';
 
 const egal = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 

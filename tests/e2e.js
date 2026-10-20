@@ -175,6 +175,56 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /revenus passifs sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
   ok(await pg.evaluate(() => { const n = D.ops.length, lib = D.ops[0].lib, P = JSON.parse(JSON.stringify(payload())); P.mt = Object.assign({}, P.mt, { ops: Date.now() + 1e6 }); const big = JSON.stringify(payload()).length; mergeRemote(P); return Array.isArray(P.ops[0]) && D.ops.length === n && D.ops[0].lib === lib.slice(0, 60) && typeof D.ops[0].m === 'number' && big < 400000; }), 'opérations synchronisées en format compact puis relues');
   ok(!errs.length, 'aucune erreur JavaScript (version 6.3) : ' + errs.join(' | '));
+  /* application Mac (pont simulé) : verrouillage Touch ID, délai réglable, montant masqué dans la barre des menus */
+  { const pm = await ctx.newPage(); const errsMac = []; pm.on('pageerror', e => errsMac.push(e.message));
+    await pm.addInitScript(() => {
+      const d = JSON.parse(localStorage.getItem('pat_data')); d.set = Object.assign({}, d.set, { lock: true, bar: true, barMode: 'net' }); localStorage.setItem('pat_data', JSON.stringify(d));
+      window.__barre = []; window.__touch = false; const r = v => () => Promise.resolve(v);
+      window.__sur = { pat_ai_key: 'cle-gemini-deja-chiffree' }; localStorage.setItem('pat_xai_key', 'cle-xai-en-clair');
+      window.patrimoineMac = { stockageSur: { tout: () => window.__sur, ecrire: (k, v) => { if (v == null) delete window.__sur[k]; else window.__sur[k] = v; return true; } }, ia: { etat: r({ installee: false }), installer: r({}), ecrire: r('') }, dictee: { etat: r({}), micro: r(false), installer: r({}), ecouter: r('') },
+        maj: { etat: r({ etat: 'a-jour', version: '9.9.9' }), verifier: r({}), installer: r(false), surChangement: () => {} },
+        sauvegarder: r({ n: 1 }), etatSauvegardes: r({ n: 0 }), sauvegardes: r([]), lireSauvegarde: r('{}'), ouvrirSauvegardes: r(''),
+        touchDispo: r(true), touchID: () => Promise.resolve(window.__touch), notifier: r(true), pdf: r({ ok: true }), barre: t => { window.__barre.push(t); return Promise.resolve(true); },
+        badge: n => { window.__badge = n; return Promise.resolve(n); }, captures: a => { if (typeof a === 'boolean') window.__capt = a; return Promise.resolve({ protegee: window.__capt !== true }); }, demarrage: a => { if (typeof a === 'boolean') window.__login = a; return Promise.resolve(!!window.__login); },
+        cleCoffre: r('x'.repeat(44)), ouvrirDocument: r({ ok: true }), connexionGoogle: r({}), surVerrou: cb => { window.__verrou = cb; }, surCommande: () => {} };
+    });
+    await pm.goto(base); await pm.waitForTimeout(1200);
+    ok(await pm.evaluate(() => document.body.classList.contains('locked')), 'Mac : verrouillé au lancement');
+    const sur = await pm.evaluate(() => ({ cles: Object.keys(localStorage), data: !!window.__sur.pat_data && JSON.parse(window.__sur.pat_data).assets.length, xai: window.__sur.pat_xai_key, lu: localStorage.getItem('pat_ai_key'), actifs: D.assets.length }));
+    ok(!sur.cles.includes('pat_data') && !sur.cles.includes('pat_xai_key') && sur.data === 3 && sur.xai === 'cle-xai-en-clair' && sur.lu === 'cle-gemini-deja-chiffree' && sur.actifs === 3, 'Mac : patrimoine et clés confiés au stockage chiffré, plus rien en clair (' + JSON.stringify(sur) + ')');
+    ok(await pm.evaluate(() => window.__barre.length > 0 && window.__barre.every(t => !/\d/.test(t))), 'Mac : aucun montant dans la barre des menus tant que l’application est verrouillée : ' + await pm.evaluate(() => JSON.stringify(window.__barre)));
+    await pm.evaluate(() => { window.__touch = true; }); await pm.click('#unl'); await pm.waitForTimeout(300);
+    ok(await pm.evaluate(() => !document.body.classList.contains('locked') && /\d/.test(window.__barre[window.__barre.length - 1])), 'Mac : Touch ID déverrouille, le patrimoine revient dans la barre des menus');
+    await pm.evaluate(() => { window.__verrou(); }); await pm.waitForTimeout(100);
+    ok(await pm.evaluate(() => document.body.classList.contains('locked') && !/\d/.test(window.__barre[window.__barre.length - 1])), 'Mac : mise en veille → verrouillé, montant masqué');
+    await pm.evaluate(() => { document.body.classList.remove('locked'); go('set'); }); await pm.waitForTimeout(300);
+    await pm.click('[data-act="lockm"][data-v="15"]'); await pm.waitForTimeout(100);
+    ok(await pm.evaluate(() => D.set.lockMin === 15 && lockMin() === 15 && /après 15 minutes/.test(document.body.textContent)), 'Mac : délai de verrouillage réglable (15 min)');
+    await pm.click('[data-act="tog"][data-k="login"]'); await pm.waitForTimeout(150);
+    ok(await pm.evaluate(() => window.__login === true && MACST.login === true && document.querySelector('[data-k="login"]').getAttribute('aria-checked') === 'true'), 'Mac : ouverture à l’ouverture de session activée');
+    const nb = await pm.evaluate(() => { D.rappels = [{ id: 'r1', nom: 'Bricks', jour: 8, montant: 10, actif: true, debut: '2026-01' }]; render(); return { badge: window.__badge, dus: rapDus().length }; });
+    ok(nb.dus > 0 && nb.badge === nb.dus, 'Mac : pastille du Dock = paiements à confirmer (' + JSON.stringify(nb) + ')');
+    const csv = await pm.evaluate(() => { let t = ''; const d0 = window.dl; window.dl = (n, c) => { t = c; }; D.assets.push({ id: 'z9', cat: 'autre', name: '=HYPERLINK("http://x")', amount: -5 }); expCSV(); window.dl = d0; D.assets.pop(); return t; });
+    ok(/'=HYPERLINK/.test(csv) && /;-5;/.test(csv), 'export CSV : formule neutralisée, nombre négatif gardé');
+    ok(await pm.evaluate(() => { const n = window.__ws.length; window.patCmd('reveil'); return window.__ws.length >= n; }), 'Mac : réveil du Mac → flux et rappels relancés sans erreur');
+    await pm.evaluate(() => { closeM(); go('set'); }); await pm.waitForTimeout(200);
+    ok(await pm.evaluate(() => document.querySelector('[data-k="capt"]').getAttribute('aria-checked') === 'true'), 'Mac : fenêtre invisible aux captures par défaut');
+    await pm.click('[data-act="tog"][data-k="capt"]'); await pm.waitForTimeout(150);
+    ok(await pm.evaluate(() => window.__capt === true && MACST.protegee === false), 'Mac : captures autorisées sur demande');
+    // sauvegarde exportée : chiffrée par défaut, mot de passe faible refusé, relue avec le bon mot de passe seulement
+    const ex = await pm.evaluate(async () => {
+      let t = ''; const d0 = window.dl; window.dl = (n, c) => { t = c; };
+      exp(); $('ex-p').value = $('ex-p2').value = 'azerty123'; await expChif(); const faible = t;
+      $('ex-p').value = $('ex-p2').value = 'le chat dort sur le toit'; await expChif(); window.dl = d0;
+      const o = JSON.parse(t); let mauvais = '';
+      try { await unsealExport(o, 'autre phrase longue ici'); } catch (e) { mauvais = e.message; }
+      const lu = await unsealExport(o, 'le chat dort sur le toit');
+      return { faible, clair: /Livret A|assets/.test(t), it: o.it, mauvais, n: lu.assets.length, attendu: D.assets.length };
+    });
+    ok(!ex.faible && !ex.clair && ex.it === 600000 && /incorrect/.test(ex.mauvais) && ex.n === ex.attendu, 'sauvegarde exportée chiffrée, illisible sans le bon mot de passe (' + JSON.stringify(ex) + ')');
+    ok(await pm.evaluate(() => !!forcePhrase('Patrimoine123') && !!forcePhrase('aaaaaaaaaaaaaa') && !forcePhrase('mon vélo bleu de 2019')), 'phrase secrète : courte, courante ou répétitive refusée');
+    ok(!errsMac.length, 'Mac : aucune erreur JavaScript : ' + errsMac.join(' | '));
+    await pm.close(); }
   /* bureau */
   await pg.setViewportSize({ width: 1280, height: 800 }); await pg.click('.side [data-nav=mk]'); await pg.waitForTimeout(300);
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'bureau.png') });
