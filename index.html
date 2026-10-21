@@ -1431,7 +1431,7 @@ function bqMiseEnRoute(){
   return `<p class="sm mut">La liaison passe par <b>Enable Banking</b>, prestataire agréé d’accès aux comptes (DSP2). Tout se fait sur ce Mac : la clé de l’application est gardée par le trousseau, aucun serveur n’est nécessaire. À faire une seule fois :</p>
   <ol class="sm" style="padding-left:20px;margin-top:8px;line-height:1.6">
     <li>Créez un compte sur <a href="https://enablebanking.com/sign-in/" target="_blank" rel="noopener noreferrer">enablebanking.com</a>, puis <b>Control Panel → Applications → Register new application</b>.</li>
-    <li>Environnement <b>Production</b> (usage personnel, « restricted »), clé <b>générée dans le navigateur</b>, et adresse de retour (Redirect URL) exactement :<div class="row" style="gap:6px;margin:6px 0"><code style="overflow-wrap:anywhere">${esc(R)}</code><button class="btn sm sec" data-act="bqcopie">Copier</button></div>Un fichier <b>.pem</b> est téléchargé : gardez-le, ne l’envoyez à personne.</li>
+    <li>Environnement <b>Production</b> (usage personnel, « restricted »), clé <b>générée dans le navigateur</b>, et adresse de retour (Redirect URL) exactement :<div class="row" style="gap:6px;margin:6px 0"><code style="overflow-wrap:anywhere">${esc(R)}</code><button class="btn sm sec" data-act="bqcopie">Copier</button></div>(ou <code>https://quentools.fr/</code>, acceptée aussi). Un fichier <b>.pem</b> est téléchargé : gardez-le, ne l’envoyez à personne.</li>
     <li>Dans le Control Panel, <b>liez votre compte Boursorama</b> à l’application (« Link accounts ») : en usage personnel, seuls les comptes liés là sont accessibles.</li>
     <li>Ici : <b>Choisir le fichier .pem</b>, puis <b>Lier ma banque</b>.</li>
   </ol>

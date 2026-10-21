@@ -24,7 +24,9 @@ export function conf() {
   const appId = env('ENABLE_APP_ID'), cle = pem(env('ENABLE_PRIVATE_KEY')), demande = env('ENABLE_MOCK') === '1';
   return {
     appId, cle,
-    retour: env('ENABLE_REDIRECT_URL'),
+    /* une ou plusieurs adresses de retour (séparées par des virgules) : la première déclarée chez Enable Banking sert */
+    retours: env('ENABLE_REDIRECT_URL').split(/[,\s]+/).filter(Boolean),
+    retour: env('ENABLE_REDIRECT_URL').split(/[,\s]+/).filter(Boolean)[0] || '',
     /* La démonstration n'est jamais active en même temps que de vraies clés : un ENABLE_MOCK oublié ne masque pas la vraie banque */
     simulation: demande && !(appId && cle),
     mockIgnore: demande && !!(appId && cle),

@@ -53,8 +53,30 @@ export async function choisirBanque(c) {
   }
   const L = ASPSPS.L, voulu = (c.banque || '').toLowerCase();
   const b = voulu ? L.find(x => String(x.name).toLowerCase() === voulu) : L.find(x => /bourso/i.test(x.name || ''));
-  if (!b) throw new Erreur('banque_introuvable', (c.banque || 'Boursorama') + ' n’apparaît pas dans la liste des banques d’Enable Banking (' + c.pays + ') : indiquez son nom exact dans ENABLE_ASPSP_NAME.', 502);
+  if (!b) {
+    const noms = L.map(x => String(x.name || '')).filter(Boolean), voulue = c.banque || 'Boursorama (BoursoBank)';
+    const liste = !noms.length ? 'Enable Banking n’a renvoyé aucune banque pour ce pays.' : noms.length <= 15 ? 'Banques proposées : ' + noms.join(', ') + '.' : noms.length + ' banques proposées, sans ' + voulue + '.';
+    throw new Erreur('banque_introuvable', voulue + ' n’apparaît pas dans la liste des banques d’Enable Banking (' + c.pays + '). ' + liste + (c.local ? ' Vérifiez dans le Control Panel d’Enable Banking que votre compte Boursorama est bien lié à l’application (« Link accounts »).' : ' Indiquez son nom exact dans ENABLE_ASPSP_NAME.'), 502);
+  }
   return { name: b.name, country: b.country || c.pays, max: +b.maximum_consent_validity || 0 };
+}
+
+/* Adresse de retour : parmi les adresses possibles (c.retours), la première déclarée pour l'application chez Enable Banking */
+const sansBarre = u => String(u || '').replace(/\/+$/, '');
+let APPLI = { at: 0, id: '', R: null };
+export async function adresseRetour(c, appli) {
+  const L = c.retours && c.retours.length ? c.retours : [c.retour];
+  if (c.simulation || L.length < 2) return L[0] || '';
+  let R = appli ? appli.redirect_urls : null;
+  if (!appli) {
+    if (APPLI.id !== c.appId || !APPLI.R || DEP.maintenant() - APPLI.at > 6e5) {
+      try { const a = await eb(c, 'GET', '/application'); APPLI = { at: DEP.maintenant(), id: c.appId, R: Array.isArray(a.redirect_urls) ? a.redirect_urls : null }; } catch (e) { APPLI = { at: 0, id: '', R: null }; }
+    }
+    R = APPLI.R;
+  }
+  if (!Array.isArray(R)) return L[0];
+  const D = R.map(sansBarre);
+  return L.find(u => D.includes(sansBarre(u))) || L[0];
 }
 
 /* Certains accords ne donnent que l'identifiant des comptes : le nom et l'IBAN sont alors demandés un à un (sans bloquer si la banque ne les fournit pas) */

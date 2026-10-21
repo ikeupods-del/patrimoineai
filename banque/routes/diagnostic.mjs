@@ -1,7 +1,7 @@
 // GET /api/banque/diagnostic : vérifie, ligne par ligne, que tout est en place (clés, application Enable Banking, adresse de
 // retour, banque, stockage) et dit précisément ce qui manque. Aucune donnée bancaire n'est lue.
 import { fonction, stockage, manquantes } from '../commun.mjs';
-import { eb, jetonEB, choisirBanque, API } from '../enable-banking.mjs';
+import { eb, jetonEB, choisirBanque, adresseRetour, API } from '../enable-banking.mjs';
 
 const sans = u => String(u || '').replace(/\/+$/, '');
 
@@ -22,9 +22,9 @@ export default fonction(['GET'], async ({ c, u }) => {
     const a = await eb(c, 'GET', '/application');
     ligne(true, 'Application Enable Banking', [a.name || a.description || 'Application reconnue', a.environment ? 'environnement ' + a.environment : '', a.active === false ? 'INACTIVE' : ''].filter(Boolean).join(', ') + '.');
     if (a.active === false) ligne(false, 'Application active', 'Enable Banking indique qu’elle est inactive : activez-la dans le Control Panel.');
-    const R = Array.isArray(a.redirect_urls) ? a.redirect_urls : null;
-    if (R) ligne(R.map(sans).includes(sans(c.retour)), 'Adresse de retour', R.map(sans).includes(sans(c.retour)) ? sans(c.retour) + ' est déclarée chez Enable Banking.' : 'L’adresse ' + sans(c.retour) + ' n’est pas dans la liste déclarée chez Enable Banking (' + (R.join(', ') || 'vide') + ') : ajoutez-la telle quelle dans le Control Panel.');
-    else ligne(null, 'Adresse de retour', 'Enable Banking n’a pas indiqué les adresses déclarées : vérifiez dans le Control Panel qu’elle est identique à ' + sans(c.retour) + '.');
+    const R = Array.isArray(a.redirect_urls) ? a.redirect_urls : null, retour = await adresseRetour(c, a), possibles = (c.retours && c.retours.length ? c.retours : [c.retour]).map(sans);
+    if (R) ligne(R.map(sans).includes(sans(retour)), 'Adresse de retour', R.map(sans).includes(sans(retour)) ? sans(retour) + ' est déclarée chez Enable Banking.' : 'Aucune adresse de retour utilisable n’est déclarée chez Enable Banking (déclarée : ' + (R.join(', ') || 'aucune') + ') : ajoutez ' + (possibles.length > 1 ? 'l’une de celles-ci, telle quelle : ' + possibles.join(' ou ') : possibles[0] + ' telle quelle') + ', dans le Control Panel.');
+    else ligne(null, 'Adresse de retour', 'Enable Banking n’a pas indiqué les adresses déclarées : vérifiez dans le Control Panel qu’elle est identique à ' + possibles.join(' ou ') + '.');
   } catch (e) { ligne(false, 'Application Enable Banking', e.code === 'configuration' ? (c.local ? 'Enable Banking refuse la clé : le fichier .pem ne correspond pas à une application active (son nom doit être l’identifiant de l’application).' : 'Enable Banking refuse la clé : ENABLE_APP_ID et ENABLE_PRIVATE_KEY ne correspondent pas à la même application.') : e.message); return { lignes: L, ok: false }; }
   try { const b = await choisirBanque(c); ligne(true, 'Banque', b.name + ' (' + b.country + ')' + (b.max ? ', accord de ' + Math.floor(b.max / 86400) + ' jours au plus' : '') + '.'); }
   catch (e) { ligne(false, 'Banque', e.message); }
