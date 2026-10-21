@@ -1146,19 +1146,36 @@ function budAboOut(){
 }
 async function lireFichierTexte(f){const b=await f.arrayBuffer();try{return new TextDecoder('utf-8',{fatal:true}).decode(b)}catch(e){return new TextDecoder('windows-1252').decode(b)}}
 function openOpsImp(){
-  IMP.ops=null;
+  IMP.ops=null;IMP.soldes=null;
   sheet('Importer un relevé bancaire',`<p class="sm mut">Formats acceptés : CSV (export Excel de la banque), OFX, QFX ou QIF, sur un ou plusieurs mois. Les opérations déjà présentes ne sont pas comptées deux fois.</p><div class="fld mt"><label for="ops-f">Fichier du relevé</label><input id="ops-f" type="file" accept=".csv,.ofx,.qfx,.qif,.txt,text/csv" multiple data-ch="opsfile"></div><div id="ops-p"></div><p class="hint">Le fichier est lu sur cet appareil. Seuls la date, le libellé et le montant de chaque opération sont gardés${syncOn()?', chiffrés avant la synchronisation':''}.</p>`);
 }
 async function opsLire(files){
-  const o=$('ops-p');if(!o)return;let all=[],err=0;const fmts=new Set(),noms=[];
-  for(const f of files){if(f.size>8e6){toast(f.name+' : fichier trop volumineux (8 Mo au plus)');continue}const r=CL.lireReleve(await lireFichierTexte(f));all=all.concat(r.ops);err+=r.erreurs;fmts.add(r.format);noms.push(f.name)}
+  const o=$('ops-p');if(!o)return;let all=[],err=0;const fmts=new Set(),noms=[],S=new Map();
+  for(const f of files){if(f.size>8e6){toast(f.name+' : fichier trop volumineux (8 Mo au plus)');continue}const r=CL.lireReleve(await lireFichierTexte(f));all=all.concat(r.ops);err+=r.erreurs;fmts.add(r.format);noms.push(f.name);
+    (r.soldes||[]).forEach(s=>{const k=s.num4||s.compte||'-';if(!S.has(k)||s.d>S.get(k).d)S.set(k,s)})}
+  IMP.soldes=[...S.values()];
   const neuves=CL.ecarterDoublons(CL.fusionnerOps(D.ops,all,D.regles,noms.join(', ').slice(0,80)),D.ops.filter(o=>/^eb:/.test(o.fid||'')));IMP.ops=neuves; /* déjà reçues de la banque : écartées */
-  if(!all.length){o.innerHTML=`<div class="box mt" style="border-color:var(--red)"><b class="neg">Aucune opération reconnue.</b><div class="sm mut">Vérifiez qu’il s’agit bien d’un export des opérations (pas d’un relevé PDF). Colonnes attendues : date, libellé et montant (ou débit et crédit).</div></div>`;return}
+  if(!all.length&&!IMP.soldes.length){o.innerHTML=`<div class="box mt" style="border-color:var(--red)"><b class="neg">Aucune opération reconnue.</b><div class="sm mut">Vérifiez qu’il s’agit bien d’un export des opérations (pas d’un relevé PDF). Colonnes attendues : date, libellé et montant (ou débit et crédit).</div></div>`;return}
   const d0=all.map(x=>x.d).sort(),by={};neuves.forEach(x=>{if(CL.depense(x)&&x.m<0)by[x.cat]=(by[x.cat]||0)-x.m});
-  o.innerHTML=`<div class="box mt"><b>${all.length} opération${all.length>1?'s':''} lue${all.length>1?'s':''}</b> du ${esc(fd(new Date(d0[0]+'T12:00:00')))} au ${esc(fd(new Date(d0[d0.length-1]+'T12:00:00')))} (${esc([...fmts].join(', '))})${neuves.length<all.length?`, dont <b>${neuves.length}</b> nouvelle${neuves.length>1?'s':''}`:''}.${err?`<div class="xs mut">${err} ligne(s) ignorée(s) : date ou montant illisible.</div>`:''}</div>${Object.keys(by).length?`<div class="mt">${Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>kv(esc(ccat(k)),eur(v))).join('')}</div>`:''}<div class="g2 mt" style="margin-top:16px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="opsok"${neuves.length?'':' disabled'}>${neuves.length?'Importer '+neuves.length+' opération'+(neuves.length>1?'s':''):'Déjà importé'}</button></div>`;
+  const SL=IMP.soldes,nS=SL.length;
+  o.innerHTML=(all.length?`<div class="box mt"><b>${all.length} opération${all.length>1?'s':''} lue${all.length>1?'s':''}</b> du ${esc(fd(new Date(d0[0]+'T12:00:00')))} au ${esc(fd(new Date(d0[d0.length-1]+'T12:00:00')))} (${esc([...fmts].join(', '))})${neuves.length<all.length?`, dont <b>${neuves.length}</b> nouvelle${neuves.length>1?'s':''}`:''}.${err?`<div class="xs mut">${err} ligne(s) ignorée(s) : date ou montant illisible.</div>`:''}</div>${Object.keys(by).length?`<div class="mt">${Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>kv(esc(ccat(k)),eur(v))).join('')}</div>`:''}`:'')+(nS?`<div class="box mt"><b>Solde${nS>1?'s':''} du relevé</b>${SL.map((x,i)=>`<label class="row sm mt" style="gap:8px;align-items:center"><input type="checkbox" data-solde="${i}" checked><span>${esc(soldeNom(x))} : <b>${eur(x.montant,2)}</b>${x.d?' au '+esc(fd(new Date(x.d+'T12:00:00'))):''}</span></label>`).join('')}<div class="xs mut mt">Coché : le solde est reporté dans le patrimoine (Livrets et liquidités), sur la même ligne à chaque import.</div></div>`:'')+`<div class="g2 mt" style="margin-top:16px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="opsok"${neuves.length||nS?'':' disabled'}>${neuves.length?'Importer '+neuves.length+' opération'+(neuves.length>1?'s':''):nS?'Mettre à jour le solde':'Déjà importé'}</button></div>`;
 }
 function opsTrim(){const lim=new Date();lim.setMonth(lim.getMonth()-25);const ls=lim.toLocaleDateString('sv-SE');D.ops=D.ops.filter(o=>o&&o.d>=ls).sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);if(D.ops.length>OPS_MAX)D.ops=D.ops.slice(-OPS_MAX)}
-function opsOk(){const L=IMP.ops||[];if(!L.length)return;D.ops=D.ops.concat(L);opsTrim();IMP.ops=null;UI.bm='';save();closeM();go('budget');renderBudget(true);toast(L.length+' opération'+(L.length>1?'s':'')+' importée'+(L.length>1?'s':''))}
+/* Solde lu dans un relevé (export BoursoBank, OFX) : une ligne « Livrets et liquidités » par compte, mise à jour à chaque import */
+const soldeNom=x=>(x.compte||'Compte')+(x.num4&&!(x.compte||'').includes(x.num4)?' ••'+x.num4:'');
+function soldesOk(L){
+  let n=0;L.forEach(x=>{const id='rel-'+(x.num4||CL.norm(x.compte||'compte').replace(/[^a-z0-9]+/g,'-').slice(0,30)),i=D.assets.findIndex(a=>a.id===id);
+    if(i>=0&&D.assets[i].relAt&&x.d&&x.d<D.assets[i].relAt)return; /* relevé plus ancien que le dernier importé */
+    const a=i>=0?D.assets[i]:{id,crAt:today(),cat:'cash',name:soldeNom(x)};if(i<0){D.assets.push(a);if(D.del)delete D.del[id]}
+    Object.assign(a,{amount:x.montant,relAt:x.d||today(),notes:'Solde lu dans le relevé importé'+(x.d?' (au '+fd(new Date(x.d+'T12:00:00'))+')':'')+'.'});n++});
+  return n;
+}
+function opsOk(){
+  const L=IMP.ops||[],S=(IMP.soldes||[]).filter((x,i)=>{const c=document.querySelector('#ops-p input[data-solde="'+i+'"]');return c&&c.checked});if(!L.length&&!S.length)return;
+  D.ops=D.ops.concat(L);opsTrim();const n=soldesOk(S);IMP.ops=null;IMP.soldes=null;UI.bm='';save();closeM();
+  if(L.length){go('budget');renderBudget(true)}else render();
+  toast([L.length?L.length+' opération'+(L.length>1?'s':'')+' importée'+(L.length>1?'s':''):'',n?'solde'+(n>1?'s':'')+' mis à jour':''].filter(Boolean).join(', ').replace(/^./,c=>c.toUpperCase()));
+}
 function openOps(){
   const m=budMois();if(!m)return;const L=D.ops.filter(o=>o.d.slice(0,7)===m).sort((a,b)=>b.d.localeCompare(a.d));
   const opts=k=>Object.entries(CL.CATEGORIES).map(([c,n])=>`<option value="${c}"${c===k?' selected':''}>${esc(n)}</option>`).join('');
@@ -1457,6 +1474,7 @@ function renderBank(){
   if(BQ.mock&&cnx)h+='<div class="box mt sm" role="status" style="border-color:var(--warn)"><b>Démonstration ignorée</b> : de vraies clés sont présentes, c’est votre vraie banque qui est interrogée.</div>';
   if(MAC&&BQ.mac&&(BQ.mac.cle||BQ.mac.demo)&&BQ.conf!==false)h+=`<div class="row mt sm mut" style="gap:8px;flex-wrap:wrap"><span>${BQ.mac.cle?'Clé Enable Banking : '+esc(BQ.mac.appId.slice(0,8))+'…, gardée par le trousseau du Mac.':'Mode démonstration.'}</span><span style="display:flex;gap:6px"><button class="btn sm sec" data-act="bqcle">Changer de clé</button><button class="btn sm sec" data-act="bqoubli">${BQ.mac.cle?'Retirer la clé':'Quitter la démonstration'}</button></span></div>`;
   if(BQ.err)h+=`<div class="box mt" role="alert" style="border-color:var(--red)"><b class="neg">${esc(BQ.err)}</b>${/banque_indisponible|delai|reseau/.test(BQ.code)?'<div class="sm mut">C’est en général passager (maintenance de la banque) : réessayez plus tard.</div>':''}</div>`;
+  if(!lie)h+=`<div class="box mt"><b>Sans liaison : le relevé de votre banque</b><div class="sm mut" style="margin-top:4px">Si votre banque n’est pas proposée par Enable Banking (c’est le cas de Boursorama pour l’instant), exportez vos opérations depuis son site (historique du compte, export au format CSV) et importez le fichier ici : opérations dans le budget réel et solde dans le patrimoine, sans doublon d’un import à l’autre.</div><button class="btn sec blk mt" data-act="opsimp">${ic('upload',18)}Importer un relevé (CSV, OFX)</button></div>`;
   h+='</section>';
   if(lie&&B.comptes&&B.comptes.length){const tot=B.comptes.filter(k=>k.inclus&&k.solde!=null).reduce((s,k)=>s+k.solde,0);
     h+=`<section class="card"><div class="ct"><h3>Comptes liés</h3><b>${eur(tot)}</b></div>${B.comptes.map(k=>`<div class="set"><div style="min-width:0"><b>${esc(k.nom)}</b><div class="xs mut">${esc(BQTYPE[k.type]||k.produit||'Compte')}${k.iban4?' · •••• '+esc(k.iban4):''}${k.soldeAt?' · solde du '+esc(fd(new Date(k.soldeAt))):''}</div>${k.err?`<div class="xs neg">${esc(k.err)}</div>`:''}<div class="xs mut">${k.inclus?'Compté dans le patrimoine':'Non compté dans le patrimoine'}</div>${k.type&&k.type!=='CACC'&&k.type!=='TRAN'?`<div class="set" style="border:0;padding:6px 0 0"><span class="xs mut">Importer aussi ses opérations</span>${sw('bqo:'+k.ref,k.ops,'Importer les opérations de '+k.nom)}</div>`:''}</div><div style="display:flex;align-items:center;gap:10px"><b style="white-space:nowrap">${k.solde!=null?eur(k.solde,2):'–'}</b>${sw('bq:'+k.ref,k.inclus,'Compter '+k.nom+' dans le patrimoine')}</div></div>`).join('')}<p class="hint">Un compte compté apparaît dans vos placements (Livrets et liquidités) avec son solde, mis à jour à chaque synchronisation.</p></section>`}

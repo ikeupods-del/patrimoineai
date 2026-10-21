@@ -15,12 +15,16 @@ ok(ca.ops[0].m === -13.49 && ca.ops[2].m === 2450 && ca.ops[1].lib === 'CB CARRE
 /* BoursoBank : montant signé, colonnes en anglais, commentaire ajouté au libellé */
 const bo = C.lireReleve('dateOp;dateVal;label;category;categoryParent;supplierFound;amount;comment;accountNum;accountLabel;accountbalance\n2026-10-03;2026-10-03;"CARTE 02/10/26 UBER EATS";"Restaurants";"Loisirs";"uber eats";-23,90;;0001;BoursoBank;1000\n2026-10-04;2026-10-04;"VIR SEPA LIVRET A";"Épargne";"Épargne";"";-200,00;"mensuel";0001;BoursoBank;800\n');
 ok(bo.ops.length === 2 && bo.ops[0].m === -23.9 && bo.ops[0].d === '2026-10-03' && /mensuel/.test(bo.ops[1].lib), 'BoursoBank');
+ok(bo.soldes.length === 1 && bo.soldes[0].montant === 800 && bo.soldes[0].d === '2026-10-04' && bo.soldes[0].compte === 'BoursoBank' && bo.soldes[0].num4 === '0001', 'BoursoBank : solde le plus récent du compte');
 /* Société Générale : libellé et détail, montant de l'opération */
 const sg = C.lireReleve("Date de l'opération;Libellé;Détail de l'écriture;Montant de l'opération;Devise\n12/10/2026;PRELEVEMENT EUROPEEN;EDF CLIENTS PARTICULIERS;-1 200,00;EUR\n13/10/2026;CARTE X1234;PHARMACIE DU CENTRE;-18,40;EUR\n");
 ok(sg.ops.length === 2 && sg.ops[0].m === -1200 && /EDF/.test(sg.ops[0].lib) && /PHARMACIE/.test(sg.ops[1].lib), 'Société Générale');
 /* OFX (format SGML, sans balises fermantes) et QIF */
 const ofx = C.lireReleve('OFXHEADER:100\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>\n<STMTTRN>\n<TRNTYPE>DEBIT\n<DTPOSTED>20261008\n<TRNAMT>-9.99\n<FITID>A1\n<NAME>SPOTIFY P2D3\n</STMTTRN>\n<STMTTRN>\n<TRNTYPE>CREDIT\n<DTPOSTED>20261001\n<TRNAMT>2450.00\n<FITID>A2\n<NAME>VIR SALAIRE\n<MEMO>ACME OCTOBRE\n</STMTTRN>\n</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>');
 ok(ofx.format === 'OFX' && ofx.ops.length === 2 && ofx.ops[0].m === -9.99 && ofx.ops[0].fid === 'A1' && /ACME/.test(ofx.ops[1].lib), 'OFX');
+{ const o2 = C.lireReleve('<OFX><STMTRS><BANKACCTFROM><ACCTID>00012345678</BANKACCTFROM><BANKTRANLIST>\n<STMTTRN>\n<DTPOSTED>20261008\n<TRNAMT>-9.99\n<NAME>SPOTIFY\n</STMTTRN>\n</BANKTRANLIST><LEDGERBAL>\n<BALAMT>1520.40\n<DTASOF>20261010\n</LEDGERBAL></STMTRS></OFX>');
+  ok(o2.soldes.length === 1 && o2.soldes[0].montant === 1520.4 && o2.soldes[0].num4 === '5678' && o2.soldes[0].d === '2026-10-10', 'OFX : solde comptable et fin du numéro de compte'); }
+ok(C.lireReleve('Date;Libellé;Montant\n03/10/2026;CB;-5,00\n').soldes.length === 0, 'relevé sans colonne de solde : aucun solde');
 const qif = C.lireReleve('!Type:Bank\nD10/09/2026\nT-45.00\nPSNCF CONNECT\n^\nD10/10/2026\nT-45.00\nPSNCF CONNECT\n^\n');
 ok(qif.format === 'QIF' && qif.ops.length === 2 && qif.ops[1].d === '2026-10-10', 'QIF');
 /* fichier sans entête */

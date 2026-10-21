@@ -62,12 +62,14 @@
     const montant = trouve(/^montant|amount|^somme|^valeur$|^solde operation/, /date/);
     const debit = trouve(/debit/), credit = trouve(/credit/, /carte de credit/);
     const lib2 = h.findIndex((x, i) => i !== lib && /detail|complement|memo|commentaire|comment/.test(x));
-    return { date, lib, montant, debit, credit, lib2 };
+    /* solde du compte et nom du compte (export BoursoBank : accountbalance, accountLabel, accountNum) */
+    const solde = trouve(/^accountbalance$|^solde (du compte|apres operation|comptable)$/), compte = trouve(/^accountlabel$|^libelle (du )?compte$/), num = trouve(/^accountnum$|^(numero|n) (de )?compte$/);
+    return { date, lib, montant, debit, credit, lib2, solde, compte, num };
   }
   function lireCSV(texte) {
     const R = decouperCSV(texte), ops = []; let err = 0, k = -1, C = null;
     for (let i = 0; i < Math.min(R.length, 30); i++) { const c = colonnes(R[i]); if (c.date >= 0 && (c.montant >= 0 || c.debit >= 0 || c.credit >= 0)) { k = i; C = c; break; } }
-    const lignes = k >= 0 ? R.slice(k + 1) : R;
+    const lignes = k >= 0 ? R.slice(k + 1) : R, S = new Map();
     for (const r of lignes) {
       let d = null, m = null, lib = '';
       if (C) {
@@ -82,10 +84,14 @@
         lib = r.filter(x => !lireDate(x) && lireMontant(x) == null).sort((a, b) => b.length - a.length)[0] || '';
       }
       if (!d || m == null || !isFinite(m)) { if (r.some(x => x)) err++; continue; }
+      if (C && C.solde >= 0) { /* solde le plus récent de chaque compte */
+        const s = lireMontant(r[C.solde]), nom = C.compte >= 0 ? String(r[C.compte] || '').trim() : '', n = C.num >= 0 ? String(r[C.num] || '').replace(/\D/g, '') : '', cle = n || nom || '-';
+        if (s != null && (!S.has(cle) || d > S.get(cle).d)) S.set(cle, { compte: nom.slice(0, 60), num4: n.slice(-4), montant: r2(s), d });
+      }
       if (m === 0) continue;
       ops.push({ d, lib: lib.replace(/\s+/g, ' ').trim().slice(0, 140), m: r2(m) });
     }
-    return { format: 'CSV', ops, erreurs: k >= 0 ? err : Math.max(0, err - 1) };
+    return { format: 'CSV', ops, soldes: [...S.values()], erreurs: k >= 0 ? err : Math.max(0, err - 1) };
   }
   function lireOFX(texte) {
     const t = String(texte || ''), ops = []; let err = 0;
@@ -98,7 +104,10 @@
       const lib = (nom && memo && !norm(nom).includes(norm(memo)) && !norm(memo).includes(norm(nom)) ? nom + ' ' + memo : (nom.length >= memo.length ? nom : memo)).replace(/&amp;/g, '&');
       if (m) ops.push({ d, lib: lib.slice(0, 140), m: r2(m), fid: id || undefined });
     }
-    return { format: 'OFX', ops, erreurs: err };
+    /* solde comptable du relevé (LEDGERBAL) et fin du numéro de compte */
+    const bal = /<LEDGERBAL>([\s\S]*?)(<\/LEDGERBAL>|$)/i.exec(t), sm = bal ? lireMontant(champ(bal[1], 'BALAMT')) : null, sd = bal ? lireDate(champ(bal[1], 'DTASOF')) : null;
+    const soldes = sm != null ? [{ compte: '', num4: champ(t, 'ACCTID').replace(/\D/g, '').slice(-4), montant: r2(sm), d: sd || ops.map(o => o.d).sort().pop() || '' }] : [];
+    return { format: 'OFX', ops, soldes, erreurs: err };
   }
   function lireQIF(texte) {
     const ops = []; let err = 0, cur = {};

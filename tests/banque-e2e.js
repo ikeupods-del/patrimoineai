@@ -122,6 +122,18 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   ok(/Rappels de paiement/.test(bank) && /le 5 de chaque mois/.test(bank) && /le 8 de chaque mois/.test(bank), 'rappels listés');
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'banque-vide.png'), fullPage: true });
   await audit(pg, 'Mes banques vide', '#v-bank');
+  /* --- banque non proposée par Enable Banking : export CSV BoursoBank, opérations et solde --- */
+  const csvBo = (d, s) => Buffer.from('dateOp;dateVal;label;category;categoryParent;supplierFound;amount;comment;accountNum;accountLabel;accountbalance\n' + d + ';' + d + ';"CB TESTRELEVE BOULANGERIE";"Alimentation";"Vie quotidienne";"";-4,20;;00040001234;BoursoBank;' + s + '\n');
+  ok(/Sans liaison : le relevé de votre banque/.test(bank), 'Mes banques : import du relevé proposé quand rien n’est lié');
+  await pg.click('#v-bank [data-act=opsimp]'); await pg.setInputFiles('#ops-f', { name: 'export.csv', mimeType: 'text/csv', buffer: csvBo('2026-10-14', '2 345,67') });
+  await pg.waitForFunction(() => /Solde du relevé/.test((document.getElementById('ops-p') || {}).textContent || ''));
+  ok(/BoursoBank ••1234/.test(await pg.textContent('#ops-p')), 'relevé BoursoBank : solde du compte proposé');
+  await pg.click('[data-act=opsok]'); await pg.waitForTimeout(200);
+  ok(await pg.evaluate(() => { const a = D.assets.find(a => a.id === 'rel-1234'); return a && a.cat === 'cash' && a.amount === 2345.67 && a.relAt === '2026-10-14' && D.ops.some(o => /TESTRELEVE/.test(o.lib)); }), 'relevé BoursoBank : opération au budget, solde dans le patrimoine');
+  await pg.evaluate(() => openOpsImp()); await pg.setInputFiles('#ops-f', { name: 'ancien.csv', mimeType: 'text/csv', buffer: csvBo('2026-09-01', '99,00') });
+  await pg.waitForFunction(() => /Solde du relevé/.test((document.getElementById('ops-p') || {}).textContent || '')); await pg.click('[data-act=opsok]'); await pg.waitForTimeout(200);
+  ok(await pg.evaluate(() => D.assets.filter(a => a.id === 'rel-1234').length === 1 && D.assets.find(a => a.id === 'rel-1234').amount === 2345.67), 'relevé plus ancien : solde récent gardé, une seule ligne');
+  await pg.evaluate(() => { D.assets = D.assets.filter(a => a.id !== 'rel-1234'); D.ops = D.ops.filter(o => !/TESTRELEVE/.test(o.lib)); save(); go('bank'); });
   await Promise.all([pg.waitForEvent('load'), pg.click('[data-act=bqlier]')]);
   ok(APPELS.includes('POST demarrer'), 'liaison démarrée côté serveur');
   await pg.waitForFunction(() => typeof D !== 'undefined' && D.bank && D.bank.sync > 0 && !BQ.busy, null, { timeout: 15000 });
