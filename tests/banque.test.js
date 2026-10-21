@@ -154,8 +154,16 @@ const F = f => import(path.join(__dirname, '..', 'banque', f));
   r = await appel('diagnostic'); ok(r.d.ok === false && /ne correspondent pas/.test(ln('Application Enable Banking').detail), 'diagnostic : clé refusée par Enable Banking');
   T += 2 * 864e5; /* la liste des banques est gardée 24 h */
   ebRoute = (m, u, c) => u.pathname === '/aspsps' ? { aspsps: [{ name: 'BNP Paribas', country: 'FR' }] } : u.pathname === '/application' ? {} : route1(m, u, c);
-  r = await appel('diagnostic'); ok(ln('Banque').ok === false && /ENABLE_ASPSP_NAME/.test(ln('Banque').detail), 'diagnostic : banque introuvable, nom à préciser');
+  r = await appel('diagnostic'); ok(ln('Banque').ok === false && /ENABLE_ASPSP_NAME/.test(ln('Banque').detail) && /Banques proposées : BNP Paribas\./.test(ln('Banque').detail), 'diagnostic : banque introuvable, banques proposées listées, nom à préciser');
   ebRoute = route1;
+  /* plusieurs adresses de retour possibles : celle déclarée chez Enable Banking est utilisée */
+  T += 2 * 864e5; process.env.ENABLE_REDIRECT_URL = 'https://ikeupods-del.github.io/patrimoineai/,https://quentools.fr/';
+  ebRoute = (m, u, c) => u.pathname === '/application' ? { name: 'Patrimoine AI', redirect_urls: ['https://quentools.fr/'] } : route1(m, u, c);
+  r = await appel('diagnostic'); ok(r.d.ok === true && ln('Adresse de retour').ok && /quentools\.fr/.test(ln('Adresse de retour').detail), 'diagnostic : adresse de retour déclarée trouvée parmi les possibles');
+  await appel('demarrer', { methode: 'POST' }); ok(EB.filter(x => x.p === '/auth').pop().corps.redirect_url === 'https://quentools.fr/', 'liaison : adresse de retour déclarée chez Enable Banking utilisée');
+  ebRoute = (m, u, c) => u.pathname === '/application' ? { name: 'Patrimoine AI', redirect_urls: ['https://autre.example/'] } : route1(m, u, c);
+  r = await appel('diagnostic'); ok(ln('Adresse de retour').ok === false && /ikeupods-del\.github\.io\/patrimoineai ou https:\/\/quentools\.fr/.test(ln('Adresse de retour').detail), 'diagnostic : aucune adresse utilisable, les deux possibles proposées');
+  process.env.ENABLE_REDIRECT_URL = 'https://ikeupods-del.github.io/patrimoineai/'; ebRoute = route1;
   process.env.ENABLE_MOCK = '1'; r = await appel('etat'); ok(r.st === 200 && r.d.mockIgnore === true && r.d.simulation === false, 'ENABLE_MOCK oublié avec de vraies clés : ignoré, la vraie banque reste utilisée');
   r = await appel('diagnostic'); ok(!ln('Démonstration ignorée').ok, 'diagnostic : demande de retirer ENABLE_MOCK'); delete process.env.ENABLE_MOCK;
   /* comptes sans détails : nom et IBAN demandés à la banque */

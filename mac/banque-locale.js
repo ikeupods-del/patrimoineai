@@ -12,6 +12,8 @@ const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
 const RETOUR = 'https://ikeupods-del.github.io/patrimoineai/';
+// pages qui savent renvoyer le retour de la banque vers ce Mac : celle déclarée chez Enable Banking est choisie (banque/enable-banking.mjs)
+const RETOURS = [RETOUR, 'https://quentools.fr/'];
 const ROUTES = ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic'];
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -42,7 +44,7 @@ function creer({ dossier, racine, coffre, empreintes = '', quandLiee = () => {} 
   // réglages lus par banque/commun.mjs (conf()), passés au module seul : jamais dans process.env (hérité par les processus enfants)
   function env(C) {
     const c = lireConf();
-    C.DEP.env = ({ ENABLE_LOCAL: '1', ENABLE_APP_ID: c.appId || '', ENABLE_PRIVATE_KEY: c.cle || '', ENABLE_REDIRECT_URL: RETOUR,
+    C.DEP.env = ({ ENABLE_LOCAL: '1', ENABLE_APP_ID: c.appId || '', ENABLE_PRIVATE_KEY: c.cle || '', ENABLE_REDIRECT_URL: RETOURS.join(','),
       ENABLE_ALLOWED_ORIGINS: 'app://patrimoine', ENABLE_MOCK: c.demo ? '1' : '', ENABLE_ASPSP_NAME: c.banque || '', ENABLE_ASPSP_COUNTRY: c.pays || '', ENABLE_ALLOWED_EMAILS: '' });
   }
   async function charger() {
