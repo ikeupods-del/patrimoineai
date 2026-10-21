@@ -597,7 +597,7 @@ function insights(){
   const B=A.filter(a=>a.cat==='bourse'),bt=B.reduce((s,a)=>s+val(a),0);
   if(B.length>=2&&bt>0){const m=B.slice().sort((x,y)=>val(y)-val(x))[0];if(val(m)/bt>.5)add('warn','Une seule ligne pèse '+Math.round(val(m)/bt*100)+' % de votre bourse',m.name+' domine votre portefeuille boursier.',{l:'Voir la ligne',a:'detail',id:m.id})}
   const nt=B.filter(a=>!a.tick).length;
-  if(nt)add('info',nt+' position(s) sans ticker','Sans ticker Yahoo, les cours ne peuvent pas être actualisés automatiquement.',{l:'Voir la bourse',a:'filter',c:'bourse'});
+  if(nt)add('info',nt+' position(s) sans ticker','Aucun cours trouvé d’après leur nom : ajoutez le code ISIN dans le nom ou les notes, ou choisissez le ticker dans la fiche, pour que le cours suive la bourse.',{l:'Voir la bourse',a:'filter',c:'bourse'});
   const st=B.filter(a=>a.tick&&(!a.pxts||Date.now()-a.pxts>7*864e5)).length;
   if(st)add('info','Cours à actualiser','Le cours de '+st+' position(s) date de plus de 7 jours.',{l:'Actualiser',a:'refresh'});
   {const pea=B.filter(a=>a.env==='pea').reduce((s,a)=>s+inv(a),0);if(pea>135000)add(pea>150000?'warn':'info','Plafond du PEA bientôt atteint','Vos achats sur le PEA représentent environ '+eur(pea)+' pour un plafond de versements de 150 000 €. Les versements comptent, pas la valeur : vérifiez le montant exact chez votre courtier.')}
@@ -1914,7 +1914,7 @@ function openForm(cat,id,pre){
   let f=`<div class="chips">${Object.keys(CATS).map(k=>`<button type="button" class="chip${k===c?' on':''}" data-act="cat" data-c="${k}">${esc(CATS[k].n)}</button>`).join('')}</div><input type="hidden" id="f-cat" value="${c}">`;
   if(c==='bourse'){
     f+=F('name','Nom du titre ou de l’ETF',a.name,{ph:'Ex : Amundi MSCI World'});
-    f+=`<div class="fld"><label for="f-tick">Ticker Yahoo<span class="opt">facultatif</span></label><div class="row2"><div class="inp"><input id="f-tick" type="text" value="${esc(a.tick||'')}" placeholder="Ex : CW8.PA" autocapitalize="characters" autocomplete="off" data-in="form"></div><button type="button" class="btn ghost" data-act="tsearch" style="min-height:46px">${ic('search',18)}Chercher</button></div><div class="hint">Le ticker permet d’actualiser le cours tout seul. Cherchez par nom ou code ISIN.</div><div id="ts-r"></div></div>`;
+    f+=`<div class="fld"><label for="f-tick">Ticker Yahoo<span class="opt">facultatif</span></label><div class="row2"><div class="inp"><input id="f-tick" type="text" value="${esc(a.tick||'')}" placeholder="Ex : CW8.PA" autocapitalize="characters" autocomplete="off" data-in="form"></div><button type="button" class="btn ghost" data-act="tsearch" style="min-height:46px">${ic('search',18)}Chercher</button></div><div class="hint">Laissé vide, il est trouvé tout seul d’après le nom ou le code ISIN (écrivez l’ISIN dans le nom ou les notes pour plus de sûreté), et le cours suit la bourse automatiquement.</div><div id="ts-r"></div></div>`;
     f+=`<div class="g2">${F('qty','Quantité',a.qty,{t:'number'})}${F('pru','Prix de revient',a.pru,{t:'number',suf:'€',hint:'PRU, par unité'})}</div>`;
     f+=F('price','Cours actuel',a.price,{t:'number',suf:'€',opt:1,hint:'Laissez vide pour utiliser le prix de revient.'});
     f+=`<div class="g2">${F('date','Date du premier achat',a.date,{t:'date',opt:1,hint:'Pour calculer le rendement réel par an.'})}${feesF}</div>`;
@@ -1977,11 +1977,13 @@ function saveA(){
   else{if(o.amount===''||num(o.amount)<0)bad('amount','Indiquez un montant.');if(o.value!==''&&num(o.value)<0)bad('value','La valeur ne peut pas être négative.')}
   if(!ok)return;
   if(o.tick)o.tick=String(o.tick).trim().toUpperCase();
+  if(ex&&o.tick!==(ex.tick||''))delete ex.tickAuto; /* ticker choisi ou effacé à la main */
   if(o.dev==='EUR'||o.cat==='bourse'||o.cat==='credit'){delete o.dev;delete o.fxm}
   if(num(o.divm)&&(num(o.divm)<1||num(o.divm)>12))o.divm='';
   if(ex){Object.assign(ex,o);delete ex.demo}else{o.id=newId();D.assets.push(o)}
   const a=ex||o;if(!o.dev){delete a.dev;delete a.fxm}save();closeM();render();toast(ex?'Modifications enregistrées':'Placement ajouté');if(devOf(a))fxRefresh();
   if(a.cat==='bourse'&&a.tick&&!num(a.price)&&D.set.auto!==false)refresh(true);
+  if(a.cat==='bourse'&&!a.tick){delete a.tickEssai;autoTickers().then(L=>{if(L.includes(a))toast('Cours suivi automatiquement ('+a.tick+'). Modifiable dans la fiche du placement.')})}
 }
 function delA(id){
   const i=D.assets.findIndex(x=>x.id===id);if(i<0)return;const a=D.assets[i];D.assets.splice(i,1);
@@ -1999,7 +2001,7 @@ function openDetail(id){
   h+=kv('Type',esc(c.n));
   if(devOf(a)){const vv=(a.value===''||a.value==null)?num(a.amount):num(a.value),x=D.fx[devOf(a)];h+=kv('En '+devOf(a),devTxt(a,vv))+kv('Taux de change',fxConnu(a)?'1 '+devOf(a)+' = '+nf(tauxDev(a),4)+'\u00a0€'+(num(a.fxm)>0?' <span class="mut xs">(saisi)</span>':DEVFIXE[devOf(a)]?' <span class="mut xs">(parité fixe)</span>':x?` <span class="mut xs">(${esc(fd(new Date(x.ts)))})</span>`:''):'<span class="neg">inconnu</span>')}
   if(a.cat==='bourse'){
-    h+=kv('Quantité',nf(a.qty,num(a.qty)%1?2:0))+kv('Prix de revient',eur(a.pru,2))+kv('Cours actuel',eur(num(a.price)||num(a.pru),2)+(a.pxsrc?` <span class="mut xs">(${esc(a.pxsrc)})</span>`:''))+kv('Investi',eur(i))+(a.tick?kv('Ticker',esc(a.tick)):'')+(a.env&&ENV[a.env]?kv('Enveloppe',ENV[a.env]):'');
+    h+=kv('Quantité',nf(a.qty,num(a.qty)%1?2:0))+kv('Prix de revient',eur(a.pru,2))+kv('Cours actuel',eur(num(a.price)||num(a.pru),2)+(a.pxsrc?` <span class="mut xs">(${esc(a.pxsrc)})</span>`:''))+kv('Investi',eur(i))+(a.tick?kv('Ticker',esc(a.tick)+(a.tickAuto?' <span class="mut xs">(trouvé automatiquement)</span>':'')):'')+(a.env&&ENV[a.env]?kv('Enveloppe',ENV[a.env]):'');
   }else if(isDebt(a)){
     const m=loanM(a),n=Math.round(num(a.dur)),l=loanLeft(a),en=loanEnd(a);
     h+=kv('Montant emprunté',eur(a.amount))+(num(a.rate)||a.rate===0?kv('Taux nominal',nf(a.rate,2)+'\u00a0%'):'')+(n?kv('Durée',n+' mois ('+nf(n/12,n%12?1:0)+' ans)'):'');
@@ -2122,6 +2124,24 @@ async function refresh(silent){
   }
   RFB=false;if(ok)save();render();
   if(!silent)toast(ok+' cours mis à jour'+(ko.length?'. Échec : '+ko.map(a=>a.tick).join(', ')+' (saisie manuelle possible)':''));
+}
+/* Suivi automatique des cours : un placement en bourse sans ticker reçoit celui trouvé d'après son ISIN ou son nom
+   (CL.choisirTicker), puis suit les cours comme les autres (direct ou actualisation). Échec : nouvel essai une semaine après. */
+let TAUTO=false;
+async function tickerPour(a){
+  const q=CL.isinDe(a.name,a.notes,a.isin)||String(a.name||'').trim();if(q.length<2)return '';
+  const d=await(await tfetch('/api/market?search='+encodeURIComponent(q),{},12000)).json();
+  return CL.choisirTicker(d.quotes||[]);
+}
+async function autoTickers(){
+  if(TAUTO||navigator.onLine===false||D.set.auto===false)return [];TAUTO=true;const trouves=[];
+  try{for(const a of D.assets.filter(a=>a.cat==='bourse'&&!a.tick&&!(a.tickEssai&&Date.now()-a.tickEssai<7*864e5))){
+    let t='';try{t=await tickerPour(a)}catch(e){}
+    if(t){a.tick=t;a.tickAuto=true;delete a.tickEssai;trouves.push(a)}else a.tickEssai=Date.now()}}
+  finally{TAUTO=false}
+  if(D.assets.some(a=>a.tickEssai)||trouves.length)save();
+  if(trouves.length){await refresh(true);if(typeof liveSync==='function')liveSync()}
+  return trouves;
 }
 async function tsearch(){
   const q=($('f-tick').value||'').trim()||($('f-name').value||'').trim(),o=$('ts-r');
@@ -4082,6 +4102,7 @@ function init(){
   applyTheme();$('gear').innerHTML=ic('sliders',22);$('fab').innerHTML=ic('plus',26);renderNav();render();renderAI();show(location.hash.slice(1)||'home');
   if(D.assets.length)save();
   if(D.set.auto!==false&&navigator.onLine!==false&&D.assets.some(a=>a.cat==='bourse'&&a.tick&&(!a.pxts||Date.now()-a.pxts>6*36e5)))refresh(true);
+  setTimeout(autoTickers,4000);
   SNAP=snapOf();syncUI();idLoad();macInit();setTimeout(dueNotify,6000);setTimeout(fxRefresh,3000);
   bqFinir();setTimeout(rapNotifier,7000);setInterval(rapNotifier,3600e3);
   if(HOSTED){try{const o=JSON.parse(localStorage.getItem('pat_news')||'null');if(o&&Array.isArray(o.items)){NW.items=o.items;NW.at=0;newsMini()}}catch(e){}setTimeout(()=>newsLoad(),2500)}

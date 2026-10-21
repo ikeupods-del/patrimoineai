@@ -1,5 +1,8 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.6.3
+- **Cours suivis automatiquement** : ajoutez un placement en bourse sans vous soucier du ticker. Patrimoine AI le trouve tout seul d’après le nom ou le code ISIN (écrit dans le nom ou les notes), puis le cours suit la bourse, en direct quand le marché est ouvert. Le ticker trouvé est indiqué dans la fiche du placement et reste modifiable.
+
 ## 6.6.2
 - **Mes banques** : l’adresse de retour https://quentools.fr/ est maintenant acceptée, en plus de l’adresse de l’application : si c’est celle que vous avez déclarée chez Enable Banking, rien à changer.
 - **Banque introuvable** : le test de la configuration affiche les banques proposées par Enable Banking et rappelle de lier votre compte Boursorama dans le Control Panel.

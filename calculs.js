@@ -540,7 +540,18 @@
       'SUMMARY:' + icsT(titre), 'DESCRIPTION:' + icsT(description), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsT(titre), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
   }
 
-  const API = { num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
+  /* Ticker à suivre pour un placement en bourse : ISIN lu dans le nom ou les notes, sinon le nom ; parmi les résultats de la
+     recherche Yahoo, actions, ETF et fonds seulement, places européennes en euros d'abord (Paris, puis Amsterdam, Francfort…) */
+  const RE_ISIN = /\b([A-Z]{2}[A-Z0-9]{9}\d)\b/;
+  function isinDe(...t) { for (const x of t) { const m = RE_ISIN.exec(String(x || '').toUpperCase()); if (m) return m[1]; } return ''; }
+  const PLACES = ['.PA', '.AS', '.DE', '.F', '.MI', '.BR', '.MC', '.LS', '.IR', '.VI', '.SG', '.DU', '.MU', '.BE', '.HM'];
+  function choisirTicker(quotes) {
+    const L = (quotes || []).filter(q => q && q.symbol && (!q.type || /^(EQUITY|ETF|MUTUALFUND)$/i.test(q.type)) && !/[=^]/.test(q.symbol));
+    if (!L.length) return '';
+    const rang = s => { const i = PLACES.findIndex(p => s.toUpperCase().endsWith(p)); return i < 0 ? (s.includes('.') ? 50 : 30) : i; };
+    return L.map((q, i) => ({ s: q.symbol, r: rang(q.symbol) * 10 + i })).sort((x, y) => x.r - y.r)[0].s.toUpperCase();
+  }
+  const API = { isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
     echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;

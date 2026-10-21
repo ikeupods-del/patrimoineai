@@ -135,4 +135,9 @@ const ic = C.ics([{ id: 'r1', nom: 'Bricks', jour: 8, attendu: 31.2 }, { id: 'r2
 ok(/^BEGIN:VCALENDAR\r\n/.test(ic) && /END:VCALENDAR\r\n$/.test(ic) && (ic.match(/BEGIN:VEVENT/g) || []).length === 2 && /DTSTART;VALUE=DATE:20261108\r\n/.test(ic) && /RRULE:FREQ=MONTHLY;BYMONTHDAY=8\r\n/.test(ic) && /BYMONTHDAY=-1/.test(ic) && /environ 31\\,2 €/.test(ic) && /Fin\\; de mois/.test(ic) && /TRIGGER:PT9H/.test(ic) && !/Off/.test(ic), 'calendrier : un événement mensuel par rappel actif, échappements, dernier jour du mois');
 ok(/DTSTART;VALUE=DATE:20261105/.test(C.icsUnique('x', 'Renouveler', 'Banque', '2026-11-05', '2026-10-16')) && /SUMMARY:Renouveler/.test(C.icsUnique('x', 'Renouveler', 'Banque', '2026-11-05', '2026-10-16')), 'calendrier : événement unique');
 
+/* ticker à suivre : ISIN lu dans le texte, places européennes d'abord, ni indice ni change */
+ok(C.isinDe('S&P 500 EUR (Acc)', 'isin : fr0011550185') === 'FR0011550185' && C.isinDe('Air Liquide') === '', 'ISIN lu dans le nom ou les notes');
+ok(C.choisirTicker([{ symbol: '^SPX', type: 'INDEX' }, { symbol: 'ESE.MI', type: 'ETF' }, { symbol: 'ESE.PA', type: 'ETF' }]) === 'ESE.PA', 'ticker : Paris avant Milan, indice écarté');
+ok(C.choisirTicker([{ symbol: 'EURUSD=X' }, { symbol: 'MSFT', type: 'EQUITY' }]) === 'MSFT' && C.choisirTicker([]) === '', 'ticker : change écarté, liste vide');
+
 console.log('calculs :', n, 'contrôles réussis');
