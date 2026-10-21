@@ -15,13 +15,14 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   await new Promise(r => srv.listen(0, r)); const base = 'http://127.0.0.1:' + srv.address().port + '/';
   const b = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
-  const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
+  const SEARCHQ = []; const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
   await ctx.route(/corsproxy\.io|allorigins\.win/, r => {
     const u = decodeURIComponent(r.request().url().replace(/^.*?(url=)/, '')), m = /symbols=([^&]+)/.exec(u), c = /chart\/([^?]+)\?range=(\w+)/.exec(u);
     if (/news\.google\.com/.test(u)) { NEWSQ.push(u); const it = (t, src, h) => `<item><title>${t} - ${src}</title><link>https://news.google.com/rss/articles/${encodeURIComponent(t)}</link><pubDate>${new Date(Date.now() - h * 36e5).toUTCString()}</pubDate><source url="https://example.fr">${src}</source></item>`;
       return r.fulfill({ status: 200, contentType: 'application/rss+xml', body: `<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>${it('Le pétrole recule après la réunion de l&apos;OPEP', 'Les Echos', 1)}${it('La BCE maintient ses taux', 'Le Monde', 3)}${it('Le pétrole recule après la réunion de l&apos;OPEP', 'BFM', 4)}${it('Les marchés asiatiques en hausse', 'Reuters', 6)}${it('&lt;script&gt;alert(1)&lt;/script&gt; Titre piégé', 'Source', 8)}</channel></rss>` }); }
     if (m) return r.fulfill({ json: { spark: { result: decodeURIComponent(m[1]).split(',').map(s => ({ symbol: s, response: [{ meta: { regularMarketPrice: (PRICE[s] || [10, 10, 'EUR'])[0], chartPreviousClose: (PRICE[s] || [10, 10, 'EUR'])[1], currency: (PRICE[s] || [10, 10, 'EUR'])[2] } }] })) } } });
     if (c) { const s = decodeURIComponent(c[1]), p = (PRICE[s] || [10])[0], t0 = Math.floor(Date.now() / 1000) - 300 * 60; return r.fulfill({ json: { chart: { result: [{ meta: { currency: (PRICE[s] || [0, 0, 'EUR'])[2] }, timestamp: Array.from({ length: 60 }, (_, i) => t0 + i * 300), indicators: { quote: [{ close: Array.from({ length: 60 }, (_, i) => p * (0.99 + 0.01 * Math.sin(i / 6) + i * 0.0002)) }] } }] } } }); }
+    const sq = /finance\/search\?q=([^&]+)/.exec(u); if (sq) { SEARCHQ.push(decodeURIComponent(sq[1])); return r.fulfill({ json: { quotes: /FR0011550185/.test(decodeURIComponent(sq[1])) ? [{ symbol: '^SPX', quoteType: 'INDEX' }, { symbol: 'ESE.MI', quoteType: 'ETF', shortname: 'BNP P.E. S&P 500' }, { symbol: 'ESE.PA', quoteType: 'ETF', shortname: 'BNP P.E. S&P 500' }] : [] } }); }
     r.fulfill({ status: 404, body: '' });
   });
   await ctx.route(/gstatic\.com|googleapis\.com|firebase/, r => r.abort());
@@ -108,6 +109,11 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(/pétrole/.test(lq) && /Chine/.test(lq) && /hl=fr/.test(lq), 'requête selon le thème et la région');
   ok((await pg.textContent('#sttl')).includes('Pétrole et énergie · Asie'), 'thème et région rappelés dans le titre');
   ok(/Actualités/.test(await pg.evaluate(() => LAI.answer('quelles sont les actualités ?').t)), 'assistant : actualités');
+  /* cours suivis automatiquement : ticker trouvé d'après l'ISIN, aucun essai répété pour un nom introuvable */
+  const ta = await pg.evaluate(async () => { D.assets.push({ id: 'tauto', cat: 'bourse', name: 'S&P 500 EUR (Acc)', notes: 'ISIN FR0011550185', qty: 1, pru: 35.23 }, { id: 'tnon', cat: 'bourse', name: 'Valeur inconnue XYZ', qty: 2, pru: 5 }); save(); await autoTickers(); const a = D.assets.find(a => a.id === 'tauto'), n = D.assets.find(a => a.id === 'tnon'); return { tick: a.tick, auto: a.tickAuto, price: a.price, ntick: n.tick, essai: !!n.tickEssai }; });
+  ok(ta.tick === 'ESE.PA' && ta.auto === true && ta.price > 0 && !ta.ntick && ta.essai, 'cours automatique : ticker trouvé par l’ISIN (place de Paris), cours récupéré ; nom introuvable noté');
+  const nq = SEARCHQ.length; await pg.evaluate(() => autoTickers()); ok(SEARCHQ.length === nq, 'nom introuvable : pas de nouvelle recherche avant une semaine');
+  await pg.evaluate(() => { D.assets = D.assets.filter(a => a.id !== 'tauto' && a.id !== 'tnon'); save(); render(); });
   /* version 6.3 : relevés bancaires, prévu contre réel, abonnements */
   await pg.evaluate(() => go('budget')); await pg.click('#bud-reel [data-act=opsimp]');
   const mois = await pg.evaluate(() => [4, 3, 2, 1].map(k => moisDecale(moisCourant(), -k)));
