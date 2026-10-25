@@ -1,6 +1,6 @@
 // Service worker : l'application s'ouvre même hors ligne, et chaque nouveau déploiement est récupéré automatiquement.
-const V = 'patrimoine-fb-v5';
-const CORE = ['./', 'index.html', 'manifest.webmanifest','config.js', 'marches.js', 'calculs.js', 'icon.svg', 'icon-192.png', 'icon-512.png'];
+const V = 'patrimoine-fb-v6';
+const CORE = ['./', 'index.html', 'conditions.html', 'manifest.webmanifest','config.js', 'marches.js', 'calculs.js', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(K => Promise.all(K.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
