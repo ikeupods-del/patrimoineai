@@ -140,4 +140,34 @@ ok(C.isinDe('S&P 500 EUR (Acc)', 'isin : fr0011550185') === 'FR0011550185' && C.
 ok(C.choisirTicker([{ symbol: '^SPX', type: 'INDEX' }, { symbol: 'ESE.MI', type: 'ETF' }, { symbol: 'ESE.PA', type: 'ETF' }]) === 'ESE.PA', 'ticker : Paris avant Milan, indice écarté');
 ok(C.choisirTicker([{ symbol: 'EURUSD=X' }, { symbol: 'MSFT', type: 'EQUITY' }]) === 'MSFT' && C.choisirTicker([]) === '', 'ticker : change écarté, liste vide');
 
+/* pourquoi le patrimoine a bougé : versements, marché, crédits */
+const H = [{ d: '2026-08-31', v: 50000, i: 40000, k: 100000, g: { bourse: 2000, crowd: 0 } }, { d: '2026-09-15', v: 51000, i: 40500 },
+  { d: '2026-09-30', v: 52300, i: 41000, k: 99400, g: { bourse: 2900, crowd: 0 } }, { d: '2026-10-05', v: 52000, i: 41000 }];
+const va = C.variation(H, '2026-09-01', '2026-09-30');
+ok(va && va.ecart === 2300 && va.verse === 1000 && va.credit === 600 && va.marche === 700 && va.de === '2026-08-31' && va.a === '2026-09-30', 'variation : versements, crédits, marché (' + JSON.stringify(va) + ')');
+ok(va.parCat.length === 1 && va.parCat[0].cat === 'bourse' && va.parCat[0].m === 900 && va.principal === 'verse', 'variation : par catégorie et cause principale');
+const vb = C.variation([{ d: '2026-09-02', v: 100, i: 100 }, { d: '2026-09-20', v: 80, i: 100 }], '2026-09-01', '2026-09-30');
+ok(vb && vb.ecart === -20 && vb.marche === -20 && vb.sansCredit && vb.principal === 'marche', 'variation : premier point dans la période, sans crédit');
+ok(C.variation([{ d: '2026-09-02', v: 1, i: 1 }], '2026-09-01', '2026-09-30') === null && C.variation([], '2026-09-01', '2026-09-30') === null, 'variation : un seul point, rien à expliquer');
+
+/* aide à la déclaration */
+ok(C.interetsRecus([{ d: '2025-03-05', m: 30, c: 20 }, { d: '2025-04-05', m: 12 }, { d: '2026-01-05', m: 50 }], 2025) === 22, 'intérêts reçus dans l’année, capital déduit');
+ok(C.dividendesAnnee([{ date: Date.parse('2025-06-10') / 1000, amount: 1.5 }, { date: Date.parse('2026-06-10') / 1000, amount: 2 }], 10, 2025) === 15, 'dividendes de l’année');
+const vt = C.ventesAnnee([{ d: '2025-02-01', pv: 300 }, { d: '2025-05-01', pv: -120 }, { d: '2024-05-01', pv: 999 }], 2025);
+ok(vt.n === 2 && vt.gains === 300 && vt.pertes === 120 && vt.net === 180, 'ventes de l’année');
+ok(C.etrangere('Trade Republic', '') === 'trade republic' && C.etrangere('ETF', 'acheté sur DEGIRO') === 'degiro' && C.etrangere('Bienprêter') === '' && C.etrangere('Wiseman SA') === '', 'plateformes établies à l’étranger');
+const dc = C.declaration({ annee: 2025, interets: [{ nom: 'BienPrêter', m: 120 }, { nom: 'Projet', m: 80, estime: true }], dividendes: [{ nom: 'TTE', m: 45 }], ventes: vt, loyers: [{ nom: 'Studio', m: 7200 }],
+  etrangers: ['Trade Republic'], exoneres: ['Livret A'], crypto: 1, pertesProjets: ['Résidence X'] });
+const lg = k => dc.lignes.find(x => x.cle === k);
+ok(lg('interets').montant === 200 && lg('interets').estime && /2TR/.test(lg('interets').cases) && lg('dividendes').cases === '2DC' && lg('ventes').cases === '3VG' && lg('loyers').cases === '4BE', 'déclaration : lignes et cases habituelles');
+ok(dc.rappels.length === 4 && dc.rappels.some(r => /3916/.test(r)) && dc.rappels.some(r => /2086/.test(r)) && /180|300/.test(lg('ventes').note), 'déclaration : rappels (étranger, cryptoactifs, défauts, exonérés)');
+ok(C.declaration({ annee: 2025, loyers: [{ m: 16000 }] }).lignes[0].cases === '2044' && C.declaration({ annee: 2025, ventes: { n: 1, gains: 0, pertes: 50, net: -50 } }).lignes[0].cases === '3VH' && !C.declaration({ annee: 2025 }).lignes.length, 'déclaration : régime réel, moins-value, rien à déclarer');
+
+/* frais */
+const fp = C.fraisPlacements([{ id: 'a', nom: 'Assurance-vie', valeur: 20000, frais: 2 }, { id: 'b', nom: 'ETF', valeur: 10000, frais: 0.2 }, { id: 'c', nom: 'Sans frais', valeur: 5000 }]);
+ok(fp.lignes.length === 2 && fp.lignes[0].id === 'a' && fp.parAn === 420 && fp.lignes[1].economie20 === 0 && fp.lignes[0].economie20 > 10000 && fp.economie20 === fp.lignes[0].economie20, 'frais des placements comparés à un ETF Monde (' + JSON.stringify(fp.lignes[0]) + ')');
+const fb = C.fraisBancaires([{ d: '2026-09-10', lib: 'COTISATION CARTE VISA PREMIER', m: -134, cat: 'autre' }, { d: '2026-08-02', lib: 'FRAIS COMMISSION D INTERVENTION', m: -8, cat: 'autre' }, { d: '2026-07-02', lib: 'FRAIS COMMISSION D INTERVENTION', m: -8, cat: 'autre' },
+  { d: '2026-09-12', lib: 'CB GRAND FRAIS 11/09', m: -42, cat: 'alimentation' }, { d: '2026-09-13', lib: 'CB GRAND FRAIS LYON', m: -42, cat: 'autre' }, { d: '2025-01-02', lib: 'AGIOS', m: -30, cat: 'autre' }, { d: '2026-09-01', lib: 'COTISATION MUTUELLE', m: -60, cat: 'autre' }], AUJ);
+ok(fb.total === 150 && fb.lignes.length === 2 && fb.lignes[0].total === 134 && fb.lignes[1].n === 2, 'frais bancaires des 12 derniers mois (' + JSON.stringify(fb) + ')');
+
 console.log('calculs :', n, 'contrôles réussis');
