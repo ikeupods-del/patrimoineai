@@ -168,6 +168,32 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000 }, { d: pm + '-27', v: 101500 }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; go('home'); renderHome(); });
   const rc = await pg.textContent('#v-home'); ok(/Votre bilan de/.test(rc) && /1\s500/.test(rc.replace(/ | /g, ' ')), 'résumé du mois écoulé sur l’accueil');
   await pg.click('[data-act=recapok]'); ok(!/Votre bilan de/.test(await pg.textContent('#v-home')), 'résumé masqué après lecture');
+  /* pourquoi le patrimoine a bougé : versements, marché, crédits */
+  await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000, i: 80000, k: 50000, g: { bourse: 1000 } }, { d: pm + '-27', v: 101500, i: 80500, k: 49700, g: { bourse: 1700 } }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; save(); go('home'); render(); });
+  const rb = await pg.textContent('#v-home'); ok(/Surtout grâce à la hausse de vos placements \(\+700/.test(rb.replace(/[\u00a0\u202f]/g, ' ')) && /en particulier bourse/.test(rb) && /Voir le détail/.test(rb), 'résumé du mois : cause principale de la variation');
+  await pg.click('[data-act=bougemp]'); await pg.waitForTimeout(200); const bg = (await pg.textContent('#v-analyse')).replace(/[\u00a0\u202f]/g, ' ');
+  ok(/Pourquoi mon patrimoine a bougé/.test(bg) && /Vos versements et retraits\+500/.test(bg) && /Crédits remboursés\+300/.test(bg) && /Marché, intérêts et change\+700/.test(bg), 'pourquoi ça a bougé : versements, crédits, marché');
+  await pg.click('[data-act=recapok]').catch(() => {}); await pg.evaluate(() => { D.set.recapVu = moisDecale(moisCourant(), -1); save(); });
+  /* frais cachés : frais des contrats et frais bancaires des relevés */
+  await pg.evaluate(() => { D.ops.push({ id: 'of1', d: today(), lib: 'COTISATION CARTE VISA PREMIER', m: -134, cat: 'autre' }); save(); renderAnalyse(); });
+  const fr = (await pg.textContent('#v-analyse')).replace(/[\u00a0\u202f]/g, ' ');
+  ok(/Frais cachés/.test(fr) && /Assurance-vie/.test(fr) && /Frais bancaires des 12 derniers mois : 134/.test(fr) && /Frais non renseignés pour « Apple »/.test(fr), 'frais cachés : contrats, frais bancaires, frais à renseigner');
+  /* vente enregistrée (plus-value réalisée) puis aide à la déclaration */
+  await pg.evaluate(() => openTrade('a1')); await pg.click('[data-act=seg][data-t=tm][data-v=sell]'); await pg.fill('#tq', '2'); await pg.fill('#tp', '200'); await pg.click('[data-act=tradesave]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => { const a = D.assets.find(x => x.id === 'a1'); return a.qty === 8 && a.ventes.length === 1 && a.ventes[0].pv === 100 && a.ventes[0].d === today(); }), 'vente : plus-value réalisée enregistrée');
+  await pg.evaluate(() => { const Y = new Date().getFullYear() - 1, a = D.assets.find(x => x.id === 'a1'); a.ventes.push({ d: Y + '-03-01', q: 1, p: 400, pru: 150, pv: 250 }); a.env = 'cto';
+    D.assets.find(x => x.id === 'b1').usage = 'loc';
+    D.assets.push({ id: 'c9', cat: 'crowd', name: 'Projet test', plat: 'Bienprêter', amount: 1000, rate: 10, dur: 36, date: (Y - 1) + '-06-01', status: 'cours', paie: [{ d: Y + '-02-05', m: 30, c: 20 }, { d: Y + '-08-05', m: 40 }] },
+      { id: 't9', cat: 'bourse', name: 'ETF chez Trade Republic', qty: 1, pru: 100, env: 'cto' }); save(); UI.tool = 'decl'; go('tools'); renderTools(true); });
+  const dcl = (await pg.textContent('#v-tools')).replace(/[\u00a0\u202f]/g, ' ');
+  ok(/Aide à la déclaration des revenus/.test(dcl) && /Case 2TR ou 2TT/.test(dcl) && /50,00 €/.test(dcl) && /Case 3VG/.test(dcl) && /250,00 €/.test(dcl) && /Case 4BE/.test(dcl) && /8 400,00 €/.test(dcl) && /Case 2DC/.test(dcl), 'déclaration : intérêts reçus, plus-value, loyers, dividendes et leurs cases');
+  ok(/3916/.test(dcl) && /Trade Republic/.test(dcl) && /livrets réglementés/.test(dcl) && /assurance-vie/.test(dcl), 'déclaration : compte à l’étranger, placements sans déclaration');
+  await pg.click('[data-act=declan][data-v="' + new Date().getFullYear() + '"]'); await pg.waitForTimeout(100);
+  ok(/Revenus \d{4} \(en cours\)/.test(await pg.textContent('#v-tools')) && await pg.evaluate(() => declAnnee() === new Date().getFullYear() && /Case 3VG/.test(declHTML())), 'déclaration : année en cours (vente du jour)');
+  ok(await pg.evaluate(() => /2TR ou 2TT/.test(declTexte(declData(new Date().getFullYear() - 1))) && /IFU/.test(declTexte(declData(2000)))), 'déclaration : récapitulatif à copier');
+  const rep67 = await pg.evaluate(() => ['pourquoi mon patrimoine a bougé ?', 'quelle case pour mes dividendes sur la déclaration ?', 'quels sont mes frais cachés ?'].map(q => LAI.answer(q).t));
+  ok(/^#### Variation du/.test(rep67[0]) && /à déclarer/.test(rep67[1]) && /case 2DC/.test(rep67[1]) && /Vos frais/.test(rep67[2]) && /Frais bancaires/.test(rep67[2]), 'assistant local : variation, déclaration, frais (' + rep67.map(t => t.slice(0, 40)).join(' | ') + ')');
+  await pg.click('[data-act=declcopy]'); ok(!errs.length, 'aucune erreur JavaScript (variation, frais, déclaration) : ' + errs.join(' | '));
   /* coffre à documents */
   await pg.evaluate(() => openDetail('e1')); await pg.setInputFiles('#doc-f', { name: 'contrat.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 contrat d’essai') });
   await pg.waitForFunction(() => D.docs.length === 1);

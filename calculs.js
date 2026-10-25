@@ -551,7 +551,90 @@
     const rang = s => { const i = PLACES.findIndex(p => s.toUpperCase().endsWith(p)); return i < 0 ? (s.includes('.') ? 50 : 30) : i; };
     return L.map((q, i) => ({ s: q.symbol, r: rang(q.symbol) * 10 + i })).sort((x, y) => x.r - y.r)[0].s.toUpperCase();
   }
-  const API = { isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
+  /* ===================== Pourquoi le patrimoine a bougé ===================== */
+  /* hist : points quotidiens {d, v : patrimoine net, i : sommes investies, k : capital restant dû, g : {catégorie: plus-value latente}}.
+     Entre le dernier point avant debut et le dernier point jusqu'à fin : net = investi + plus-values − dettes, donc
+     variation = versements (Δi) + marché (Δ plus-values) + crédits remboursés (−Δk). Sans k (anciens points), marché et crédits restent ensemble. */
+  function variation(hist, debut, fin) {
+    const H = (hist || []).filter(h => h && h.d && isFinite(h.v)).sort((a, b) => String(a.d).localeCompare(String(b.d)));
+    const a = H.filter(h => h.d < debut).pop() || H.find(h => h.d >= debut && h.d <= fin), b = H.filter(h => h.d <= fin).pop();
+    if (!a || !b || a === b || b.d < debut) return null;
+    const ecart = b.v - a.v, verse = isFinite(a.i) && isFinite(b.i) ? b.i - a.i : null;
+    const credit = isFinite(a.k) && isFinite(b.k) ? a.k - b.k : null;
+    const marche = verse == null ? null : ecart - verse - (credit || 0);
+    const parCat = [];
+    if (a.g && b.g) for (const c of new Set([...Object.keys(a.g), ...Object.keys(b.g)])) { const m = num(b.g[c]) - num(a.g[c]); if (Math.abs(m) >= 1) parCat.push({ cat: c, m: Math.round(m) }); }
+    parCat.sort((x, y) => Math.abs(y.m) - Math.abs(x.m));
+    const parts = [['verse', verse], ['marche', marche], ['credit', credit]].filter(p => p[1] != null && Math.abs(p[1]) >= 1);
+    const principal = parts.length ? parts.slice().sort((x, y) => Math.abs(y[1]) - Math.abs(x[1]))[0][0] : null;
+    return { de: a.d, a: b.d, debut: a.v, fin: b.v, ecart: Math.round(ecart), verse: verse == null ? null : Math.round(verse), marche: marche == null ? null : Math.round(marche),
+      credit: credit == null ? null : Math.round(credit), sansCredit: credit == null, parCat, principal };
+  }
+
+  /* ===================== Aide à la déclaration des revenus ===================== */
+  const an = s => String(s || '').slice(0, 4), eu = x => Math.round(num(x)).toLocaleString('fr-FR').replace(/\s/g, '\u00a0') + '\u00a0€';
+  /* Intérêts reçus une année : paiements enregistrés {d, m : somme reçue, c : part de capital} */
+  const interetsRecus = (paie, annee) => r2((paie || []).filter(p => p && an(p.d) === String(annee)).reduce((s, p) => s + Math.max(0, num(p.m) - num(p.c)), 0));
+  /* Dividendes versés une année (horodatages Yahoo en secondes) pour la quantité détenue */
+  const dividendesAnnee = (divs, quantite, annee) => r2((divs || []).filter(x => x && new Date(num(x.date) * 1000).getFullYear() === Number(annee)).reduce((s, x) => s + num(x.amount), 0) * num(quantite));
+  /* Ventes enregistrées {d, pv : plus-value réalisée} : gains et pertes de l'année */
+  function ventesAnnee(ventes, annee) {
+    const L = (ventes || []).filter(v => v && an(v.d) === String(annee));
+    const gains = L.filter(v => num(v.pv) > 0).reduce((s, v) => s + num(v.pv), 0), pertes = L.filter(v => num(v.pv) < 0).reduce((s, v) => s - num(v.pv), 0);
+    return { n: L.length, gains: r2(gains), pertes: r2(pertes), net: r2(gains - pertes) };
+  }
+  /* Plateformes établies hors de France : leurs comptes se déclarent chaque année (formulaire 3916 ou 3916-bis) */
+  const ETRANGERES = ['trade republic', 'degiro', 'interactive brokers', 'ibkr', 'etoro', 'revolut', 'n26', 'scalable', 'freedom24', 'trading 212', 'lightyear', 'wise',
+    'binance', 'kraken', 'coinbase', 'bitpanda', 'bitstamp', 'crypto.com', 'bybit', 'okx', 'mintos', 'estateguru', 'bondora', 'reinvest24', 'paypal'];
+  const etrangere = (...t) => { const s = norm(t.join(' ')); return ETRANGERES.find(p => new RegExp('(^|[^a-z0-9])' + p.replace('.', '\\.') + '($|[^a-z0-9])').test(s)) || ''; };
+  /* o : {annee, interets: [{nom, m, estime}], dividendes: [{nom, m}], ventes: {gains, pertes, net, n}, crypto: n ventes, loyers: [{nom, m}],
+     etrangers: [noms], exoneres: [libellés], pertesProjets: [noms]} → lignes à reporter, cases habituelles de la déclaration (à vérifier sur les imprimés reçus) */
+  function declaration(o) {
+    const L = [], R = [], liste = T => T.length > 1 ? T.slice(0, -1).join(', ') + ' et ' + T[T.length - 1] : T.join(''), somme = T => r2((T || []).reduce((s, x) => s + num(x.m), 0));
+    const it = somme(o.interets);
+    if (it > 0) L.push({ cle: 'interets', titre: 'Intérêts des projets et des placements à taux fixe', montant: it, cases: '2TR ou 2TT', estime: (o.interets || []).some(x => x.estime),
+      detail: o.interets, note: 'Case indiquée sur l’IFU de chaque plateforme (2TT pour les prêts participatifs). L’acompte de 12,8 % souvent déjà prélevé se reporte case 2CK.' });
+    const dv = somme(o.dividendes);
+    if (dv > 0) L.push({ cle: 'dividendes', titre: 'Dividendes du compte-titres', montant: dv, cases: '2DC', estime: true, detail: o.dividendes,
+      note: 'Estimés avec la quantité détenue aujourd’hui ; le montant de l’IFU du courtier fait foi. L’acompte déjà prélevé se reporte case 2CK.' });
+    const v = o.ventes || {};
+    if (v.n) L.push({ cle: 'ventes', titre: 'Plus-values et moins-values du compte-titres', montant: v.net, cases: v.net >= 0 ? '3VG' : '3VH', estime: false,
+      note: `Gains ${eu(v.gains)}, pertes ${eu(v.pertes)} sur ${v.n} vente${v.n > 1 ? 's' : ''} enregistrée${v.n > 1 ? 's' : ''}. Formulaire 2074 si les cessions sont nombreuses ou complexes.` });
+    const ly = somme(o.loyers);
+    if (ly > 0) L.push({ cle: 'loyers', titre: 'Loyers encaissés (location vide)', montant: ly, cases: ly <= 15000 ? '4BE' : '2044', estime: true, detail: o.loyers,
+      note: ly <= 15000 ? 'Micro-foncier : loyers bruts de l’année, abattement de 30 % appliqué par l’administration. Une location meublée se déclare autrement.' : 'Plus de 15 000 € de loyers : régime réel, formulaire 2044.' });
+    if (o.crypto) R.push('Vente de cryptoactifs enregistrée : formulaire 2086 si vous les avez échangés contre des euros.');
+    if ((o.etrangers || []).length) R.push('Comptes à l’étranger (' + liste(o.etrangers) + ') : case 8UU et formulaire 3916, ou 3916-bis pour les cryptoactifs, même sans revenu.');
+    if ((o.pertesProjets || []).length) R.push('Projets en défaut (' + liste(o.pertesProjets) + ') : une perte définitive peut, sous conditions, s’imputer sur les intérêts de même nature ; demandez l’attestation à la plateforme.');
+    if ((o.exoneres || []).length) R.push('Rien à déclarer pour ' + liste(o.exoneres) + ', sauf retrait ou rachat dans l’année.');
+    return { annee: o.annee, lignes: L, rappels: R };
+  }
+
+  /* ===================== Frais ===================== */
+  /* Frais des placements : [{id, nom, valeur, frais (%/an)}] comparés à un ETF Monde (ref, %/an), sur 20 ans à 5 % brut */
+  const FRAIS_REF = 0.2;
+  function fraisPlacements(L, ref = FRAIS_REF) {
+    const lignes = (L || []).filter(x => num(x.valeur) > 0 && num(x.frais) > 0).map(x => {
+      const c = coutFrais(x.valeur, x.frais), e = coutFrais(x.valeur, Math.min(num(x.frais), ref));
+      return { id: x.id, nom: x.nom, valeur: num(x.valeur), frais: num(x.frais), parAn: c.parAn, sur20: c.total, economie20: Math.max(0, c.total - e.total) };
+    }).sort((a, b) => b.parAn - a.parAn);
+    return { lignes, parAn: r2(lignes.reduce((s, x) => s + x.parAn, 0)), sur20: lignes.reduce((s, x) => s + x.sur20, 0), economie20: lignes.reduce((s, x) => s + x.economie20, 0) };
+  }
+  /* Frais bancaires des 12 derniers mois repérés dans les relevés (cotisation de carte, commissions, agios, tenue de compte…) */
+  const RE_FRAIS = /\b(frais|commissions?|cotisations? (carte|cb|visa|mastercard|offre|compte|forfait|package)|cotis (carte|cb)|agios?|interets debiteurs|tenue de compte|com(mission)? d intervention|frais de rejet|minimum forfaitaire|forfait (de )?compte)\b/;
+  const PAS_FRAIS = /\b(grand frais|frais de port|livraison|ecole|scolarite|cantine|garde)\b/;
+  function fraisBancaires(ops, auj = new Date()) {
+    const lim = new Date(auj); lim.setFullYear(lim.getFullYear() - 1); const G = {};
+    for (const o of ops || []) {
+      if (!(o.m < 0) || ['revenu', 'epargne', 'virement', 'credit', 'impots', 'sante', 'logement', 'alimentation'].includes(o.cat)) continue;
+      const t = jour(o.d), l = norm(o.lib); if (!t || t < lim || t > auj || !RE_FRAIS.test(l) || PAS_FRAIS.test(l)) continue;
+      const k = cleLibelle(o.lib) || l; (G[k] = G[k] || { nom: o.lib, total: 0, n: 0 }); G[k].total += -o.m; G[k].n++;
+    }
+    const lignes = Object.values(G).map(x => ({ nom: x.nom, total: r2(x.total), n: x.n })).sort((a, b) => b.total - a.total);
+    return { lignes, total: r2(lignes.reduce((s, x) => s + x.total, 0)) };
+  }
+
+  const API = { variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
     echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;

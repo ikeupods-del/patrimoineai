@@ -1,5 +1,12 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.7.0
+- **Pourquoi mon patrimoine a bougé** : dans Analyse et dans le bilan du mois, la variation est expliquée en trois parts (vos versements et retraits, le marché, les crédits remboursés) avec le type de placement qui a le plus compté. Au choix : ce mois-ci, le mois dernier ou 12 mois.
+- **Aide à la déclaration des revenus** (Simulateurs → Déclaration) : intérêts reçus, dividendes, plus-values de vos ventes et loyers de l’année, avec la case habituelle de la déclaration, les comptes à l’étranger à déclarer et ce qui n’a rien à déclarer. Récapitulatif à copier. Vos ventes de titres gardent désormais leur plus-value.
+- **Frais cachés** (Analyse) : ce que vous coûtent chaque année les frais de vos contrats et ETF, ce que vous garderiez sur 20 ans avec des frais bas, et les frais bancaires repérés dans vos relevés (cotisation de carte, commissions, agios).
+- **Conditions d’utilisation** consultables depuis Réglages → À propos.
+- L’assistant répond aussi à « pourquoi mon patrimoine a bougé ? », « que dois-je déclarer ? » et « quels sont mes frais ? ».
+
 ## 6.6.3
 - **Cours suivis automatiquement** : ajoutez un placement en bourse sans vous soucier du ticker. Patrimoine AI le trouve tout seul d’après le nom ou le code ISIN (écrit dans le nom ou les notes), puis le cours suit la bourse, en direct quand le marché est ouvert. Le ticker trouvé est indiqué dans la fiche du placement et reste modifiable.
 

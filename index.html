@@ -377,7 +377,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
-const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.4';
+const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.7';
 const CGU='https://ikeupods-del.github.io/patrimoineai/conditions.html';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
 /* Application Mac : le patrimoine, la phrase secrète et les clés d'IA ne sont jamais écrits en clair sur le disque. Ces clés du
@@ -546,9 +546,12 @@ const loanPay=()=>D.assets.filter(a=>isDebt(a)&&crd(a)>0).reduce((s,a)=>s+loanM(
 function yearly(){return interests()+rents()}
 function snap(){
   if(!D.assets.length||D.assets.every(a=>a.demo))return;
-  const T=totals(),d=today(),e={d,v:Math.round(T.net),i:Math.round(T.ti)},L=D.hist[D.hist.length-1];
+  const T=totals(),d=today(),g={};owned().forEach(a=>{const x=val(a)-inv(a);if(Math.abs(x)>=1)g[a.cat]=Math.round((g[a.cat]||0)+x)});
+  const e={d,v:Math.round(T.net),i:Math.round(T.ti),k:Math.round(T.debt),g},L=D.hist[D.hist.length-1];
   if(L&&L.d===d)D.hist[D.hist.length-1]=e;else D.hist.push(e);
   if(D.hist.length>1500)D.hist=D.hist.slice(-1500);
+  /* plus-values par catégorie (« Pourquoi ça a bougé ») gardées sur les 400 derniers points : la sauvegarde reste légère */
+  if(D.hist.length>400)for(let j=D.hist.length-401;j>=0&&D.hist[j]&&D.hist[j].g;j--)delete D.hist[j].g;
 }
 function histPts(range){
   let H=D.hist.filter(h=>h&&h.d&&isFinite(h.v));
@@ -1034,7 +1037,7 @@ function renderAnalyse(){
   let h='<div class="grid2">';
   h+=`<section class="card"><div class="ct"><h3>Indice de fiabilité</h3></div>`+(pf?`<div class="row" style="justify-content:flex-start;gap:18px;flex-wrap:wrap">${gauge(pf.score)}<div style="flex:1;min-width:180px"><b style="color:${col(pf.score)};font-size:17px">${label(pf.score)}</b><div class="sm mut">Sur vos ${pf.R.length} placement${pf.R.length>1?'s':''} en crowdlending et immobilier fractionné, pondérés par les montants investis.</div></div></div><button class="btn sec blk mt" data-act="score">Comprendre ce score</button>`:`<p class="sm mut">L’indice évalue vos placements en crowdlending et en immobilier fractionné : fiabilité des plateformes, risque de chaque projet et diversification. Il apparaît dès votre premier projet.</p><button class="btn blk mt" data-act="add" data-c="crowd">${ic('plus',18)}Ajouter un projet</button>`)+'</section>';
   h+=`<section class="card"><div class="ct"><h3>Points d’attention</h3></div>${ins.length?ins.map(i=>insHTML(i,true)).join(''):'<p class="sm mut">Ajoutez des placements pour obtenir une analyse.</p>'}</section>`;
-  h+=perfHTML()+passifsHTML()+calHTML()+envHTML();
+  h+=bougeHTML()+perfHTML()+passifsHTML()+calHTML()+envHTML()+fraisHTML();
   const known=Object.keys(PL).filter(p=>p!=='Autre plateforme'),ex=pf?pf.by:[],exn=ex.map(e=>e[0]);
   const rest=known.filter(p=>!exn.includes(p));
   h+=`<section class="card span2"><div class="ct"><h3>Plateformes</h3></div>`;
@@ -1296,7 +1299,7 @@ function recap(m){
 }
 function recapHTML(){
   if(D.set.recap===false)return '';const pm=moisDecale(moisCourant(),-1);if(D.set.recapVu===pm)return '';const R=recap(pm);if(!R)return '';
-  return `<section class="card span2" style="border-color:var(--pt)"><div class="ct"><h3>Votre bilan de ${esc(moisNom(pm))}</h3><button class="btn sm sec" data-act="recapok">Merci</button></div><div class="kpis${R.reel?' k4':''}"><div><span>Patrimoine net</span><b>${eur(R.fin)}</b></div><div><span>Sur le mois</span><b class="${R.ecart>=0?'pos':'neg'}">${sgn(R.ecart)}</b></div>${R.reel?`<div><span>Dépenses</span><b>${eur(R.reel.dep)}</b></div><div><span>Mis de côté</span><b>${eur(R.reel.epargne)}</b></div>`:''}</div>${R.reel&&R.prevu>0?`<p class="sm mt">${R.reel.dep<=R.prevu?`Dépenses dans le budget : ${eur(R.reel.dep)} pour ${eur(R.prevu)} prévus.`:`Dépenses au-dessus du budget : ${eur(R.reel.dep)} pour ${eur(R.prevu)} prévus${R.depasse[0]?`, surtout en ${esc(ccat(R.depasse[0].cat).toLowerCase())} (+${eur(R.depasse[0].ecart)})`:''}.`}</p>`:''}<p class="hint">Variation du patrimoine net, versements compris. ${R.reel?'Dépenses d’après vos relevés importés.':'Importez vos relevés dans le budget pour y voir aussi vos dépenses réelles.'}</p></section>`;
+  return `<section class="card span2" style="border-color:var(--pt)"><div class="ct"><h3>Votre bilan de ${esc(moisNom(pm))}</h3><button class="btn sm sec" data-act="recapok">Merci</button></div><div class="kpis${R.reel?' k4':''}"><div><span>Patrimoine net</span><b>${eur(R.fin)}</b></div><div><span>Sur le mois</span><b class="${R.ecart>=0?'pos':'neg'}">${sgn(R.ecart)}</b></div>${R.reel?`<div><span>Dépenses</span><b>${eur(R.reel.dep)}</b></div><div><span>Mis de côté</span><b>${eur(R.reel.epargne)}</b></div>`:''}</div>${R.reel&&R.prevu>0?`<p class="sm mt">${R.reel.dep<=R.prevu?`Dépenses dans le budget : ${eur(R.reel.dep)} pour ${eur(R.prevu)} prévus.`:`Dépenses au-dessus du budget : ${eur(R.reel.dep)} pour ${eur(R.prevu)} prévus${R.depasse[0]?`, surtout en ${esc(ccat(R.depasse[0].cat).toLowerCase())} (+${eur(R.depasse[0].ecart)})`:''}.`}</p>`:''}${(()=>{const t=bougePhrase(CL.variation(D.hist,pm+'-01',pm+'-31'));return t?`<p class="sm mt">${t}</p><button class="lnk" data-act="bougemp">Voir le détail</button>`:''})()}<p class="hint">Variation du patrimoine net, versements compris. ${R.reel?'Dépenses d’après vos relevés importés.':'Importez vos relevés dans le budget pour y voir aussi vos dépenses réelles.'}</p></section>`;
 }
 function recapNotif(){
   if(!MAC||!MAC.notifier||D.set.recap===false)return;const pm=moisDecale(moisCourant(),-1);if(D.set.recapN===pm)return;const R=recap(pm);if(!R)return;
@@ -1637,9 +1640,10 @@ function openDocs(){
 const nfld=(id,label,v,suf,hint)=>`<div class="fld"><label for="${id}">${esc(label)}</label><div class="inp has"><input id="${id}" type="number" inputmode="decimal" step="any" min="0" value="${esc(v)}" data-in="calc"><span class="suf">${suf}</span></div>${hint?`<div class="hint">${esc(hint)}</div>`:''}</div>`;
 function renderTools(force){
   if(!force&&typing($('v-tools'))){calc();return}
-  const el=$('v-tools'),T=UI.tool,tabs=[['tax','Impôt'],['proj','Projection'],['fire','Retraite'],['vente','Vendre'],['succ','Succession'],['new','Avant d’investir'],['alloc','Répartition cible'],['loan','Crédit']];
+  const el=$('v-tools'),T=UI.tool,tabs=[['tax','Impôt'],['proj','Projection'],['fire','Retraite'],['vente','Vendre'],['succ','Succession'],['new','Avant d’investir'],['alloc','Répartition cible'],['loan','Crédit'],['decl','Déclaration']];
   let h=`<div class="chips">${tabs.map(t=>`<button class="chip${t[0]===T?' on':''}" data-act="tool" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
-  if(T==='tax'){
+  if(T==='decl')h+=declHTML();
+  else if(T==='tax'){
     h+=`<section class="card"><h3>Simulateur d’impôt</h3><p class="sm mut" style="margin-top:6px">Compare le prélèvement forfaitaire unique (PFU) et le barème progressif pour vos revenus du capital.</p>${nfld('t-inc','Revenus annuels du capital',Math.round(yearly()),'€','Intérêts, dividendes, plus-values imposables. Prérempli avec vos intérêts estimés.')}
 <div class="g2"><div class="fld"><label for="t-tmi">Tranche marginale</label><select id="t-tmi" data-in="calc">${[0,11,30,41,45].map(x=>`<option value="${x}"${x===30?' selected':''}>${x} %</option>`).join('')}</select></div><div class="fld"><label for="t-ps">Prélèvements sociaux</label><select id="t-ps" data-in="calc"><option value="18.6">18,6 %</option><option value="17.2">17,2 %</option></select></div></div>
 <div class="hint">18,6 % : comptes-titres, crowdlending, PER, PEA. 17,2 % : assurance-vie, PEL.</div><div id="t-out" class="mt"></div>
@@ -1664,7 +1668,7 @@ ${nfld('al-add','Prochain versement',500,'€')}<div id="al-out" class="mt"></di
   }
   el.innerHTML=h;calc();
 }
-function calc(){if(UI.tool==='fire')return calcFire();if(UI.tool==='vente')return calcVente();if(UI.tool==='succ')return calcSucc();if(UI.tool==='tax')calcTax();else if(UI.tool==='proj')calcProj();else if(UI.tool==='alloc')calcAlloc();else if(UI.tool==='loan')calcLoan();else calcNew()}
+function calc(){if(UI.tool==='decl')return;if(UI.tool==='fire')return calcFire();if(UI.tool==='vente')return calcVente();if(UI.tool==='succ')return calcSucc();if(UI.tool==='tax')calcTax();else if(UI.tool==='proj')calcProj();else if(UI.tool==='alloc')calcAlloc();else if(UI.tool==='loan')calcLoan();else calcNew()}
 const ALLOC=['bourse','epargne','cash','crowd','immo','autre'];
 function allocNow(){const v={};owned().forEach(a=>{if(ALLOC.includes(a.cat))v[a.cat]=(v[a.cat]||0)+val(a)});const t=Object.values(v).reduce((s,x)=>s+x,0),p={};ALLOC.forEach(k=>{p[k]=t>0?(v[k]||0)/t*100:0});return{v,t,p}}
 function calcAlloc(){
@@ -1902,6 +1906,97 @@ function ask(title,text,ok,danger){
   return new Promise(res=>{ASK=res;sheet(title,`<p style="margin-top:4px">${esc(text)}</p><div class="g2 mt"><button class="btn sec" data-act="askno">Annuler</button><button class="btn${danger?' dngf':''}" data-act="askok">${esc(ok)}</button></div>`)});
 }
 
+/* ===================== Pourquoi le patrimoine a bougé (CL.variation sur l'historique quotidien) ===================== */
+const BOUGE={mc:'Ce mois-ci',mp:'Mois dernier',an:'12 mois'};
+function bougePeriode(k){
+  if(k==='mp'){const m=moisDecale(moisCourant(),-1);return[m+'-01',m+'-31']}
+  if(k==='an'){const d=new Date();d.setFullYear(d.getFullYear()-1);return[d.toLocaleDateString('sv-SE'),today()]}
+  return[moisCourant()+'-01',today()];
+}
+const bougeVar=k=>{const[a,b]=bougePeriode(k);return CL.variation(D.hist,a,b)};
+const catN=c=>(CATS[c]||CATS.autre).n;
+function bougePhrase(V){
+  if(!V||!V.principal)return '';const m=V[V.principal],p=m>=0;
+  if(V.principal==='verse')return p?`Surtout grâce à vos versements (${sgn(m)}).`:`Surtout à cause de vos retraits (${sgn(m)}).`;
+  if(V.principal==='credit')return p?`Surtout grâce au remboursement de vos crédits (${sgn(m)}).`:`Surtout à cause d’un nouveau crédit (${sgn(m)}).`;
+  const c=V.parCat.find(x=>x.m>=0===p);
+  return (p?`Surtout grâce à la hausse de vos placements (${sgn(m)})`:`Surtout à cause de la baisse de vos placements (${sgn(m)})`)+(c?`, en particulier ${esc(catN(c.cat).toLowerCase())}`:'')+'.';
+}
+function bougeHTML(){
+  if(D.hist.filter(h=>h&&h.d).length<2)return '';const k=BOUGE[UI.bouge]?UI.bouge:'mc',V=bougeVar(k);
+  let h=`<section class="card span2"><div class="ct"><h3>Pourquoi mon patrimoine a bougé</h3></div><div class="chips">${Object.entries(BOUGE).map(([x,l])=>`<button class="chip${x===k?' on':''}" data-act="bouge" data-v="${x}">${l}</button>`).join('')}</div>`;
+  if(!V)return h+`<p class="sm mut mt">Pas encore assez d’historique sur cette période : un point est enregistré chaque jour où l’application est ouverte.</p></section>`;
+  const P=[['verse','Vos versements et retraits'],['marche',V.sansCredit?'Marché, intérêts, change et crédits':'Marché, intérêts et change'],['credit','Crédits remboursés']].filter(p=>V[p[0]]!=null&&(p[0]!=='credit'||Math.abs(V.credit)>=1)),mx=Math.max(1,...P.map(p=>Math.abs(V[p[0]])));
+  h+=`<div class="mt"><span class="sm mut">Du ${esc(fd(new Date(V.de+'T12:00:00')))} au ${esc(fd(new Date(V.a+'T12:00:00')))}</span><div class="big" style="font-size:26px"><span class="${V.ecart>=0?'pos':'neg'}">${sgn(V.ecart)}</span></div><p class="sm">${bougePhrase(V)}</p></div>`;
+  h+=P.map(([x,l])=>{const m=V[x];return `<div class="mt"><div class="row sm"><span>${l}</span><b class="${m>=0?'pos':'neg'}">${sgn(m)}</b></div><div class="prog" style="margin-top:6px"><i style="width:${(Math.abs(m)/mx*100).toFixed(1)}%;background:${m>=0?'var(--ok)':'var(--red)'}"></i></div></div>`}).join('');
+  if(V.parCat.length)h+=`<details class="mt"><summary>Hausse et baisse par type de placement</summary><div class="mt">${V.parCat.slice(0,6).map(c=>kv(esc(catN(c.cat)),`<span class="${c.m>=0?'pos':'neg'}">${sgn(c.m)}</span>`)).join('')}</div></details>`;
+  return h+`<p class="hint">Versements : sommes ajoutées ou retirées de vos placements (achats, ventes, nouveau placement saisi, remboursement reçu). Marché : cours de bourse, intérêts, valeur des biens et devises. Calculé d’après le point enregistré chaque jour où l’application est ouverte.</p></section>`;
+}
+
+/* ===================== Frais : placements (CL.fraisPlacements) et frais bancaires des relevés (CL.fraisBancaires) ===================== */
+function fraisHTML(){
+  const A=owned().filter(a=>val(a)>0),fp=CL.fraisPlacements(A.map(a=>({id:a.id,nom:a.name,valeur:val(a),frais:a.fees}))),fb=D.ops.length?CL.fraisBancaires(D.ops):null;
+  const sans=A.filter(a=>(a.cat==='epargne'&&(a.env==='av'||a.env==='per'||/assurance.vie|\bper\b/.test(nrm(a.name)))||a.cat==='bourse'&&a.env!=='crypto')&&!(num(a.fees)>0));
+  if(!fp.lignes.length&&!(fb&&fb.total>0)&&!sans.length)return '';
+  const tot=fp.parAn+(fb?fb.total:0),ref=nf(CL.FRAIS_REF,2)+' %';
+  let h=`<section class="card span2"><div class="ct"><h3>Frais cachés</h3></div>`;
+  if(tot>0)h+=`<div class="big" style="font-size:26px">${eur(tot)}<span class="mut sm" style="font-family:inherit"> de frais par an</span></div>`;
+  if(fp.lignes.length){
+    h+=`<div class="lbl mt">Frais de gestion de vos placements</div>`+fp.lignes.slice(0,8).map(x=>`<button class="item sm" data-act="detail" data-id="${esc(x.id)}"><div class="ir"><span>${esc(x.nom)} <span class="xs mut">${nf(x.frais,2)} %/an</span></span><b>${eur(x.parAn)}/an</b></div>${x.economie20>0?`<div class="xs mut" style="margin-top:4px">Sur 20 ans : environ ${eur(x.sur20)} de capital en moins, dont ${eur(x.economie20)} de plus qu’avec des frais de ${ref}.</div>`:''}</button>`).join('');
+    if(fp.economie20>0)h+=`<p class="sm mt">À frais de ${ref} par an (ordre de grandeur d’un ETF Monde), vous garderiez environ <b>${eur(fp.economie20)}</b> de plus sur 20 ans, à 5 % de rendement brut.</p>`;
+  }
+  if(fb&&fb.total>0)h+=`<div class="lbl mt">Frais bancaires des 12 derniers mois : ${eur(fb.total)}</div>`+fb.lignes.slice(0,5).map(x=>kv(esc(x.nom)+(x.n>1?` <span class="xs">(${x.n} fois)</span>`:''),eur(x.total,2))).join('');
+  if(sans.length)h+=`<p class="hint">Frais non renseignés pour ${sans.slice(0,3).map(a=>'« '+esc(a.name)+' »').join(', ')}${sans.length>3?' et '+(sans.length-3)+' autre'+(sans.length>4?'s':''):''} : ajoutez-les dans la fiche (frais du contrat et des fonds, ou frais courants de l’ETF, indiqués dans le document d’informations clés).</p>`;
+  return h+`<p class="hint">Comparaison des seuls frais : un ETF Monde n’a pas le même risque qu’un fonds en euros ou un livret. Frais bancaires repérés dans vos relevés importés d’après le libellé (cotisation de carte, commissions, agios).</p></section>`;
+}
+
+/* ===================== Aide à la déclaration des revenus (Simulateurs → Déclaration) ===================== */
+const PAS_DECL=['pea','peapme','av','per'];
+const RE_EXO=/\b(livret a|ldds|ldd|lep|livret jeune|livret d epargne populaire)\b/;
+const nrm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[’']/g,' ');
+function partAnnee(a,Y){ /* part de l'année Y où le projet a couru (0 à 1) */
+  const d0=new Date(Y,0,1),d1=new Date(Y,11,31,23),s=a.date?new Date(a.date+'T12:00:00'):d0,e=endDate(a)||d1;
+  const x=Math.max(d0,s),y=Math.min(d1,e);return y>x?(y-x)/(d1-d0):0;
+}
+function declData(Y){
+  const o={annee:Y,interets:[],dividendes:[],ventes:{n:0,gains:0,pertes:0,net:0},loyers:[],etrangers:[],exoneres:[],pertesProjets:[],crypto:0},ex=new Set(),et=new Set();
+  owned().forEach(a=>{
+    const f=tauxDev(a),pays=CL.etrangere(a.plat,a.name,a.notes);if(pays)et.add(pays.replace(/\b[a-z]/g,c=>c.toUpperCase()));
+    if(isRisky(a)){
+      if(a.status==='defaut')o.pertesProjets.push(a.name);
+      const recu=CL.interetsRecus(a.paie,Y)*f;
+      if(recu>0)o.interets.push({nom:a.name,m:recu});
+      else if(a.status!=='defaut'&&num(a.rate)>0&&Y<new Date().getFullYear()){const m=Math.round(inv(a)*num(a.rate)/100*partAnnee(a,Y)*100)/100;if(m>0)o.interets.push({nom:a.name,m,estime:true})}
+      return}
+    if(a.cat==='cash'){if(RE_EXO.test(nrm(a.name)))ex.add('les livrets réglementés (Livret A, LDDS, LEP)');else if(num(a.rate)>0)o.interets.push({nom:a.name,m:Math.round(val(a)*num(a.rate)/100*100)/100,estime:true});return}
+    if(a.cat==='epargne'){if(a.env==='av'||/assurance.vie/.test(nrm(a.name)))ex.add('l’assurance-vie');else if(a.env==='per')ex.add('le PER');return}
+    if(a.cat==='bien'){if(a.usage==='loc'&&num(a.rent)>0)o.loyers.push({nom:a.name,m:Math.round(num(a.rent)*12*f)});return}
+    if(a.cat!=='bourse')return;
+    if(a.env==='pea'||a.env==='peapme'){ex.add('le PEA');return}
+    if(PAS_DECL.includes(a.env))return;
+    const vt=CL.ventesAnnee(a.ventes,Y);
+    if(a.env==='crypto'){o.crypto+=vt.n;return}
+    if(vt.n){const V=o.ventes;V.n+=vt.n;V.gains+=vt.gains;V.pertes+=vt.pertes;V.net=Math.round((V.gains-V.pertes)*100)/100}
+    const dv=Array.isArray(a.divs)&&a.divs.length?CL.dividendesAnnee(a.divs,a.qty,Y):num(a.div)*num(a.qty);
+    if(dv>0)o.dividendes.push({nom:a.name,m:Math.round(dv*100)/100});
+  });
+  o.etrangers=[...et];o.exoneres=[...ex];return CL.declaration(o);
+}
+function declAnnee(){const y=new Date().getFullYear();return[y-1,y].includes(+UI.declAn)?+UI.declAn:y-1}
+function declTexte(R){
+  return [`Patrimoine AI · revenus ${R.annee} à déclarer (aide indicative)`,'',...R.lignes.map(l=>`${l.titre} : ${nf(l.montant,2)} € (case ${l.cases})${l.estime?' [estimation]':''}`+(l.detail&&l.detail.length?'\n'+l.detail.map(x=>`  - ${x.nom} : ${nf(x.m,2)} €${x.estime?' (estimé)':''}`).join('\n'):'')+'\n  '+l.note),
+    ...(R.rappels.length?['','À vérifier :',...R.rappels.map(r=>'- '+r)]:[]),'','Les montants préremplis et les imprimés fiscaux uniques (IFU) de vos banques, courtiers et plateformes font foi.'].join('\n');
+}
+function declHTML(){
+  const Y=declAnnee(),R=declData(Y),cy=new Date().getFullYear();
+  let h=`<section class="card"><h3>Aide à la déclaration des revenus</h3><p class="sm mut" style="margin-top:6px">Ce que vos placements ont rapporté sur l’année et la case habituelle de la déclaration, pour préparer la déclaration du printemps.</p><div class="chips mt">${[cy-1,cy].map(y=>`<button class="chip${y===Y?' on':''}" data-act="declan" data-v="${y}">Revenus ${y}${y===cy?' (en cours)':''}</button>`).join('')}</div>`;
+  if(!R.lignes.length&&!R.rappels.length)return h+`<p class="sm mut mt">Rien à reporter d’après vos placements pour ${Y}. Ajoutez vos projets, titres, livrets et biens loués pour obtenir le récapitulatif.</p></section>`;
+  h+=R.lignes.map(l=>`<div class="box mt"><div class="row"><b>${esc(l.titre)}</b><span class="badge" style="--c:var(--blue)">Case ${esc(l.cases)}</span></div><div class="big" style="font-size:22px;margin-top:4px">${eur(l.montant,2)}${l.estime?' <span class="badge" style="--c:var(--warn)">estimation</span>':''}</div>${l.detail&&l.detail.length>1?`<details><summary class="sm">Détail (${l.detail.length})</summary>${l.detail.map(x=>kv(esc(x.nom)+(x.estime?' <span class="xs mut">estimé</span>':''),eur(x.m,2))).join('')}</details>`:''}<p class="hint">${esc(l.note)}</p></div>`).join('');
+  if(R.rappels.length)h+=`<div class="lbl mt">À vérifier</div><ul class="sm" style="padding-left:18px;margin-top:6px">${R.rappels.map(r=>`<li style="margin:4px 0">${esc(r)}</li>`).join('')}</ul>`;
+  h+=`<button class="btn sec blk mt" data-act="declcopy">${ic('download',18)}Copier le récapitulatif</button>`;
+  return h+`<p class="hint">Aide indicative, règles simplifiées : les montants préremplis et les imprimés fiscaux uniques (IFU) envoyés au début de l’année par vos banques, courtiers et plateformes font foi. Intérêts : paiements confirmés dans les rappels, sinon estimés d’après le taux. Plus-values : ventes enregistrées dans l’application. En cas de doute : impots.gouv.fr ou un professionnel.</p></section>`;
+}
+
 /* ===================== Formulaire d'ajout / modification ===================== */
 function openPick(){
   sheet('Que voulez-vous ajouter ?',Object.keys(CATS).map(k=>`<button class="tile" data-act="pick" data-c="${k}"><span class="ico" style="--c:${CATS[k].c}">${ic(CATS[k].ic)}</span><div><b>${CATS[k].n}</b><div class="sm mut">${CATS[k].h}</div></div></button>`).join(''));
@@ -2065,7 +2160,8 @@ function tradeSave(){
   if((!Array.isArray(a.mv)||!a.mv.length)&&a.date&&Q*P>0)a.mv=[{d:a.date,m:Math.round(Q*P*100)/100}];
   if(Array.isArray(a.mv)&&a.mv.length)a.mv.push({d:today(),m:Math.round((m==='buy'?1:-1)*q*p*100)/100});
   if(m==='buy'){a.pru=Math.round((Q*P+q*p)/(Q+q)*1e4)/1e4;a.qty=Math.round((Q+q)*1e6)/1e6}
-  else{if(q>Q){er.textContent='Vous ne détenez que '+nf(Q,2)+' titre(s).';return}a.qty=Math.round((Q-q)*1e6)/1e6}
+  else{if(q>Q){er.textContent='Vous ne détenez que '+nf(Q,2)+' titre(s).';return}a.qty=Math.round((Q-q)*1e6)/1e6;
+    a.ventes=(a.ventes||[]).concat([{d:today(),q,p,pru:P,pv:Math.round(q*(p-P)*100)/100}]).slice(-200)} /* plus-values réalisées : aide à la déclaration */
   a.price=p;a.pxts=Date.now();a.pxsrc='saisie';delete a.demo;save();closeM();render();toast(m==='buy'?'Achat enregistré':'Vente enregistrée');
 }
 function openRepay(id){
@@ -2472,6 +2568,9 @@ const LAI=(()=>{
     list:[['liste',3],['mes placements',2],['quels placements',3],['inventaire',3],['tous mes',2],['detail de mes',2]],
     abo:[['abonnement',4],['abonnements',4],['prelevements',3],['prelevement',3],['resilier',3],['depenses reelles',4],['j ai depense',4],['depense ce mois',4]],
     retraite:[['retraite',4],['independance financiere',5],['arreter de travailler',5],['rentier',4],['vivre de mes placements',5],['vivre de mes rentes',5]],
+    bouge:[['pourquoi mon patrimoine',7],['a bouge',5],['a baisse',4],['a augmente',4],['a diminue',4],['variation',3],['pourquoi ca bouge',6],['explique la variation',6]],
+    decl:[['declaration',6],['declarer',6],['ifu',6],['quelle case',6],['case 2',5],['feuille d impot',5],['impots du printemps',5]],
+    frais:[['frais',4],['frais caches',7],['frais de gestion',7],['frais bancaires',7],['cotisation carte',6],['agios',6]],
     passif:[['revenus passifs',5],['revenu passif',5],['dividende',3],['dividendes',3],['combien me rapporte',3],['loyers',2]],
     news:[['actualite',4],['actualites',4],['news',4],['nouvelles',3],['quoi de neuf',3],['que se passe',3],['dernieres infos',3],['infos',2]],
     budget:[['budget',3],['depenses',3],['depense',2],['reste a vivre',4],['combien investir',4],['dois investir',4],['investir chaque mois',4],['investir par mois',4],['epargner par mois',4],['mettre de cote chaque mois',4],['combien dois je investir',4],['combien placer',3],['combien epargner',3],['capacite d epargne',4],['taux d epargne',4],['fin de mois',3],['economies',2],['frais',2],['charges',2],['salaire',2],['revenus mensuels',3]],
@@ -2666,6 +2765,27 @@ const LAI=(()=>{
     const F=fireDef();if(!(num(F.age)>=16))return 'Ouvrez **Simulateurs → Retraite** et indiquez votre âge : je calcule à quel âge vos placements pourraient payer vos dépenses, selon trois scénarios, et vos chances d’y arriver.';
     const R=CL.independance({age:F.age,capital:F.cap,epargne:F.ep,depenses:F.dep,pension:F.pen,ageCible:F.ac,retrait:F.ret}),A=a=>a==null?'au-delà de '+R.horizon+' ans':a+' ans';
     return `#### Retraite et indépendance financière\n- Capital à réunir : **${E(R.cible)}** (pour ${E(R.besoin/12)} par mois, retrait de ${num(F.ret)||4} % par an)\n- Scénario prudent : ${A(R.scenarios.prudent.age)}\n- Scénario moyen : ${A(R.scenarios.moyen.age)}\n- Scénario favorable : ${A(R.scenarios.favorable.age)}\n- Chances d’avoir ce capital à ${R.ageCible} ans : **${Math.round(R.probaAtteinte*100)} %**\n\nMontants en euros d’aujourd’hui, rendements après inflation. Simulation indicative, pas une prévision.`;
+  }
+  function aBouge(){
+    const V=bougeVar('mc')||bougeVar('mp')||bougeVar('an');
+    if(!V)return 'Je n’ai pas encore assez d’historique pour expliquer la variation : un point est enregistré chaque jour où l’application est ouverte. Revenez dans quelques jours, le détail sera dans **Analyse → Pourquoi mon patrimoine a bougé**.';
+    const D2=x=>fd(new Date(x+'T12:00:00'));
+    return `#### Variation du ${D2(V.de)} au ${D2(V.a)} : ${sgn(V.ecart)}\n`+[V.verse!=null?`- Vos versements et retraits : **${sgn(V.verse)}**`:'',V.marche!=null?`- ${V.sansCredit?'Marché, intérêts, change et crédits':'Marché, intérêts et change'} : **${sgn(V.marche)}**`:'',V.credit!=null?`- Crédits remboursés : **${sgn(V.credit)}**`:''].filter(Boolean).join('\n')
+      +(V.parCat.length?'\n\nPar type de placement : '+V.parCat.slice(0,4).map(c=>catN(c.cat).toLowerCase()+' '+sgn(c.m)).join(', ')+'.':'')+'\n\n'+bougePhrase(V).replace(/&amp;/g,'&')+' Le détail par période est dans **Analyse**.';
+  }
+  function aDecl(){
+    const R=declData(declAnnee());
+    if(!R.lignes.length&&!R.rappels.length)return `Je ne trouve rien à reporter pour ${R.annee} d’après vos placements. Le récapitulatif est dans **Simulateurs → Déclaration** dès que vous avez des projets, des titres, des livrets ou des biens loués.`;
+    return `#### Revenus ${R.annee} à déclarer (aide indicative)\n`+R.lignes.map(l=>`- ${l.titre} : **${E(l.montant)}**, case ${l.cases}${l.estime?' (estimation)':''}`).join('\n')+(R.rappels.length?'\n\n**À vérifier :**\n'+R.rappels.map(r=>'- '+r).join('\n'):'')
+      +'\n\nLes montants préremplis et les IFU envoyés par vos banques, courtiers et plateformes font foi. Le récapitulatif à copier est dans **Simulateurs → Déclaration**.';
+  }
+  function aFrais(){
+    const A=owned().filter(a=>val(a)>0),fp=CL.fraisPlacements(A.map(a=>({id:a.id,nom:a.name,valeur:val(a),frais:a.fees}))),fb=D.ops.length?CL.fraisBancaires(D.ops):null;
+    if(!fp.lignes.length&&!(fb&&fb.total>0))return 'Je ne vois pas encore de frais : indiquez les frais de gestion dans la fiche de vos contrats et ETF, et importez vos relevés pour repérer les frais bancaires.';
+    let s=`#### Vos frais : ${E(fp.parAn+(fb?fb.total:0))} par an\n`;
+    if(fp.lignes.length)s+=fp.lignes.slice(0,6).map(x=>`- ${x.nom} : ${P(x.frais,2)} par an, soit ${E(x.parAn)}`).join('\n')+(fp.economie20>0?`\n\nÀ ${P(CL.FRAIS_REF,2)} de frais (ordre de grandeur d’un ETF Monde), vous garderiez environ **${E(fp.economie20)}** de plus sur 20 ans, à 5 % de rendement brut. C’est une comparaison des seuls frais, pas du risque.`:'');
+    if(fb&&fb.total>0)s+=`\n\n**Frais bancaires des 12 derniers mois : ${E(fb.total)}**\n`+fb.lignes.slice(0,4).map(x=>`- ${x.nom} : ${E(x.total)}`).join('\n');
+    return s+'\n\nLe détail est dans **Analyse → Frais cachés**.';
   }
   function aPassif(){
     const S=sourcesPassives();if(!S.length)return 'Je ne trouve pas encore de revenus passifs : renseignez les loyers de vos biens, les taux de vos livrets et projets, et les tickers de vos actions pour leurs dividendes.';
@@ -2864,6 +2984,9 @@ const LAI=(()=>{
       case 'abo':return aAbo();
       case 'retraite':return aRetraite();
       case 'passif':return aPassif();
+      case 'bouge':return aBouge();
+      case 'decl':return aDecl();
+      case 'frais':return aFrais();
       case 'news':return aNews(q);
     }
     return null;
@@ -3174,6 +3297,10 @@ const ACT={
   filter:d=>{UI.filter=d.c;UI.q='';renderAssets();go('assets')},
   range:d=>{UI.range=d.r;renderHome()},
   tool:d=>{UI.tool=d.t;renderTools(true)},
+  declan:d=>{UI.declAn=+d.v;renderTools(true)},
+  declcopy:()=>{const t=declTexte(declData(declAnnee())),ok=()=>toast('Récapitulatif copié');if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,()=>fbCopy(t,'Récapitulatif copié'));else fbCopy(t,'Récapitulatif copié')},
+  bouge:d=>{UI.bouge=d.v;renderAnalyse()},
+  bougemp:()=>{UI.bouge='mp';go('analyse');renderAnalyse()},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
   tog:d=>{if(d.k==='capt'){MAC.captures(MACST.protegee).then(r=>{MACST.protegee=!!r.protegee;renderSet();toast(r.protegee?'Fenêtre de nouveau invisible aux captures':'Captures d’écran autorisées')}).catch(()=>{});return}if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
@@ -3262,7 +3389,7 @@ const ACT={
   askok:()=>{const r=ASK;ASK=null;closeM();if(r)r(true)},
   askno:()=>closeM()
 };
-function fbCopy(t){const x=document.createElement('textarea');x.value=t;x.style.position='fixed';x.style.opacity='0';document.body.appendChild(x);x.select();try{document.execCommand('copy');toast('Réponse copiée')}catch(e){toast('Copie impossible')}x.remove()}
+function fbCopy(t,msg){const x=document.createElement('textarea');x.value=t;x.style.position='fixed';x.style.opacity='0';document.body.appendChild(x);x.select();try{document.execCommand('copy');toast(msg||'Réponse copiée')}catch(e){toast('Copie impossible')}x.remove()}
 /* Test de connexion détaillé : dit précisément ce qui bloque */
 async function openDiag(pv){
   const p=pv||keyProv();
