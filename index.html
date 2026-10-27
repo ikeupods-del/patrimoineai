@@ -377,7 +377,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
-const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.7';
+const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.8';
 const CGU='https://ikeupods-del.github.io/patrimoineai/conditions.html';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
 /* Application Mac : le patrimoine, la phrase secrète et les clés d'IA ne sont jamais écrits en clair sur le disque. Ces clés du
@@ -610,6 +610,10 @@ function insights(){
   if(bqLie()&&D.bank.errAt&&Date.now()-D.bank.errAt>3*864e5&&!bqExpire())add('warn','Synchronisation bancaire en échec depuis '+Math.floor((Date.now()-D.bank.errAt)/864e5)+' jours','Dernier message : '+String(D.bank.err||'erreur inconnue').slice(0,160)+' Ouvrez Mes banques et lancez « Tester la configuration ».',{l:'Mes banques',a:'go',v:'bank'});
   if(bqLie()){const j=bqJours(),nm=D.bank.banque||'votre banque';if(D.bank.statut==='expire'||(j!=null&&j<0))add('warn','Accès à '+nm+' expiré','Les soldes ne sont plus mis à jour. Renouvelez l’accord en vous identifiant de nouveau sur le site de la banque.',{l:'Renouveler',a:'go',v:'bank'});else if(j!=null&&j<=14)add('info','Accès à '+nm+' : plus que '+j+' jour'+(j>1?'s':''),'Renouvelez l’accord pour que vos soldes restent à jour.',{l:'Renouveler',a:'go',v:'bank'})}
   if(A.length>=3&&!MAC&&!syncOn()&&!A.every(a=>a.demo)&&(!D.lastBackup||Date.now()-D.lastBackup>30*864e5))add('info','Pensez à sauvegarder','Vos données ne sont que sur cet appareil. Un export régulier évite de tout perdre en cas de changement de téléphone ou d’effacement du navigateur.',{l:'Exporter maintenant',a:'exp'});
+  {const m=now.getMonth();if(m>=3&&m<=5){const R=declData(now.getFullYear()-1);if(R.lignes.length)add('info','Déclaration des revenus '+R.annee+' : récapitulatif prêt',R.lignes.length+' montant'+(R.lignes.length>1?'s':'')+' à vérifier sur votre déclaration, avec la case habituelle'+(R.rappels.length?', et '+R.rappels.length+' point'+(R.rappels.length>1?'s':'')+' à vérifier.':'.'),{l:'Voir le récapitulatif',a:'opendecl'})}}
+  {const F=CL.fraisPlacements(owned().filter(a=>val(a)>0).map(a=>({id:a.id,nom:a.name,valeur:val(a),frais:a.fees}))).lignes.filter(x=>x.frais>=1)[0];
+    if(F)add('info','Frais élevés : '+F.nom+' ('+nf(F.frais,2)+' % par an)','Environ '+eur(F.parAn)+' par an, soit '+eur(F.sur20)+' de capital en moins sur 20 ans à 5 % de rendement. Comparez avec des supports moins chargés.',{l:'Voir les frais',a:'go',v:'analyse'});
+    const fb=D.ops.length?CL.fraisBancaires(D.ops):null;if(fb&&fb.total>=100)add('info','Frais bancaires : '+eur(fb.total)+' en un an','Cotisation de carte, commissions et agios repérés dans vos relevés. Une banque en ligne ou une carte moins chère peut les réduire.',{l:'Voir le détail',a:'go',v:'analyse'})}
   if(!out.some(o=>o.lvl==='bad'||o.lvl==='warn'))out.push({lvl:'good',title:'Rien d’alarmant',text:'Aucun point de vigilance détecté sur vos données actuelles.'});
   const ord={bad:0,warn:1,info:2,good:3};return out.sort((x,y)=>ord[x.lvl]-ord[y.lvl]);
 }
@@ -1073,7 +1077,7 @@ function envHTML(){
   h+=Object.entries(by).sort((a,b)=>b[1].v-a[1].v).map(([k,x])=>`<div class="kv"><span>${esc(k?ENV[k]:'Non précisée')} <span class="xs">(${x.n} ligne${x.n>1?'s':''})</span></span><b>${eur(x.v)} <span class="mut xs">${tot>0?nf(x.v/tot*100,0)+'\u00a0%':''}</span></b></div>`).join('');
   if(pea>0)h+=`<div class="mt"><div class="row sm"><span>Plafond du PEA (versements)</span><b>${eur(pea)} / 150 000 €</b></div><div class="prog" style="margin-top:6px"><i style="width:${Math.min(100,pea/1500).toFixed(1)}%"></i></div><div class="hint">Estimé d’après vos prix de revient : seul le relevé du courtier fait foi.</div></div>`;
   if(by[''])h+=`<p class="hint">Précisez l’enveloppe dans chaque fiche (PEA, compte-titres…) pour un suivi complet.</p>`;
-  return h+'</section>';
+  return h+`<button class="btn sec blk mt" data-act="imp">${ic('upload',18)}Importer le portefeuille d’un courtier</button></section>`;
 }
 
 /* ===================== Assistant ===================== */
@@ -3053,8 +3057,38 @@ function parseCSV(t){
 }
 function openImport(){
   IMP={};
-  sheet('Importer',`<h3>Un contrat ou une fiche de projet</h3><p class="sm mut">PDF, photo ou texte. L’analyse locale ne quitte pas votre appareil.</p><div class="fld"><label for="imp-f">Fichier</label><input type="file" id="imp-f" accept="application/pdf,image/*,.txt"></div><div class="fld"><label for="imp-t">Ou collez le texte</label><textarea id="imp-t" rows="3"></textarea></div><button class="btn blk mt" data-act="runlocal">Analyser en local</button><div id="imp-s" class="hint"></div><div id="imp-r"></div>
+  sheet('Importer',`<h3>Le portefeuille d’un courtier</h3><p class="sm mut">Export CSV des positions de votre PEA ou compte-titres (Degiro, BoursoBank, Fortuneo, Trade Republic…) : quantités, prix de revient et cours mis à jour d’un coup. Le fichier est lu sur cet appareil.</p><div class="fld"><label for="pos-f">Fichier .csv</label><input type="file" id="pos-f" accept=".csv,.txt,text/csv" data-ch="posfile"></div><div id="pos-r"></div>
+<h3 class="mt2" style="margin-top:26px">Un contrat ou une fiche de projet</h3><p class="sm mut">PDF, photo ou texte. L’analyse locale ne quitte pas votre appareil.</p><div class="fld"><label for="imp-f">Fichier</label><input type="file" id="imp-f" accept="application/pdf,image/*,.txt"></div><div class="fld"><label for="imp-t">Ou collez le texte</label><textarea id="imp-t" rows="3"></textarea></div><button class="btn blk mt" data-act="runlocal">Analyser en local</button><div id="imp-s" class="hint"></div><div id="imp-r"></div>
 <h3 class="mt2" style="margin-top:26px">Plusieurs placements d’un coup (CSV)</h3><p class="sm mut">Une ligne par placement : catégorie;nom;plateforme;montant;valeur;taux;durée;statut;date;quantité;pru;ticker</p><div class="fld"><label for="imp-c">Collez vos lignes</label><textarea id="imp-c" rows="4" placeholder="crowd;Résidence des Lilas;Bienprêter;5000;5000;9,5;24;cours"></textarea></div><div class="fld"><label for="imp-cf">Ou choisissez un fichier .csv</label><input type="file" id="imp-cf" accept=".csv,.txt,text/csv" data-ch="csvfile"></div><div class="g2 mt"><button class="btn sec" data-act="csvtpl">Télécharger un modèle</button><button class="btn" data-act="csvchk">Vérifier</button></div><div id="csv-r"></div>`);
+}
+/* Portefeuille d'un courtier : CL.lirePositions (colonnes reconnues par leur nom), CL.rapprocherPositions (ISIN puis nom) */
+async function posLire(f){
+  const r=$('pos-r');r.innerHTML='<p class="sm mut mt">Lecture…</p>';
+  try{const t=await lireFichierTexte(f),P=CL.lirePositions(t);
+    if(!P.reconnu||!P.positions.length){IMP.pos=null;r.innerHTML=`<p class="sm neg mt">${P.reconnu?'Aucun titre lu dans ce fichier.':'Colonnes non reconnues : il faut au moins le nom (ou le code ISIN) et la quantité de chaque titre.'} Exportez les « positions » ou le « portefeuille » depuis le site de votre courtier, au format CSV.</p>`;return}
+    P.courtier=P.courtier||CL.lirePositions(f.name).courtier;IMP.pos=P;posApercu(/\bpea\b/i.test(t.slice(0,3000)+' '+f.name)?'pea':'cto')}
+  catch(e){r.innerHTML=`<p class="sm neg mt">Lecture impossible : ${esc(e.message)}</p>`}
+}
+function posRappro(env,courtier){
+  const L=D.assets.filter(a=>a.cat==='bourse'&&(!a.env||a.env===env)&&(!courtier||!a.plat||a.plat===courtier));
+  return{L,R:CL.rapprocherPositions(L.map(a=>({id:a.id,nom:a.name,isin:a.isin,notes:a.notes,tick:a.tick})),IMP.pos.positions)};
+}
+function posApercu(env){
+  const P=IMP.pos;if(!P)return;env=env||($('pos-env')&&$('pos-env').value)||'cto';const cou=$('pos-c')?$('pos-c').value.trim():P.courtier,{L,R}=posRappro(env,cou),ab=cou?L.filter(a=>R.absents.includes(a.id)&&a.env===env&&a.plat===cou):[];
+  const ligne=(p,m)=>`<div class="kv"><span>${esc(p.nom)} <span class="xs mut">${nf(p.qte,p.qte%1?2:0)} × ${eur(p.price,2)}${p.devise?' (converti de '+esc(p.devise)+')':''}</span></span><b>${eur(p.qte*p.price)} <span class="badge" style="--c:${m?'var(--blue)':'var(--ok)'}">${m?'mis à jour':'nouveau'}</span></b></div>`;
+  $('pos-r').innerHTML=`<div class="box mt"><b class="pos">${P.positions.length} titre${P.positions.length>1?'s':''} lu${P.positions.length>1?'s':''}${P.courtier?' ('+esc(P.courtier)+')':''}</b><div class="mt">${R.maj.map(p=>ligne(p,1)).join('')}${R.nouveaux.map(p=>ligne(p,0)).join('')}</div>
+${P.positions.some(p=>p.sansPru)?'<p class="hint">Prix de revient absent du fichier pour certains titres : celui déjà saisi est gardé, sinon le cours du jour est pris (plus-value à zéro).</p>':''}${P.especes>0?`<p class="hint">Espèces du compte : ${eur(P.especes,2)}, non importées (ajoutez-les dans Livrets et liquidités si vous le souhaitez).</p>`:''}${P.erreurs?`<p class="hint">${P.erreurs} ligne${P.erreurs>1?'s':''} ignorée${P.erreurs>1?'s':''} (sans quantité ni cours).</p>`:''}${ab.length?`<p class="sm warnc mt">Absent${ab.length>1?'s':''} du fichier : ${ab.slice(0,5).map(a=>'« '+esc(a.name)+' »').join(', ')}${ab.length>5?'…':''}. Vendu${ab.length>1?'s':''} ? Enregistrez la vente dans sa fiche, ou supprimez la ligne.</p>`:''}</div>
+<div class="g2 mt"><div class="fld"><label for="pos-env">Enveloppe</label><select id="pos-env" data-ch="posenv">${Object.entries(ENV).filter(([k])=>k!=='av'&&k!=='per').map(([k,v])=>`<option value="${k}"${k===env?' selected':''}>${v}</option>`).join('')}</select></div><div class="fld"><label for="pos-c">Courtier</label><input id="pos-c" type="text" value="${esc(cou)}" placeholder="Ex : Degiro" data-ch="posenv" autocomplete="off"></div></div>
+<button class="btn blk mt" data-act="posgo">Importer ${P.positions.length} titre${P.positions.length>1?'s':''}</button>`;
+}
+function posGo(){
+  const P=IMP.pos;if(!P)return;const env=$('pos-env').value,cou=$('pos-c').value.trim().slice(0,40),{R}=posRappro(env,cou),avant=JSON.stringify(D.assets),ts=Date.now();
+  R.maj.forEach(p=>{const a=D.assets.find(x=>x.id===p.id);if(!a)return;a.qty=p.qte;if(!p.sansPru||!(num(a.pru)>0))a.pru=p.pru;a.price=p.price;a.pxts=ts;a.pxsrc='import';
+    if(p.isin&&!CL.isinDe(a.name,a.notes))a.notes=((a.notes||'')+' ISIN '+p.isin).trim();if(!a.env)a.env=env;if(!a.plat&&cou)a.plat=cou;delete a.demo});
+  R.nouveaux.forEach(p=>D.assets.push({id:newId(),cat:'bourse',name:p.nom,qty:p.qte,pru:p.pru,price:p.price,pxts:ts,pxsrc:'import',env,plat:cou||undefined,notes:p.isin?'ISIN '+p.isin:'',status:'cours'}));
+  IMP.pos=null;save();closeM();render();
+  toast(`${R.maj.length} titre${R.maj.length>1?'s':''} mis à jour, ${R.nouveaux.length} ajouté${R.nouveaux.length>1?'s':''}`,{l:'Annuler',fn:()=>{D.assets=JSON.parse(avant);save();render()}});
+  setTimeout(()=>{autoTickers().catch(()=>{})},300); /* cours suivis ensuite d'après l'ISIN */
 }
 function csvCheck(){
   const p=IMP.csv=parseCSV($('imp-c').value);
@@ -3166,6 +3200,7 @@ function palItems(q){
   Object.keys(CATS).forEach(c=>add('Actions','Ajouter : '+CATS[c].n,CATS[c].ic,()=>openForm(c)));
   add('Actions','Exporter le bilan en PDF','printer',()=>bilan(),'rapport imprimer');
   add('Actions','Importer un contrat ou un CSV','upload',()=>openImport());
+  add('Actions','Importer le portefeuille d’un courtier','upload',()=>openImport());
   add('Actions','Exporter une sauvegarde (JSON)','download',()=>exp());
   add('Actions','Exporter en CSV (tableur)','download',()=>expCSV(),'excel numbers');
   add('Actions',HIDE?'Afficher les montants':'Masquer les montants',HIDE?'eye':'eyeoff',()=>ACT.hide());
@@ -3301,6 +3336,7 @@ const ACT={
   declcopy:()=>{const t=declTexte(declData(declAnnee())),ok=()=>toast('Récapitulatif copié');if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,()=>fbCopy(t,'Récapitulatif copié'));else fbCopy(t,'Récapitulatif copié')},
   bouge:d=>{UI.bouge=d.v;renderAnalyse()},
   bougemp:()=>{UI.bouge='mp';go('analyse');renderAnalyse()},
+  opendecl:()=>{UI.tool='decl';go('tools');renderTools(true)},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
   tog:d=>{if(d.k==='capt'){MAC.captures(MACST.protegee).then(r=>{MACST.protegee=!!r.protegee;renderSet();toast(r.protegee?'Fenêtre de nouveau invisible aux captures':'Captures d’écran autorisées')}).catch(()=>{});return}if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
@@ -3308,7 +3344,7 @@ const ACT={
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
   refresh:()=>refresh(false),
   tsearch:()=>tsearch(),tpick:d=>tpick(d),
-  imp:()=>openImport(),runlocal:()=>runLocal(),gemc:()=>gemContract(),mkfiche:()=>mkFiche(),enq:()=>enquete(),
+  imp:()=>openImport(),posgo:()=>posGo(),runlocal:()=>runLocal(),gemc:()=>gemContract(),mkfiche:()=>mkFiche(),enq:()=>enquete(),
   csvchk:()=>csvCheck(),csvgo:()=>csvGo(),csvtpl:()=>dl('modele-patrimoine.csv','\ufeff'+CSVT,'text/csv'),
   aisend:()=>sendFromBox(),
   aidictee:()=>basculerDictee(),
@@ -3492,6 +3528,8 @@ document.addEventListener('change',e=>{
   else if(k==='opsfile'){if(t.files&&t.files.length)opsLire([...t.files])}
   else if(k==='opcat')opCat(t.dataset.id,t.value);
   else if(k==='docfile'){if(t.files&&t.files.length)docsAjouter([...t.files],t.dataset.aid,t.dataset.cat||($('doc-cat')?$('doc-cat').value:''))}
+  else if(k==='posfile'){if(t.files&&t.files[0])posLire(t.files[0])}
+  else if(k==='posenv'){if(IMP.pos)posApercu(t.id==='pos-env'?t.value:'')}
   else if(k==='csvfile'){const f=t.files[0];if(f){const r=new FileReader();r.onload=()=>{$('imp-c').value=r.result;csvCheck()};r.readAsText(f)}}
   else onIn(e);
 });

@@ -205,7 +205,7 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
 
   /* --- rendement réel des paiements enregistrés : cas dont le résultat est connu (7 % l'an, versements mensuels) --- */
   const tri = await pg.evaluate(() => {
-    const iso = d => d.toLocaleDateString('sv-SE'), dt = k => { const d = new Date(); d.setDate(5); d.setMonth(d.getMonth() - k); return d; }, out = {};
+    const iso = d => d.toLocaleDateString('sv-SE'), dt = k => { const d = new Date(); d.setDate(Math.min(d.getDate(), 28)); d.setMonth(d.getMonth() - k); return d; }, out = {}; // dernier paiement aujourd'hui : le résultat ne dépend pas du jour du mois
     /* a) 1 000 € prêtés à 7 % il y a 12 mois, 12 versements mensuels ensuite, intérêts versés chaque mois (5,83 €), capital rendu à la fin */
     D.assets.push({ id: 't1', cat: 'crowd', name: 'Prêt intérêts', plat: 'TestPf', amount: 1000, value: 1000, rate: 7, dur: 24, date: iso(dt(12)), status: 'cours' });
     D.rappels.push({ id: 'rt1', nom: 'TestPf', jour: 5, aid: 't1', dest: 'aucun', hist: {}, cree: '2000-01-01' });

@@ -1,5 +1,9 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.8.0
+- **Importer le portefeuille d’un courtier** (Importer, ou Analyse → Enveloppes de vos titres) : l’export CSV des positions de Degiro, BoursoBank, Fortuneo, Trade Republic… remplit votre PEA ou compte-titres d’un coup. Les titres déjà suivis sont mis à jour (quantité, prix de revient, cours), les nouveaux sont ajoutés et leur cours est ensuite suivi tout seul d’après le code ISIN. Un aperçu montre tout avant d’importer, et les titres absents du fichier sont signalés.
+- **Nouveaux points d’attention** : frais élevés sur un contrat, frais bancaires de plus de 100 € par an, et au printemps, le récapitulatif de la déclaration des revenus prêt à consulter.
+
 ## 6.7.0
 - **Pourquoi mon patrimoine a bougé** : dans Analyse et dans le bilan du mois, la variation est expliquée en trois parts (vos versements et retraits, le marché, les crédits remboursés) avec le type de placement qui a le plus compté. Au choix : ce mois-ci, le mois dernier ou 12 mois.
 - **Aide à la déclaration des revenus** (Simulateurs → Déclaration) : intérêts reçus, dividendes, plus-values de vos ventes et loyers de l’année, avec la case habituelle de la déclaration, les comptes à l’étranger à déclarer et ce qui n’a rien à déclarer. Récapitulatif à copier. Vos ventes de titres gardent désormais leur plus-value.
