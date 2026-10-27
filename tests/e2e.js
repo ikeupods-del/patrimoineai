@@ -191,6 +191,15 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   await pg.click('[data-act=declan][data-v="' + new Date().getFullYear() + '"]'); await pg.waitForTimeout(100);
   ok(/Revenus \d{4} \(en cours\)/.test(await pg.textContent('#v-tools')) && await pg.evaluate(() => declAnnee() === new Date().getFullYear() && /Case 3VG/.test(declHTML())), 'déclaration : année en cours (vente du jour)');
   ok(await pg.evaluate(() => /2TR ou 2TT/.test(declTexte(declData(new Date().getFullYear() - 1))) && /IFU/.test(declTexte(declData(2000)))), 'déclaration : récapitulatif à copier');
+  /* portefeuille d'un courtier importé (positions mises à jour par nom ou ISIN, nouveaux titres ajoutés) */
+  await pg.evaluate(() => openImport()); await pg.setInputFiles('#pos-f', { name: 'positions-boursobank.csv', mimeType: 'text/csv', buffer: Buffer.from('name;isin;quantity;buyingPrice;lastPrice;amount\n"Apple";US0378331005;12;160;210;2520\n"AMUNDI MSCI WORLD";FR0010756098;3;400;520;1560\n', 'latin1') });
+  await pg.waitForSelector('[data-act=posgo]'); const pa = (await pg.textContent('#pos-r')).replace(/[  ]/g, ' ');
+  ok(/2 titres lus \(BoursoBank\)/.test(pa) && /mis à jour/.test(pa) && /nouveau/.test(pa) && await pg.inputValue('#pos-env') === 'cto', 'portefeuille : aperçu (courtier reconnu, mise à jour et nouveau titre)');
+  await pg.click('[data-act=posgo]'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => { const a = D.assets.find(x => x.id === 'a1'), n = D.assets.find(x => x.name === 'AMUNDI MSCI WORLD'); return a.qty === 12 && a.pru === 160 && a.price === 210 && /US0378331005/.test(a.notes) && n && n.env === 'cto' && n.plat === 'BoursoBank' && n.qty === 3 && /FR0010756098/.test(n.notes); }), 'portefeuille importé : quantités, prix de revient, cours et ISIN');
+  await pg.evaluate(() => openImport()); await pg.setInputFiles('#pos-f', { name: 'releve.csv', mimeType: 'text/csv', buffer: Buffer.from('Date;Libellé;Montant\n01/10/2026;CB;-12\n') });
+  await pg.waitForFunction(() => /Colonnes non reconnues/.test(document.getElementById('pos-r').textContent)); ok(true, 'portefeuille : un relevé de compte est refusé avec une explication'); await pg.keyboard.press('Escape');
+  ok(await pg.evaluate(() => { const fr = D.assets.find(x => x.id === 'e1'); fr.fees = 1.9; return insights().some(i => /Frais élevés : Assurance-vie/.test(i.title)); }), 'point d’attention : frais élevés');
   const rep67 = await pg.evaluate(() => ['pourquoi mon patrimoine a bougé ?', 'quelle case pour mes dividendes sur la déclaration ?', 'quels sont mes frais cachés ?'].map(q => LAI.answer(q).t));
   ok(/^#### Variation du/.test(rep67[0]) && /à déclarer/.test(rep67[1]) && /case 2DC/.test(rep67[1]) && /Vos frais/.test(rep67[2]) && /Frais bancaires/.test(rep67[2]), 'assistant local : variation, déclaration, frais (' + rep67.map(t => t.slice(0, 40)).join(' | ') + ')');
   await pg.click('[data-act=declcopy]'); ok(!errs.length, 'aucune erreur JavaScript (variation, frais, déclaration) : ' + errs.join(' | '));

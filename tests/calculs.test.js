@@ -170,4 +170,18 @@ const fb = C.fraisBancaires([{ d: '2026-09-10', lib: 'COTISATION CARTE VISA PREM
   { d: '2026-09-12', lib: 'CB GRAND FRAIS 11/09', m: -42, cat: 'alimentation' }, { d: '2026-09-13', lib: 'CB GRAND FRAIS LYON', m: -42, cat: 'autre' }, { d: '2025-01-02', lib: 'AGIOS', m: -30, cat: 'autre' }, { d: '2026-09-01', lib: 'COTISATION MUTUELLE', m: -60, cat: 'autre' }], AUJ);
 ok(fb.total === 150 && fb.lignes.length === 2 && fb.lignes[0].total === 134 && fb.lignes[1].n === 2, 'frais bancaires des 12 derniers mois (' + JSON.stringify(fb) + ')');
 
+/* relevé de portefeuille d'un courtier : colonnes reconnues par leur nom */
+const dgFr = C.lirePositions('Produit,Symbole/ISIN,Quantité,Clôture,,Valeur locale,,Valeur en EUR\nCASH & CASH FUND & FTX CASH (EUR),,,,EUR,"152,30",,"152,30"\nISHARES CORE MSCI WORLD UCITS ETF,IE00B4L5Y983,12,"98,50",EUR,"1182,00",,"1182,00"\nAPPLE INC,US0378331005,3,"230,10",USD,"690,30",,"636,00"\n');
+ok(dgFr.reconnu && dgFr.positions.length === 2 && dgFr.especes === 152.3 && dgFr.positions[0].isin === 'IE00B4L5Y983' && dgFr.positions[0].qte === 12 && dgFr.positions[0].price === 98.5 && dgFr.positions[0].sansPru, 'Degiro (français) : positions, espèces à part, sans prix de revient (' + JSON.stringify(dgFr) + ')');
+ok(dgFr.positions[1].price === 212 && dgFr.positions[1].devise === 'USD', 'Degiro : prix en euros d’après la valeur en euros, devise notée');
+const dgEn = C.lirePositions('Product,Symbol/ISIN,Amount,Closing,,Local value,,Value in EUR\nVANGUARD FTSE ALL-WORLD,IE00BK5BQT80,5,"110.20",EUR,"551.00",,"551.00"\n');
+ok(dgEn.positions.length === 1 && dgEn.positions[0].qte === 5 && dgEn.positions[0].price === 110.2, 'Degiro (anglais) : « Amount » lu comme la quantité');
+const bo2 = C.lirePositions('name;isin;quantity;buyingPrice;lastPrice;intradayVariation;amount;amountVariation;variation\n"AMUNDI MSCI WORLD";FR0010756098;20;400,5;520,25;0,4;10405;2395;29,9\n"AIR LIQUIDE";FR0000120073;10;150;180;-0,2;1800;300;20\n"AIR LIQUIDE";FR0000120073;5;180;180;-0,2;900;0;0\n');
+ok(bo2.positions.length === 2 && bo2.positions[0].pru === 400.5 && bo2.positions[0].price === 520.25 && !bo2.positions[0].sansPru && bo2.positions[1].qte === 15 && bo2.positions[1].pru === 160, 'BoursoBank : prix de revient, cours, même titre sur deux lignes réuni (' + JSON.stringify(bo2.positions) + ')');
+const gen = C.lirePositions('Portefeuille PEA - Fortuneo au 27/10/2026\n\nLibellé;Code ISIN;Qté;PRU;Cours;Valorisation\nTOTALENERGIES;FR0000120271;40;55,10 €;58,20 €;2 328,00 €\nTotal;;;;;2 328,00 €\n');
+ok(gen.positions.length === 1 && gen.courtier === 'Fortuneo' && gen.positions[0].pru === 55.1 && gen.positions[0].price === 58.2 && gen.erreurs === 0, 'relevé avec titre et ligne de total, courtier reconnu (' + JSON.stringify(gen) + ')');
+ok(!C.lirePositions('Date;Libellé;Montant\n01/10/2026;CB;-12\n').reconnu, 'un relevé de compte n’est pas pris pour un portefeuille');
+const rp2 = C.rapprocherPositions([{ id: 'x1', nom: 'ETF Monde', notes: 'ISIN IE00B4L5Y983' }, { id: 'x2', nom: 'Apple Inc' }, { id: 'x3', nom: 'Vieux titre' }], dgFr.positions.concat([{ nom: 'Nouveau', isin: 'FR0000120271', qte: 1, pru: 1, price: 1 }]));
+ok(rp2.maj.length === 2 && rp2.maj[0].id === 'x1' && rp2.maj[1].id === 'x2' && rp2.nouveaux.length === 1 && rp2.absents.length === 1 && rp2.absents[0] === 'x3', 'positions rapprochées par ISIN puis par nom, titres absents signalés');
+
 console.log('calculs :', n, 'contrôles réussis');

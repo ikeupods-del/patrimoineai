@@ -634,7 +634,62 @@
     return { lignes, total: r2(lignes.reduce((s, x) => s + x.total, 0)) };
   }
 
-  const API = { variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
+  /* ===================== Relevé de portefeuille d'un courtier (export CSV des positions) ===================== */
+  /* Colonnes reconnues par leur nom (Degiro, Boursorama, Fortuneo, Trade Republic, Interactive Brokers… en français ou en anglais) */
+  const COURTIERS = [['degiro', 'Degiro'], ['boursorama|boursobank', 'BoursoBank'], ['fortuneo', 'Fortuneo'], ['trade republic', 'Trade Republic'], ['bourse direct', 'Bourse Direct'],
+    ['interactive brokers|ibkr', 'Interactive Brokers'], ['saxo', 'Saxo'], ['linxea', 'Linxea'], ['easybourse', 'EasyBourse'], ['credit agricole', 'Crédit Agricole'], ['societe generale', 'Société Générale'],
+    ['bnp', 'BNP Paribas'], ['ing', 'ING'], ['lcl', 'LCL'], ['caisse d epargne', 'Caisse d’Épargne'], ['etoro', 'eToro'], ['scalable', 'Scalable Capital'], ['trading 212', 'Trading 212']];
+  function colonnesPositions(entete) {
+    const h = entete.map(norm), pris = new Set(), trouve = (re, sauf) => { const i = h.findIndex((x, j) => !pris.has(j) && re.test(x) && !(sauf && sauf.test(x))); if (i >= 0) pris.add(i); return i; };
+    const isin = trouve(/isin/);
+    const pru = trouve(/\bpru\b|prix de revient|prix (moyen|d achat|de reference)|cout (moyen|unitaire|de revient)|buying ?price|average (cost|price)|avg (cost|price)|cost (price|basis per)|\bpam\b|prix unitaire d achat/);
+    let qte = trouve(/quantit|^qte|qty|^nombre|nb (de )?(titres|parts)|^titres$|shares|^parts$|position$/);
+    if (qte < 0 && h.some(x => /value in eur|valeur en eur/.test(x))) qte = trouve(/^amount$/); // Degiro en anglais : « Amount » = quantité
+    let nom = trouve(/^(produit|product|libelle|nom|name|instrument|designation|security|security name)\b|libelle|designation|instrument|^nom /);
+    if (nom < 0) nom = trouve(/^(valeur|titre|support|actif|asset|description|ligne|fonds)\b/, /valeur (en|locale|totale|boursiere|actuelle|de)|^valeur$/);
+    const ticker = trouve(/^(symbole|symbol|ticker|mnemo|mnemonique|code)$/);
+    const valeur = trouve(/valeur en eur|value in eur|en eur$|valorisation|montant|market value|^valeur$|^value$|^amount$|^total$/, /locale|local|variation|\+\/-|plus|gain/);
+    const cours = trouve(/^(cours|dernier( cours)?|cloture|closing|last|last ?price|price|prix|cotation|cours (actuel|du jour|de cloture)|dernier prix)$/);
+    const devise = h.findIndex(x => /^(devise|currency)$/.test(x));
+    return { nom, isin, ticker, qte, pru, cours, valeur, devise };
+  }
+  function lirePositions(texte) {
+    const t = String(texte || ''), R = decouperCSV(t);
+    let k = -1, C = null;
+    for (let i = 0; i < Math.min(R.length, 30); i++) { const c = colonnesPositions(R[i]); if ((c.nom >= 0 || c.isin >= 0) && c.qte >= 0) { k = i; C = c; break; } }
+    const ct = norm(t.slice(0, 3000)), cr = COURTIERS.find(([re]) => new RegExp('(^|[^a-z])(' + re + ')([^a-z]|$)').test(ct));
+    if (!C) return { positions: [], especes: 0, erreurs: R.length, courtier: cr ? cr[1] : '', reconnu: false };
+    const out = [], vus = {}; let especes = 0, err = 0;
+    const cel = (r, i) => (i >= 0 ? String(r[i] ?? '').trim() : ''), nb = (r, i) => { const v = lireMontant(cel(r, i).replace(/\s*(eur|usd|gbp|chf|€|\$)$/i, '')); return v == null ? null : v; };
+    for (const r of R.slice(k + 1)) {
+      if (!r.some(x => x)) continue;
+      const isin = isinDe(cel(r, C.isin), cel(r, C.nom)), nom = (cel(r, C.nom) || isin).replace(/\s+/g, ' ').slice(0, 80), qte = nb(r, C.qte), val = nb(r, C.valeur);
+      if (/^(sous.)?(total|totaux)( |$|:)/.test(norm(nom))) continue;
+      if (!(qte > 0)) { if (/cash|especes|liquidit|solde|fonds disponibles|money market/.test(norm(nom)) && val > 0) especes += val; else if (nom) err++; continue; }
+      if (!nom) { err++; continue; }
+      const dev = (cel(r, C.devise) || r.find(x => /^(EUR|USD|GBP|GBX|CHF|JPY|CAD|SEK|DKK|NOK|HKD|AUD)$/.test(String(x).trim())) || '').toUpperCase(), cours = nb(r, C.cours);
+      let price = val > 0 ? val / qte : cours > 0 && (!dev || dev === 'EUR') ? cours : null; // prix en euros : d'après la valeur en euros, sinon le cours s'il est en euros
+      const pru = nb(r, C.pru), sansPru = !(pru > 0);
+      if (!(price > 0) && !sansPru) price = pru;
+      if (!(price > 0)) { err++; continue; }
+      const p = { nom, isin, ticker: cel(r, C.ticker).toUpperCase().slice(0, 16), qte: Math.round(qte * 1e6) / 1e6, pru: sansPru ? Math.round(price * 1e4) / 1e4 : Math.round(pru * 1e4) / 1e4, price: Math.round(price * 1e4) / 1e4, sansPru, devise: dev && dev !== 'EUR' ? dev : '' };
+      const cle = isin || norm(nom);
+      if (vus[cle]) { const a = vus[cle], q2 = a.qte + p.qte; a.pru = Math.round((a.pru * a.qte + p.pru * p.qte) / q2 * 1e4) / 1e4; a.qte = Math.round(q2 * 1e6) / 1e6; continue; } // même titre sur deux lignes (deux places)
+      vus[cle] = p; out.push(p);
+    }
+    return { positions: out, especes: r2(especes), erreurs: err, courtier: cr ? cr[1] : '', reconnu: true };
+  }
+  /* Positions lues rapprochées des lignes de bourse existantes [{id, nom, isin, tick}] : par ISIN, puis par nom */
+  function rapprocherPositions(actifs, positions) {
+    const A = (actifs || []).map(a => ({ id: a.id, isin: a.isin || isinDe(a.nom, a.notes), nom: norm(a.nom), tick: String(a.tick || '').toUpperCase().split('.')[0] })), pris = new Set(), maj = [], nouveaux = [];
+    for (const p of positions || []) {
+      const n = norm(p.nom), a = A.find(x => !pris.has(x.id) && p.isin && x.isin === p.isin) || A.find(x => !pris.has(x.id) && x.nom && x.nom === n) || A.find(x => !pris.has(x.id) && p.ticker && x.tick && x.tick === p.ticker.split('.')[0]);
+      if (a) { pris.add(a.id); maj.push(Object.assign({ id: a.id }, p)); } else nouveaux.push(p);
+    }
+    return { maj, nouveaux, absents: A.filter(x => !pris.has(x.id)).map(x => x.id) };
+  }
+
+  const API = { lirePositions, rapprocherPositions, variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
     echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;
