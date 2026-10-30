@@ -1,0 +1,15 @@
+# Secrets : jamais dans le dépôt (clés Enable Banking, variables d'environnement, certificats)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+
+# Fichiers locaux
+node_modules/
+.netlify/
+.DS_Store
