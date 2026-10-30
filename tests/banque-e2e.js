@@ -82,16 +82,16 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
 
   /* --- rappels sur l'accueil (banque pas encore liée) --- */
   const home = await pg.textContent('#v-home');
-  ok(/Paiements à confirmer/.test(home) && /BienPrêter : paiement reçu \?/.test(home) && /Bricks : paiement reçu \?/.test(home), 'accueil : paiements à confirmer');
-  ok(/En retard/.test(home) && /jours sans confirmation/.test(home), 'paiement non confirmé depuis plus de 3 jours : en retard');
+  ok(/Versements à confirmer/.test(home) && /BienPrêter : versement reçu \?/.test(home) && /Bricks : versement reçu \?/.test(home), 'accueil : versements à confirmer');
+  ok(/Alerte/.test(home) && /jours sans confirmation/.test(home) && await pg.locator('#rap-card .rap-alerte').count() > 0, 'versement non confirmé depuis plus de 10 jours : en alerte');
   ok(!/Valider avec cette opération/.test(home), 'sans banque liée : pas de rapprochement proposé');
   if (SHOTS) await pg.screenshot({ path: path.join(SHOTS, 'rappels.png') });
   await audit(pg, 'accueil avec rappels', '#v-home');
-  ok(await pg.evaluate(() => insights().some(i => /Paiement à confirmer : BienPrêter/.test(i.title))), 'point d’attention pour un paiement en retard');
+  ok(await pg.evaluate(() => insights().some(i => /Versement manquant : BienPrêter/.test(i.title) && i.lvl === 'bad')), 'point d’attention rouge pour un versement en alerte');
   /* notification du navigateur, une fois par jour et par paiement */
   await pg.evaluate(() => { localStorage.removeItem('pat_rap_notif'); window.__notifs = []; rapNotifier(); });
   const nf1 = await pg.evaluate(() => window.__notifs.slice());
-  ok(nf1.length === (await pg.evaluate(() => rapDus().length)) && nf1.some(t => /Paiement en retard : Bricks/.test(t)), 'notification du navigateur pour chaque paiement à confirmer (' + nf1.length + ')');
+  ok(nf1.length === (await pg.evaluate(() => rapDus().length)) && nf1.some(t => /Versement (manquant|en retard) : Bricks/.test(t)), 'notification du navigateur pour chaque paiement à confirmer (' + nf1.length + ')');
   await pg.evaluate(() => rapNotifier()); ok((await pg.evaluate(() => window.__notifs.length)) === nf1.length, 'pas de seconde notification le même jour');
 
   /* Oui avec montant habituel (un seul placement BienPrêter) : le mois le plus ancien */
@@ -113,6 +113,37 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   ok(await pg.evaluate(m => { const a = D.assets.find(x => x.id === 'bk1'), w = D.assets.find(x => x.id === 'pf-bricks'), r = D.rappels.find(x => x.id === 'rbk'); return r.hist[m].m === 21.4 && r.hist[m].c === 10 && a.amount === 490 && a.value === 490 && a.paie[0].c === 10 && w.amount === 21.4; }, mPrec), '« Montant différent » : montant réel, capital déduit du placement, portefeuille Bricks crédité');
   await pg.click('#toast [data-act=toastact]'); await pg.waitForTimeout(100);
   ok(await pg.evaluate(m => !D.rappels.find(x => x.id === 'rbk').hist[m] && D.assets.find(x => x.id === 'bk1').amount === 500 && !D.assets.some(x => x.id === 'pf-bricks'), mPrec), 'annulation : tout revient comme avant');
+
+  /* --- 6.8 : échéancier BienPrêter (part de capital), historique des validations et annulation, synchronisation rappel par rappel --- */
+  const lp = await pg.evaluate(m => CL.ligneDuMois(echOf(D.assets.find(x => x.id === 'bp1')), m), mPrec);
+  ok(lp && lp.capital > 0 && lp.interets > 0, 'échéancier du prêt BienPrêter : mensualité avec capital et intérêts');
+  await pg.click(`#rap-card [data-act=rapautre][data-id=rbp][data-m="${mPrec}"]`);
+  await pg.fill('#rv-m', String(lp.total)); await pg.dispatchEvent('#rv-m', 'input');
+  ok(Math.abs(+(await pg.inputValue('#rv-c')) - lp.capital) < 0.01, 'montant prévu saisi : part de capital reprise de l’échéancier');
+  await pg.click('[data-act=rapsave]'); await pg.waitForTimeout(150);
+  const capOk = await pg.evaluate(([m, c]) => { const a = D.assets.find(x => x.id === 'bp1'), h = D.rappels.find(x => x.id === 'rbp').hist[m]; return Math.abs(a.amount - (1000 - c)) < 0.01 && h.t > 0 && h.w === 'pf-bienpreter' && Math.abs(echOf(a).capitalRestantReel - (1000 - c)) < 0.01; }, [mPrec, lp.capital]);
+  ok(capOk, 'versement validé : capital restant du prêt réduit, validation datée et portefeuille noté');
+  await pg.evaluate(() => openDetail('bp1')); ok(/Échéancier/.test(await pg.textContent('#sheet')) && /Capital restant d’après vos versements/.test(await pg.textContent('#sheet')), 'fiche du placement : échéancier prévu et reçu'); await pg.evaluate(() => closeM());
+  await pg.evaluate(() => go('bank')); await pg.click('[data-act=raphist][data-id=rbp]');
+  ok(/Historique · BienPrêter/.test(await pg.textContent('#sheet')) && await pg.locator('#sheet [data-act=rapannul]').count() === 2, 'historique des validations d’un rappel');
+  const w0 = await pg.evaluate(() => D.assets.find(x => x.id === 'pf-bienpreter').amount);
+  await pg.click(`#sheet [data-act=rapannul][data-m="${mPrec}"]`); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(([m, w0, t]) => { const a = D.assets.find(x => x.id === 'bp1'), r = D.rappels.find(x => x.id === 'rbp'); return a.amount === 1000 && !a.paie.some(p => p.mois === m) && r.hist[m].s === 'annule' && rapDus().some(x => x.r.id === 'rbp' && x.mois === m) && Math.abs(D.assets.find(x => x.id === 'pf-bienpreter').amount - (w0 - t)) < 0.01; }, [mPrec, w0, lp.total]), 'annulation depuis l’historique : capital rendu, portefeuille débité, versement de nouveau à confirmer');
+  ok(/Validation annulée/.test(await pg.textContent('#sheet')), 'historique : annulation visible');
+  await pg.evaluate(() => closeM());
+  /* deux appareils : l'un a validé un autre mois et renommé le rappel ; l'annulation locale et l'ajout distant sont gardés */
+  const fus = await pg.evaluate(([m, v]) => {
+    const R = JSON.parse(JSON.stringify(payload())), r = R.rappels.find(x => x.id === 'rbp');
+    r.nom = 'BienPrêter (autre appareil)'; r.u = Date.now() + 5000; r.hist['2001-01'] = { s: 'recu', m: 1, t: Date.now() + 5000 }; delete r.hist[m]; R.mt.rappels = Date.now() + 5000;
+    mergeRemote(R); const x = D.rappels.find(y => y.id === 'rbp');
+    return x.nom === 'BienPrêter (autre appareil)' && x.hist['2001-01'] && x.hist[m] && x.hist[m].s === 'annule' && x.hist[v].s === 'recu';
+  }, [mPrec, vieux]);
+  ok(fus, 'synchronisation : rappels fusionnés un par un, historique réuni mois par mois');
+  await pg.evaluate(() => { const r = D.rappels.find(y => y.id === 'rbp'); r.nom = 'BienPrêter'; delete r.hist['2001-01']; save(); });
+  /* état transmis au service worker pour les rappels application fermée : dates seulement, aucun montant */
+  const etat = await pg.evaluate(async () => { rapPublier(true); await new Promise(r => setTimeout(r, 300)); const c = await caches.open('patrimoine-etat'), x = await c.match('etat-rappels'); return x ? await x.text() : ''; });
+  ok(/"nom":"BienPrêter"/.test(etat) && /"date":"\d{4}-\d{2}-\d{2}"/.test(etat) && !/42\.5|montant/.test(etat), 'service worker : dates des versements attendus, sans montant');
+  await pg.evaluate(() => go('home'));
 
   /* --- Mes banques : liaison (démonstration) --- */
   await pg.evaluate(() => go('bank')); await pg.waitForFunction(() => BQ.conf === true && !BQ.busy);
@@ -210,13 +241,13 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
     D.assets.push({ id: 't1', cat: 'crowd', name: 'Prêt intérêts', plat: 'TestPf', amount: 1000, value: 1000, rate: 7, dur: 24, date: iso(dt(12)), status: 'cours' });
     D.rappels.push({ id: 'rt1', nom: 'TestPf', jour: 5, aid: 't1', dest: 'aucun', hist: {}, cree: '2000-01-01' });
     for (let k = 11; k >= 0; k--) rapValider('rt1', iso(dt(k)).slice(0, 7), 5.83, { d: iso(dt(k)), aid: 't1' });
-    const a = D.assets.find(x => x.id === 't1'), R = CL.tri(flux(a), val(a)); out.interets = { tri: R.tri, gain: R.gain, verse: R.verse, valeur: val(a) };
+    const a = D.assets.find(x => x.id === 't1'), R = CL.tri(flux(a), val(a), new Date(iso(dt(0)) + 'T12:00:00')); out.interets = { tri: R.tri, gain: R.gain, verse: R.verse, valeur: val(a) };
     /* b) 1 000 € à 7 %, remboursé en 12 mensualités constantes de 86,53 € (capital + intérêts) */
     const m = 1000 * (0.07 / 12) / (1 - Math.pow(1 + 0.07 / 12, -12)); let cap = 1000;
     D.assets.push({ id: 't2', cat: 'crowd', name: 'Prêt amortissable', plat: 'TestQ', amount: 1000, value: 1000, rate: 7, dur: 12, date: iso(dt(12)), status: 'cours' });
     D.rappels.push({ id: 'rt2', nom: 'TestQ', jour: 5, aid: 't2', dest: 'aucun', hist: {}, cree: '2000-01-01' });
     for (let k = 11; k >= 0; k--) { const inter = cap * 0.07 / 12, c = m - inter; cap -= c; rapValider('rt2', iso(dt(k)).slice(0, 7), Math.round(m * 100) / 100, { d: iso(dt(k)), aid: 't2', c: Math.round(c * 100) / 100 }); }
-    const b = D.assets.find(x => x.id === 't2'), Rb = CL.tri(flux(b), val(b)); out.amort = { tri: Rb.tri, gain: Rb.gain, restant: b.amount, valeur: val(b), paie: b.paie.length };
+    const b = D.assets.find(x => x.id === 't2'), Rb = CL.tri(flux(b), val(b), new Date(iso(dt(0)) + 'T12:00:00')); out.amort = { tri: Rb.tri, gain: Rb.gain, restant: b.amount, valeur: val(b), paie: b.paie.length };
     D.assets = D.assets.filter(x => x.id !== 't1' && x.id !== 't2'); D.rappels = D.rappels.filter(x => x.id !== 'rt1' && x.id !== 'rt2'); save(); render();
     return out;
   });

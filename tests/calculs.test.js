@@ -100,7 +100,7 @@ ok(C.echeance('2026-10', 8) === '2026-10-08' && C.echeance('2026-02', 31) === '2
 const bricks = { id: 'r1', nom: 'Bricks', jour: 8, cree: '2026-09-01', hist: {} }, bp = { id: 'r2', nom: 'BienPrêter', jour: 5, cree: '2026-10-01', hist: {}, motif: 'bienpreter|lemonway', attendu: 42.5 };
 ok(C.rappelsDus([bricks, bp], '2026-10-04').length === 1 && C.rappelsDus([bricks, bp], '2026-10-04')[0].mois === '2026-09', 'avant le jour J : seul le mois précédent non validé est dû');
 const du = C.rappelsDus([bricks, bp], '2026-10-08');
-ok(du.length === 3 && du[2].r === bricks && du[2].statut === 'a_valider' && du[1].r === bp && du[1].statut === 'a_valider' && du[0].statut === 'retard', 'le jour J : à valider ; septembre non validé : en retard');
+ok(du.length === 3 && du[2].r === bricks && du[2].statut === 'a_valider' && du[1].r === bp && du[1].statut === 'a_valider' && du[0].statut === 'alerte', 'le jour J : à valider ; septembre non validé depuis un mois : en alerte');
 ok(C.rappelsDus([bp], '2026-10-08')[0].statut === 'a_valider' && C.rappelsDus([bp], '2026-10-09')[0].statut === 'retard' && C.rappelsDus([bp], '2026-10-09')[0].jours === 4, 'en retard après 3 jours sans validation');
 bricks.hist['2026-09'] = { s: 'recu', m: 31.2 }; bricks.hist['2026-10'] = { s: 'absent' };
 ok(C.rappelsDus([bricks], '2026-10-20').length === 0 && C.prochaineEcheance(bricks, '2026-10-20') === '2026-11-09' && C.prochaineEcheance(bp, '2026-10-05') === '2026-10-05', 'validé ou absent : plus dû ; prochaine échéance');
@@ -169,5 +169,39 @@ ok(fp.lignes.length === 2 && fp.lignes[0].id === 'a' && fp.parAn === 420 && fp.l
 const fb = C.fraisBancaires([{ d: '2026-09-10', lib: 'COTISATION CARTE VISA PREMIER', m: -134, cat: 'autre' }, { d: '2026-08-02', lib: 'FRAIS COMMISSION D INTERVENTION', m: -8, cat: 'autre' }, { d: '2026-07-02', lib: 'FRAIS COMMISSION D INTERVENTION', m: -8, cat: 'autre' },
   { d: '2026-09-12', lib: 'CB GRAND FRAIS 11/09', m: -42, cat: 'alimentation' }, { d: '2026-09-13', lib: 'CB GRAND FRAIS LYON', m: -42, cat: 'autre' }, { d: '2025-01-02', lib: 'AGIOS', m: -30, cat: 'autre' }, { d: '2026-09-01', lib: 'COTISATION MUTUELLE', m: -60, cat: 'autre' }], AUJ);
 ok(fb.total === 150 && fb.lignes.length === 2 && fb.lignes[0].total === 134 && fb.lignes[1].n === 2, 'frais bancaires des 12 derniers mois (' + JSON.stringify(fb) + ')');
+
+/* rappels : alerte à J+10, annulation, fusion entre appareils (6.8) */
+{
+  const r = { id: 'r1', nom: 'BienPrêter', jour: 5, cree: '2026-01-01', hist: {} };
+  const st = a => C.rappelsDus([r], a).filter(x => x.mois === '2026-10').map(x => x.statut)[0];
+  ok(st('2026-10-05') === 'a_valider' && st('2026-10-09') === 'retard' && st('2026-10-15') === 'retard' && st('2026-10-16') === 'alerte', 'rappel : à confirmer, en retard à J+3, en alerte à J+10');
+  r.hist['2026-10'] = { s: 'annule', t: 2 };
+  ok(st('2026-10-20') === 'alerte' && C.prochaineEcheance(r, '2026-10-01') === '2026-10-05', 'une validation annulée rouvre le rappel');
+  r.hist['2026-10'] = { s: 'recu', m: 50, t: 3 };
+  ok(st('2026-10-20') === undefined && C.historique(r)[0].mois === '2026-10', 'validation : rappel fermé, historique lisible');
+  const L = [{ id: 'a', nom: 'A', jour: 5, u: 10, hist: { '2026-09': { s: 'recu', m: 10, t: 5 } } }, { id: 'b', nom: 'B', jour: 8, u: 10, hist: {} }, { id: 'loc', nom: 'Nouveau', jour: 1, u: 30, hist: {} }];
+  const R = [{ id: 'a', nom: 'A (renommé)', jour: 5, u: 20, hist: { '2026-09': { s: 'annule', t: 9 }, '2026-10': { s: 'recu', m: 11, t: 8 } } }, { id: 'b', nom: 'B', jour: 8, u: 5, hist: {} }, { id: 'dist', nom: 'Distant', jour: 2, u: 1, hist: {} }];
+  const F = C.fusionRappels(L, R, { b: 15 }, true), fa = F.find(x => x.id === 'a');
+  ok(fa.nom === 'A (renommé)' && fa.hist['2026-09'].s === 'annule' && fa.hist['2026-10'].m === 11, 'fusion des rappels : réglages les plus récents, historique mois par mois');
+  ok(!F.find(x => x.id === 'b') && F.find(x => x.id === 'loc') && F.find(x => x.id === 'dist') && F.length === 3, 'fusion des rappels : suppression respectée, ajouts des deux côtés gardés');
+  ok(C.fusionHist({ m: { s: 'recu', m: 1 } }, { m: { s: 'absent', t: 1 } }).m.s === 'absent' && C.fusionHist({ m: { s: 'recu', t: 9 } }, { m: { s: 'absent', t: 1 } }).m.s === 'recu', 'fusion d’historique : l’entrée datée la plus récente gagne');
+}
+/* échéancier : prêt amortissable (BienPrêter), in fine, loyers (Bricks) */
+{
+  const E = C.echeancier({ montant: 1000, taux: 7, duree: 12, debut: '2025-10-15', jour: 5, mode: 'amort', paie: [{ d: '2025-11-05', m: 86.53, c: 80.7 }] }, '2026-04-20');
+  ok(E && E.lignes.length === 12 && Math.abs(E.mensualite - 86.53) < 0.01 && E.lignes[0].mois === '2025-11' && E.lignes[0].date === '2025-11-05' && E.lignes[11].crd === 0, 'échéancier amortissable : 12 mensualités de 86,53 €, capital soldé à la fin');
+  ok(Math.abs(E.lignes[0].interets - 5.83) < 0.01 && Math.abs(E.lignes[0].capital - 80.7) < 0.02 && E.lignes[0].recu === 86.53 && E.lignes[1].recu === null, 'échéancier : intérêts, capital et montant reçu par mois');
+  ok(E.capitalRestantPrevu === E.lignes.find(x => x.mois === '2026-04').crd && E.capitalRestantReel === 919.3 && E.prochaines[0].mois === '2026-04', 'capital restant prévu et réel');
+  ok(C.partCapital(C.ligneDuMois(E, '2025-11'), 86.53) === 80.69 && C.partCapital(C.ligneDuMois(E, '2025-11'), 50) === 44.17 && C.partCapital(null, 50) === 0, 'part de capital d’un versement');
+  const I = C.echeancier({ montant: 1000, taux: 12, duree: 3, debut: '2026-01-10', mode: 'infine' }, '2026-02-01');
+  ok(I.lignes.map(x => x.total).join() === '10,10,1010' && I.capitalRestantPrevu === 1000, 'échéancier in fine : intérêts chaque mois, capital à la fin');
+  const B = C.echeancier({ montant: 1200, taux: 6, debut: '2026-01-10', mode: 'loyer' }, '2026-03-01', 12);
+  ok(B.lignes.every(x => x.total === 6 && x.capital === 0) && B.prochaines.length === 12 && B.capitalRestantPrevu === 1200, 'échéancier de loyers (Bricks) : revenu mensuel, capital inchangé');
+  ok(C.echeancier({ montant: 0, taux: 5, duree: 12, debut: '2026-01-01' }) === null && C.echeancier({ montant: 100, taux: 5, debut: '2026-01-01', mode: 'amort' }) === null, 'échéancier : données incomplètes → rien');
+}
+/* rapprochement par montant quand le libellé est inattendu */
+ok(C.rapprocher({ nom: 'Bricks', jour: 8, attendu: 42.1 }, '2026-10', [{ id: 'z', d: '2026-10-09', lib: 'VIR SEPA LEMON WAY', m: 42.1 }]).parMontant === true
+  && C.rapprocher({ nom: 'Bricks', jour: 8, attendu: 42.1 }, '2026-10', [{ id: 'z', d: '2026-10-09', lib: 'VIR SEPA LEMON WAY', m: 60 }]) === null
+  && C.rapprocher({ nom: 'Bricks', jour: 8, prevu: 30 }, '2026-10', [{ id: 'y', d: '2026-10-08', lib: 'VIREMENT', m: 30 }]).id === 'y', 'rapprochement par montant presque identique (libellé inattendu)');
 
 console.log('calculs :', n, 'contrôles réussis');

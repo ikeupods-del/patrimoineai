@@ -447,23 +447,92 @@
   }
   /* Paiements arrivés à échéance et pas encore validés (6 derniers mois au plus, jamais avant la création du rappel).
      Au-delà de « delai » jours sans validation, le paiement passe en retard. */
-  function rappelsDus(rappels, auj, delai = 3) {
+  /* Un mois est traité quand il a été validé (reçu) ou fermé (absent) ; une validation annulée (s: 'annule') le rouvre :
+     elle reste dans l'historique comme trace datée, pour que la synchronisation n'y ramène pas l'ancienne validation. */
+  const traite = h => !!(h && h.s !== 'annule');
+  /* Au-delà de « delai » jours sans validation, le paiement passe en retard (orange) ; au-delà de « alerte » jours, en alerte (rouge). */
+  function rappelsDus(rappels, auj, delai = 3, alerte = 10) {
     const out = [];
     for (const r of rappels || []) {
       if (!r || r.actif === false || !(num(r.jour) >= 1)) continue;
       for (let k = 0, m = mois(auj); k < 6; k++, m = moisDecale(m, -1)) {
         const e = echeanceR(r, m);
-        if (e > auj || (r.cree && e < r.cree) || (r.hist && r.hist[m])) continue;
+        if (e > auj || (r.cree && e < r.cree) || traite(r.hist && r.hist[m])) continue;
         const j = ecartJours(e, auj);
-        out.push({ r, mois: m, date: e, jours: j, statut: j > delai ? 'retard' : 'a_valider' });
+        out.push({ r, mois: m, date: e, jours: j, statut: j > alerte ? 'alerte' : j > delai ? 'retard' : 'a_valider' });
       }
     }
     return out.sort((a, b) => a.date.localeCompare(b.date));
   }
   /* Prochaine date de paiement pas encore traitée (aujourd'hui compris) */
   function prochaineEcheance(r, auj) {
-    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeanceR(r, m); if (e >= auj && !(r.hist && r.hist[m])) return e; }
+    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeanceR(r, m); if (e >= auj && !traite(r.hist && r.hist[m])) return e; }
     return null;
+  }
+  /* Historique d'un rappel, du plus récent au plus ancien : [{mois, s, m, c, d, t, tx, aid}] (annulations comprises) */
+  const historique = r => Object.entries((r && r.hist) || {}).filter(([, h]) => h && typeof h === 'object').map(([m, h]) => Object.assign({ mois: m }, h)).sort((a, b) => b.mois.localeCompare(a.mois));
+  /* Fusion de deux versions d'un même historique (deux appareils) : mois par mois, l'entrée la plus récente (t) gagne ;
+     une entrée sans date perd contre une entrée datée. */
+  function fusionHist(a, b) {
+    const out = Object.assign({}, a || {});
+    for (const [m, h] of Object.entries(b || {})) { const x = out[m]; if (!x || num(h && h.t) > num(x.t)) out[m] = h; }
+    return out;
+  }
+  /* Fusion des rappels de deux appareils, rappel par rappel : réglages de la version la plus récente (u), historique réuni
+     mois par mois, rappels supprimés (del : {id: date}) écartés. « prefLocal » départage deux versions de même date. */
+  function fusionRappels(local, distant, del, prefLocal) {
+    const D = del || {}, L = new Map((local || []).map(r => [r.id, r])), out = [];
+    const garde = r => r && r.id && !(num(D[r.id]) >= num(r.u));
+    for (const r of distant || []) {
+      if (!garde(r)) { L.delete(r && r.id); continue; }
+      const l = L.get(r.id); L.delete(r.id);
+      if (!l) { out.push(r); continue; }
+      const gagne = num(l.u) > num(r.u) || (num(l.u) === num(r.u) && prefLocal) ? l : r;
+      out.push(Object.assign({}, gagne, { hist: fusionHist(gagne === l ? r.hist : l.hist, gagne.hist) }));
+    }
+    for (const l of L.values()) if (garde(l)) out.push(l);
+    return out;
+  }
+
+  /* ===================== Échéancier d'un placement (BienPrêter, Bricks…) ===================== */
+  /* p : {montant (capital prêté), taux (%/an), duree (mois), debut ('AAAA-MM-JJ'), jour (jour du versement), mode, paie}
+     mode : 'amort' = mensualités constantes, capital et intérêts (prêts BienPrêter) ; 'infine' = intérêts chaque mois, capital
+     rendu à la fin ; 'loyer' = revenu mensuel régulier sans remboursement de capital (immobilier fractionné, Bricks).
+     → lignes mois par mois {mois, date, interets, capital, total, crd (capital restant après ce versement), recu, capitalRecu}
+     et le capital restant prévu à la date « auj ». Les montants reçus (paie : {d, m, c, mois}) sont rapprochés par mois. */
+  function echeancier(p, auj, horizon = 12) {
+    const P = num(p.montant), t = num(p.taux) / 100 / 12, mode = p.mode || 'amort', debut = jour(p.debut);
+    if (!(P > 0) || !debut || !(t > 0) && mode !== 'amort') return null;
+    const n = mode === 'loyer' ? 0 : Math.round(num(p.duree));
+    if (mode !== 'loyer' && !(n > 0)) return null;
+    const m0 = moisDecale(iso(debut).slice(0, 7), 1), recus = {};
+    for (const x of p.paie || []) { const m = x && (x.mois || String(x.d || '').slice(0, 7)); if (!m) continue; recus[m] = recus[m] || { m: 0, c: 0 }; recus[m].m += num(x.m); recus[m].c += num(x.c); }
+    const mens = mode === 'amort' ? (t ? P * t / (1 - Math.pow(1 + t, -n)) : P / n) : 0, fin = auj ? mois(auj) : null;
+    const total = mode === 'loyer' ? Math.max(1, (fin ? Math.max(0, (Number(fin.slice(0, 4)) - Number(m0.slice(0, 4))) * 12 + Number(fin.slice(5)) - Number(m0.slice(5)) + 1) : 0) + horizon) : n;
+    const L = []; let crd = P;
+    for (let k = 0; k < Math.min(total, 600); k++) {
+      const m = moisDecale(m0, k); let it, cap;
+      if (mode === 'loyer') { it = P * t; cap = 0; }
+      else if (mode === 'infine') { it = crd * t; cap = k === n - 1 ? crd : 0; }
+      else { it = crd * t; cap = k === n - 1 ? crd : Math.min(crd, mens - it); }
+      crd = Math.max(0, crd - cap);
+      const rc = recus[m];
+      L.push({ mois: m, date: echeance(m, p.jour || debut.getDate()), interets: r2(it), capital: r2(cap), total: r2(it + cap), crd: r2(crd), recu: rc ? r2(rc.m) : null, capitalRecu: rc ? r2(rc.c) : null });
+    }
+    const passe = fin ? L.filter(x => x.mois <= fin) : [], reste = passe.length ? passe[passe.length - 1].crd : P;
+    const capRecu = r2((p.paie || []).reduce((s, x) => s + num(x && x.c), 0));
+    return { mode, lignes: L, mensualite: r2(mode === 'amort' ? mens : P * t), capitalRestantPrevu: r2(mode === 'loyer' ? P : reste), capitalRestantReel: r2(Math.max(0, P - capRecu)),
+      prochaines: fin ? L.filter(x => x.mois > fin || (x.mois === fin && x.recu == null)).slice(0, horizon) : L.slice(0, horizon) };
+  }
+  /* Ligne de l'échéancier d'un mois donné (null si hors échéancier) */
+  const ligneDuMois = (E, m) => (E && E.lignes.find(x => x.mois === m)) || null;
+  /* Part de capital d'un versement reçu : celle de l'échéancier si le montant est celui prévu (à 5 % près), sinon le montant
+     reçu moins les intérêts prévus du mois (jamais négative, jamais plus que le versement) */
+  function partCapital(ligne, recu) {
+    if (!ligne || !(ligne.capital > 0)) return 0;
+    const R = num(recu);
+    if (Math.abs(R - ligne.total) <= Math.max(0.5, ligne.total * 0.05)) return r2(Math.min(R, ligne.capital));
+    return r2(Math.max(0, Math.min(R, R - ligne.interets)));
   }
   /* Rapprochement : un crédit sur le compte entre 3 jours avant et 10 jours après l'échéance, dont le libellé contient
      un des mots du rappel (séparés par |, sinon son nom). Un montant habituel proche départage ; une opération déjà
@@ -471,17 +540,21 @@
   function rapprocher(r, m, ops, utilises) {
     const e = echeanceR(r, m), deb = ajoutJours(e, -3), fin = ajoutJours(e, 10), att = montantHabituel(r);
     const mots = String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
-    if (!mots.length) return null;
+    const attendu = att > 0 ? att : num(r.prevu); /* sans historique : montant prévu par l'échéancier */
+    if (!mots.length && !(attendu > 0)) return null;
     let best = null, bs = -Infinity;
     for (const o of ops || []) {
       if (!o || !(o.m > 0) || !o.d || o.d < deb || o.d > fin || (utilises && utilises.has(o.id))) continue;
-      const lib = norm(o.lib).replace(/[^a-z0-9]/g, '');
-      if (!mots.some(w => lib.includes(w))) continue;
-      const s = (att > 0 && Math.abs(o.m - att) <= Math.max(1, att * 0.05) ? 10 : 0) - Math.abs(ecartJours(e, o.d)) / 10;
-      if (s > bs) { bs = s; best = o; }
+      const lib = norm(o.lib).replace(/[^a-z0-9]/g, ''), libOk = mots.some(w => lib.includes(w));
+      const proche = attendu > 0 && Math.abs(o.m - attendu) <= Math.max(1, attendu * 0.05), exact = attendu > 0 && Math.abs(o.m - attendu) <= Math.max(0.5, attendu * 0.02);
+      /* libellé reconnu ; à défaut, un montant presque identique au montant attendu (libellé inattendu de la plateforme) */
+      if (!libOk && !(exact && ecartJours(e, o.d) >= -1 && ecartJours(e, o.d) <= 5 && !PAS_PLATEFORME.test(norm(o.lib)))) continue;
+      const s = (libOk ? 20 : 0) + (proche ? 10 : 0) - Math.abs(ecartJours(e, o.d)) / 10;
+      if (s > bs) { bs = s; best = Object.assign({}, o, { parMontant: !libOk }); }
     }
     return best;
   }
+  const PAS_PLATEFORME = /\b(salaire|paie|traitement|pension|retraite|caf|cpam|ameli|mutuelle|pole emploi|france travail|impots?|dgfip|tresor public|loyer recu|remboursement)\b/;
   /* Mots du libellé d'un rappel (séparés par |, sinon son nom) */
   const motsDe = r => String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
   /* Retraits probables vers la compte bancaire : crédits dont le libellé évoque la plateforme, reçus après la création du
@@ -636,7 +709,7 @@
 
   const API = { variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
-    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
+    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);
