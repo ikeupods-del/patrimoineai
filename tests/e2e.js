@@ -202,10 +202,25 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(/Documents \(1\)/.test(await pg.textContent('#sheet')), 'document rangé dans la fiche');
   await pg.keyboard.press('Escape');
   /* l'assistant connaît les nouvelles données */
-  ok(await pg.evaluate(() => { const d = dossier(); return d.depenses_reelles && d.depenses_reelles.abonnements_par_an > 0 && d.rendement_reel && d.revenus_passifs_12_mois > 0; }), 'dossier de l’assistant complété');
+  ok(await pg.evaluate(() => { const d = dossier(); return d.depenses_reelles && d.depenses_reelles.abonnements_par_an > 0 && d.rendement_reel && d.revenus_passifs && d.revenus_passifs.a_venir_12_mois.brut > 0 && d.revenus_passifs.fiscalite_retenue_pct.pfu_impot === 12.8; }), 'dossier de l’assistant complété');
   const rep63 = await pg.evaluate(() => ['quels sont mes abonnements ?', 'à quel âge puis-je prendre ma retraite ?', 'combien me rapportent mes revenus passifs ?', 'combien dois-je investir chaque mois ?'].map(q => LAI.answer(q).t));
-  ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /revenus passifs sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
+  ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /Vos revenus passifs/.test(rep63[2]) && /À venir sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
   ok(await pg.evaluate(() => { const n = D.ops.length, lib = D.ops[0].lib, P = JSON.parse(JSON.stringify(payload())); P.mt = Object.assign({}, P.mt, { ops: Date.now() + 1e6 }); const big = JSON.stringify(payload()).length; mergeRemote(P); return Array.isArray(P.ops[0]) && D.ops.length === n && D.ops[0].lib === lib.slice(0, 60) && typeof D.ops[0].m === 'number' && big < 400000; }), 'opérations synchronisées en format compact puis relues');
+  /* 6.8 : tableau de bord des revenus passifs (réel contre prévu, brut et net, projection, par source, rendement, par année) */
+  await pg.evaluate(() => { const d = new Date(); d.setMonth(d.getMonth() - 8); D.assets.push({ id: 'rv1', cat: 'crowd', name: 'Prêt Lyon', plat: 'Bienprêter', amount: 2000, value: 2000, rate: 9, dur: 24, date: d.toLocaleDateString('sv-SE'), status: 'cours' });
+    D.rappels.push({ id: 'rrv', nom: 'Bienprêter', jour: 5, aid: 'rv1', dest: 'aucun', hist: {}, cree: '2000-01-01' }); const m = moisDecale(moisCourant(), -1), l = CL.ligneDuMois(echOf(D.assets.find(a => a.id === 'rv1')), m); rapValider('rrv', m, l.total, { d: m + '-05' }); go('rev'); });
+  await pg.waitForTimeout(200); let rv = await pg.textContent('#v-rev');
+  ok(/Vos revenus passifs/.test(rv) && /Reçus sur 12 mois/.test(rv) && /Projection des 12 prochains mois/.test(rv) && /Par source/.test(rv) && /Crowdlending/.test(rv) && /Rendement annualisé/.test(rv) && /Par année/.test(rv), 'écran Revenus : réel, prévu, projection, sources, rendement, années');
+  ok(await pg.locator('#v-rev .rev-bars').count() === 3 && await pg.locator('#v-rev .rev-bars .pv').count() > 0, 'graphiques : barres par source et repère du prévu');
+  const rbv = await pg.evaluate(() => { const R = revData(); return { reel: R.passe.total.reel, net: R.passe.total.reelNet, a: R.avenir.total.prevu }; });
+  ok(rbv.reel > 0 && Math.abs(rbv.net - rbv.reel * 0.686) < 0.05 && rbv.a > 0, 'versement confirmé compté en reçu, net après PFU 31,4 % (' + JSON.stringify(rbv) + ')');
+  await pg.click('#v-rev [data-act=revnet][data-v="1"]'); ok(await pg.locator('#v-rev [data-act=revnet][data-v="1"][aria-pressed=true]').count() === 1, 'bascule brut / net d’impôt');
+  await pg.click('#v-rev [data-act=fisc]'); await pg.fill('#fi-ps', '17.2'); await pg.click('[data-act=fiscsave]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => D.fisc.ps === 17.2 && Math.abs(revData().passe.total.reelNet - revData().passe.total.reel * 0.7) < 0.05 && SF.includes('fisc') && payload().fisc.ps === 17.2), 'taux d’imposition modifiables, synchronisés, appliqués au net');
+  await pg.click('#v-rev [data-act=fisc]'); await pg.click('[data-act=fiscdef]'); ok(await pg.evaluate(() => !Object.keys(D.fisc).length && fiscD().ps === 18.6), 'retour aux taux par défaut');
+  const ya = String(new Date().getFullYear() - 1); if (await pg.locator(`#v-rev [data-act=revan][data-v="${ya}"]`).count()) { await pg.click(`#v-rev [data-act=revan][data-v="${ya}"]`); ok(/Reçu en \d{4}/.test(await pg.textContent('#v-rev')) && (await pg.evaluate(() => revData().Y)) === +ya, 'choix de l’année'); }
+  ok(/Revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)) || /Vos revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)), 'assistant local : revenus nets');
+  await pg.evaluate(() => { UI.revNet = false; UI.revAn = ''; D.assets = D.assets.filter(a => a.id !== 'rv1'); D.rappels = D.rappels.filter(r => r.id !== 'rrv'); save(); render(); go('home'); });
   ok(!errs.length, 'aucune erreur JavaScript (version 6.3) : ' + errs.join(' | '));
   /* application Mac (pont simulé) : verrouillage Touch ID, délai réglable, montant masqué dans la barre des menus */
   { const pm = await ctx.newPage(); const errsMac = []; pm.on('pageerror', e => errsMac.push(e.message));

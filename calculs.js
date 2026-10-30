@@ -397,6 +397,62 @@
     M.forEach(x => { x.total = r2(x.total); });
     return { mois: M, total: r2(M.reduce((s, x) => s + x.total, 0)) };
   }
+  /* ===================== Revenus passifs : réel contre prévu, brut et net d'impôt ===================== */
+  /* Taux réglables par l'utilisateur (Réglages → Fiscalité) : ils évoluent chaque année. Valeurs par défaut = FISC. */
+  const FISC_DEFAUT = { ir: FISC.ir, ps: FISC.ps, psAV: FISC.psAV, psImmo: FISC.pvImmoPS, tmi: 30, abatFoncier: 30 };
+  function fiscalite(f) {
+    const o = Object.assign({}, FISC_DEFAUT);
+    for (const k of Object.keys(FISC_DEFAUT)) { const v = f && f[k]; if (v !== '' && v != null && isFinite(num(v)) && num(v) >= 0 && num(v) <= 100) o[k] = num(v); }
+    return o;
+  }
+  const SOURCES_REV = { crowd: 'Crowdlending', immo: 'Immobilier fractionné', div: 'Dividendes', livret: 'Livrets', av: 'Assurance-vie', loyer: 'Loyers' };
+  /* Taux d'imposition (en %) d'un revenu selon sa source, règles simplifiées : prélèvement forfaitaire unique (impôt + prélèvements
+     sociaux) pour les intérêts et dividendes ; rien pour les livrets réglementés et le PEA tant qu'on n'y retire rien ; prélèvements
+     sociaux seuls sur les fonds en euros de l'assurance-vie (l'impôt n'est dû qu'au rachat) ; loyers en micro-foncier : tranche
+     marginale et prélèvements sociaux après l'abattement. o : {exonere, pea} */
+  function tauxImpot(type, f, o = {}) {
+    const F = fiscalite(f);
+    if (o.exonere || (type === 'div' && o.pea)) return 0;
+    if (type === 'av') return F.psAV;
+    if (type === 'loyer') return r2((F.tmi + F.psImmo) * (1 - F.abatFoncier / 100));
+    return r2(F.ir + F.ps);
+  }
+  /* sources : [{type, nom, taux (% d'impôt), reel: {'AAAA-MM': montant} | null (pas de suivi réel), prevu: {'AAAA-MM': montant}}]
+     moisL : liste des mois → par mois et au total : réel, prévu, brut et net, et par type de source. Le réel ne se compare qu'au prévu
+     des sources suivies (« suivi ») ; le prévu des sources sans suivi (livrets, loyers…) est une estimation (« estime »). */
+  function tableauRevenus(sources, moisL) {
+    const vide = () => ({ reel: 0, prevu: 0, suivi: 0, estime: 0, reelNet: 0, prevuNet: 0, suiviNet: 0, estimeNet: 0 }), add = (o, k, v, t) => { o[k] += v; o[k + 'Net'] += v * (1 - t / 100); };
+    const tot = Object.assign(vide(), { par: {} }), mois = moisL.map(m => Object.assign({ mois: m, par: {} }, vide()));
+    for (const s of sources || []) {
+      const t = num(s.taux), P = tot.par[s.type] = tot.par[s.type] || vide();
+      mois.forEach(x => {
+        const q = x.par[s.type] = x.par[s.type] || vide(), r = s.reel ? num(s.reel[x.mois]) : 0, p = num((s.prevu || {})[x.mois]);
+        if (r) { add(x, 'reel', r, t); add(q, 'reel', r, t); add(tot, 'reel', r, t); add(P, 'reel', r, t); }
+        if (p) { const k2 = s.reel ? 'suivi' : 'estime'; for (const o of [x, q, tot, P]) { add(o, 'prevu', p, t); add(o, k2, p, t); } }
+      });
+    }
+    const arr = o => { for (const k of Object.keys(vide())) o[k] = r2(o[k]); return o; };
+    mois.forEach(x => { arr(x); Object.values(x.par).forEach(arr); }); arr(tot); Object.values(tot.par).forEach(arr);
+    return { mois, total: tot };
+  }
+  /* Liste de n mois à partir de « debut » ('AAAA-MM') */
+  const listeMois = (debut, n) => Array.from({ length: n }, (_, k) => moisDecale(debut, k));
+  /* Rendement annualisé brut et net par plateforme et global. groupes : [{nom, flux: [{d, m}], valeur, taux (% d'impôt)}]. Le net
+     applique le taux d'impôt de la source au rendement (les revenus sont imposés, le capital non) : approximation honnête pour des
+     placements dont tout le gain est un revenu (crowdlending, loyers). */
+  function rendements(groupes, auj = new Date()) {
+    const res = [], tousF = [];let tousV = 0, tauxPond = 0, poids = 0;
+    for (const g of groupes || []) {
+      const F = (g.flux || []).filter(x => x && x.d && num(x.m)); if (!F.length) continue;
+      const R = tri(F, g.valeur, auj); if (!R) continue;
+      const t = num(g.taux), verse = F.filter(x => num(x.m) > 0).reduce((s, x) => s + num(x.m), 0);
+      res.push({ nom: g.nom, tri: R.tri, triNet: R.tri == null ? null : R.tri * (1 - t / 100), gain: R.gain, verse: r2(verse), valeur: r2(num(g.valeur)), taux: t, jours: R.jours });
+      tousF.push(...F); tousV += num(g.valeur); tauxPond += t * verse; poids += verse;
+    }
+    res.sort((a, b) => (b.valeur || 0) - (a.valeur || 0));
+    const G = tousF.length ? tri(tousF, tousV, auj) : null, tg = poids > 0 ? tauxPond / poids : 0;
+    return { lignes: res, global: G ? { tri: G.tri, triNet: G.tri == null ? null : G.tri * (1 - tg / 100), gain: G.gain, valeur: r2(tousV), taux: r2(tg) } : null };
+  }
   /* Dividendes des 12 derniers mois (horodatages Yahoo en secondes) → montants par mois des 12 prochains mois, rang 0 = mois en cours */
   function dividendesAVenir(divs, quantite, auj = new Date()) {
     const out = Array(12).fill(0), q = num(quantite), il12 = new Date(auj); il12.setFullYear(il12.getFullYear() - 1);
@@ -708,7 +764,7 @@
   }
 
   const API = { variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
-    tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
+    tri, aTauxFixe, dansIndice, FISC_DEFAUT, fiscalite, SOURCES_REV, tauxImpot, tableauRevenus, listeMois, rendements, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
     echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;
   if (typeof module !== 'undefined') module.exports = API;

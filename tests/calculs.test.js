@@ -204,4 +204,16 @@ ok(C.rapprocher({ nom: 'Bricks', jour: 8, attendu: 42.1 }, '2026-10', [{ id: 'z'
   && C.rapprocher({ nom: 'Bricks', jour: 8, attendu: 42.1 }, '2026-10', [{ id: 'z', d: '2026-10-09', lib: 'VIR SEPA LEMON WAY', m: 60 }]) === null
   && C.rapprocher({ nom: 'Bricks', jour: 8, prevu: 30 }, '2026-10', [{ id: 'y', d: '2026-10-08', lib: 'VIREMENT', m: 30 }]).id === 'y', 'rapprochement par montant presque identique (libellé inattendu)');
 
+/* revenus passifs : fiscalité réglable, réel contre prévu, brut et net, rendements par plateforme */
+{
+  ok(C.fiscalite({}).ir === 12.8 && C.fiscalite({ ps: '17,2' }).ps === 17.2 && C.fiscalite({ ps: 150, ir: '' }).ps === 18.6 && C.fiscalite({ ir: 0 }).ir === 0, 'fiscalité : valeurs par défaut, saisies, valeurs aberrantes ignorées');
+  ok(C.tauxImpot('crowd', {}) === 31.4 && C.tauxImpot('livret', {}, { exonere: true }) === 0 && C.tauxImpot('div', {}, { pea: true }) === 0 && C.tauxImpot('av', {}) === 17.2 && C.tauxImpot('loyer', { tmi: 30, psImmo: 17.2, abatFoncier: 30 }) === 33.04 && C.tauxImpot('loyer', {}) === 33.04 && C.tauxImpot('crowd', { ir: 12.8, ps: 17.2 }) === 30, 'taux d’imposition par source');
+  const ML = C.listeMois('2026-11', 3);
+  ok(ML.join() === '2026-11,2026-12,2027-01', 'liste de mois');
+  const T = C.tableauRevenus([{ type: 'crowd', taux: 30, reel: { '2026-11': 100 }, prevu: { '2026-11': 90, '2026-12': 90 } }, { type: 'livret', taux: 0, reel: null, prevu: { '2026-12': 50 } }], ML);
+  ok(T.total.reel === 100 && T.total.prevu === 230 && T.total.reelNet === 70 && T.total.prevuNet === 176 && T.mois[1].prevu === 140 && T.mois[2].prevu === 0 && T.total.par.crowd.prevuNet === 126 && T.total.par.livret.reel === 0 && T.total.suivi === 180 && T.total.estime === 50 && T.mois[1].estime === 50, 'tableau des revenus : réel, prévu, brut et net, par source');
+  const Rd = C.rendements([{ nom: 'BienPrêter', flux: [{ d: '2025-01-01', m: 1000 }, { d: '2025-07-01', m: -40 }], valeur: 1000, taux: 31.4 }, { nom: 'Vide', flux: [], valeur: 0 }], new Date('2026-01-01T12:00:00'));
+  ok(Rd.lignes.length === 1 && Rd.lignes[0].tri > 0.03 && Rd.lignes[0].tri < 0.05 && Math.abs(Rd.lignes[0].triNet - Rd.lignes[0].tri * 0.686) < 1e-9 && Rd.global && Math.abs(Rd.global.tri - Rd.lignes[0].tri) < 1e-9, 'rendement annualisé brut et net par plateforme et global');
+}
+
 console.log('calculs :', n, 'contrôles réussis');

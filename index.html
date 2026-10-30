@@ -243,6 +243,8 @@ header.top h1{white-space:nowrap;min-width:0}
 .bars i{display:block;width:100%;max-width:28px;border-radius:6px 6px 2px 2px;background:var(--pt);min-height:2px}
 .bars i.z{background:var(--card2)}
 .bars span{position:absolute;bottom:-18px;font-size:10px;color:var(--mut);white-space:nowrap}
+.bars .pv{position:absolute;left:8%;right:8%;height:0;border-top:2px dashed var(--tx);opacity:.55;pointer-events:none}
+.dot.pvd{background:none;border-top:2px dashed var(--tx);border-radius:0;height:0;width:12px;opacity:.6}
 .trow{display:grid;grid-template-columns:minmax(0,1fr) 64px 88px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
 .trow:first-of-type{border-top:0}.trow input{min-height:36px;padding:6px 8px;text-align:right}
 .bar2{height:6px;border-radius:99px;background:var(--card2);position:relative;margin-top:4px;overflow:visible}.bar2 i{position:absolute;top:0;bottom:0;left:0;border-radius:99px;background:var(--pt)}.bar2 b{position:absolute;top:-3px;width:2px;height:12px;background:var(--tx);border-radius:2px}
@@ -356,6 +358,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 <section class="view" id="v-assets"></section>
 <section class="view" id="v-goals"></section>
 <section class="view" id="v-bank"></section>
+<section class="view" id="v-rev"></section>
 <section class="view" id="v-budget"></section>
 <section class="view" id="v-mk"></section>
 <section class="view" id="v-news"></section>
@@ -432,6 +435,7 @@ function load(){
   d.fx=d.fx&&typeof d.fx==='object'&&!Array.isArray(d.fx)?d.fx:{};d.fire=d.fire&&typeof d.fire==='object'&&!Array.isArray(d.fire)?d.fire:{};d.docs=Array.isArray(d.docs)?d.docs.filter(x=>x&&x.id):[];
   d.alerts=Array.isArray(d.alerts)?d.alerts.filter(x=>x&&x.s&&num(x.p)>0):[];d.target=d.target&&typeof d.target==='object'&&!Array.isArray(d.target)?d.target:{};
   d.bank=d.bank&&typeof d.bank==='object'&&!Array.isArray(d.bank)?d.bank:null; /* banque liée : noms des comptes et soldes (la session reste sur le serveur) */
+  d.fisc=d.fisc&&typeof d.fisc==='object'&&!Array.isArray(d.fisc)?d.fisc:{}; /* taux d'imposition réglables (Réglages → Fiscalité) */
   d.rappels=d.rappels===undefined?rapDefaut():Array.isArray(d.rappels)?d.rappels.filter(r=>r&&typeof r==='object'&&r.id):[];
   d.set=Object.assign({theme:'auto',hide:false,auto:true,prov:localStorage.getItem(KK)?'gemini':'local',fb:true,gmodel:'',gsrc:'key',mtab:'etf'},d.set||{});
   return migrate(d);
@@ -755,12 +759,12 @@ const keyOf=p=>p==='local'?'local':p==='mac'?(MACIA.installee?'mac':null):p==='g
 const hasAIKey=()=>!!keyOf(aiProv());
 
 /* ===================== Navigation ===================== */
-const TITLES={news:'Actualités',home:'Mon patrimoine',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant IA',tools:'Simulateurs',set:'Réglages'};
-const NAV=[['home','Accueil','home'],['assets','Placements','list'],['budget','Budget','wallet'],['goals','Objectifs','target'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['ai','Assistant','spark'],['tools','Outils','calc'],['news','Actualités','news'],['bank','Banques','bank']];
+const TITLES={rev:'Revenus passifs',news:'Actualités',home:'Mon patrimoine',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant IA',tools:'Simulateurs',set:'Réglages'};
+const NAV=[['home','Accueil','home'],['assets','Placements','list'],['budget','Budget','wallet'],['goals','Objectifs','target'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['ai','Assistant','spark'],['tools','Outils','calc'],['news','Actualités','news'],['bank','Banques','bank'],['rev','Revenus','coins']];
 const NAVM=['home','assets','budget','goals','ai']; /* barre du bas sur téléphone ; le reste est dans « Plus » */
 function renderNav(){
   $('tabs').innerHTML=NAV.filter(n=>NAVM.includes(n[0])).map(n=>`<button class="tab" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],22)}<span>${n[1]}</span></button>`).join('')+`<button class="tab" data-act="more" id="tmore">${ic('grid',22)}<span>Plus</span></button>`;
-  const K=MAC?'⌘':'',G=[['Patrimoine',['home','assets','budget','goals','bank']],['Marchés et analyse',['mk','news','analyse','tools']],['Assistant',['ai']]],nm=v=>NAV.find(n=>n[0]===v);
+  const K=MAC?'⌘':'',G=[['Patrimoine',['home','assets','budget','goals','rev','bank']],['Marchés et analyse',['mk','news','analyse','tools']],['Assistant',['ai']]],nm=v=>NAV.find(n=>n[0]===v);
   $('side').innerHTML=G.map(([t,L])=>`<div class="navg">${t}</div>`+L.map(v=>{const n=nm(v),i=NAV.indexOf(n)+1;return `<button class="navi" data-act="go" data-v="${n[0]}" data-nav="${n[0]}">${ic(n[2],18)}${({ai:'Assistant IA',tools:'Simulateurs',bank:'Mes banques'})[n[0]]||n[1]}${K&&i<10?`<span class="kbd">${K}${i}</span>`:''}</button>`}).join('')).join('')
     +`<button class="btn mt" data-act="add" style="margin:16px 2px 4px;white-space:nowrap;padding:0 12px">${ic('plus',18)}Ajouter un placement</button><div class="sp"></div><div id="sacc"></div><button class="navi" data-act="go" data-v="set" data-nav="set">${ic('sliders',18)}Réglages${K?'<span class="kbd">⌘,</span>':''}</button><div class="xs mut" style="padding:8px 12px 0">Produit par QuenTools</div>`;
   $$hs();
@@ -780,6 +784,7 @@ const SUBT=()=>{const v=UI.view,A=D.assets;
   if(v==='ai')return PROV[aiProv()]?PROV[aiProv()].n:'';
   if(v==='news')return newsLabel();
   if(v==='bank')return bqLie()?D.bank.banque||'':'';
+  if(v==='rev'){const R=revData();return R.ok?eur(R.passe.total.reel)+' reçus sur 12 mois':''}
   return '';};
 function setTitle(){$('ttl').textContent=TITLES[UI.view];const s=$('sttl');if(s){const t=SUBT();s.textContent=t?t.charAt(0).toUpperCase()+t.slice(1):'';s.hidden=!t}}
 function show(v){
@@ -801,7 +806,7 @@ function applyTheme(){
   const light=t==='light'||(t==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches);
   const m=document.querySelector('meta[name=theme-color]');if(m)m.content=light?'#f3f4f1':'#151311';
 }
-function render(){renderHome();renderAssets();renderBudget();renderGoals();renderBank();mkRender();renderNews();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc();macBadge()}
+function render(){REVC=null;renderHome();renderAssets();renderBudget();renderGoals();renderBank();renderRev();mkRender();renderNews();renderAnalyse();renderTools();renderSet();if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc();macBadge()}
 
 /* ===================== Accueil ===================== */
 const actBtn=a=>`<button class="btn sm sec" data-act="${a.a}"${a.id?` data-id="${esc(a.id)}"`:''}${a.v?` data-v="${a.v}"`:''}${a.c?` data-c="${a.c}"`:''}>${esc(a.l)}</button>`;
@@ -848,7 +853,7 @@ function renderHome(){
   else if(nod)h+=`<section class="card"><h3>Échéances</h3><p class="sm mut" style="margin-top:6px">Renseignez la date de début et la durée de vos projets de crowdlending pour suivre leurs échéances.</p></section>`;
   const y=yearly();
   const ry=rents(),lp=loanPay();
-  if(y>0)h+=`<section class="card"><h3>Revenus estimés</h3><div class="big mt" style="margin-top:6px">${eur(y)}<span class="mut sm" style="font-family:inherit"> par an</span></div><div class="sm mut">Soit environ ${eur(y/12)} par mois avant impôts, d’après les taux renseignés${ry>0?', dont '+eur(ry/12)+' de loyers bruts par mois':''} (hors dividendes).</div></section>`;
+  if(y>0)h+=`<section class="card"><div class="ct"><h3>Revenus estimés</h3><button class="btn sm sec" data-act="go" data-v="rev">Détail</button></div><div class="big mt" style="margin-top:6px">${eur(y)}<span class="mut sm" style="font-family:inherit"> par an</span></div><div class="sm mut">Soit environ ${eur(y/12)} par mois avant impôts, d’après les taux renseignés${ry>0?', dont '+eur(ry/12)+' de loyers bruts par mois':''} (hors dividendes).</div></section>`;
   if(lp>0)h+=`<section class="card"><div class="ct"><h3>Crédits en cours</h3><button class="btn sm sec" data-act="filter" data-c="credit">Voir</button></div><div class="big" style="margin-top:2px">${eur(lp)}<span class="mut sm" style="font-family:inherit"> par mois</span></div><div class="sm mut">Mensualités${D.assets.some(a=>isDebt(a)&&num(a.ins))?' assurance comprise':''}. Il reste ${eur(T.debt)} de capital à rembourser.</div></section>`;
   h+=`<section class="card span2"><div class="g2"><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat</button><button class="btn sec" data-act="go" data-v="ai">${ic('spark',18)}Poser une question</button><button class="btn sec" data-act="bilan">${ic('printer',18)}Bilan en PDF</button><button class="btn sec" data-act="pal">${ic('search',18)}Rechercher <span class="xs mut">${/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent)?'⌘K':'Ctrl K'}</span></button></div></section></div>`;
   el.innerHTML=h;mkMini();newsMini();
@@ -1288,7 +1293,96 @@ function passifsHTML(){
   const barsH=`<div class="bars" role="img" aria-label="Revenus passifs mois par mois">${R.mois.map((x,i)=>{const d=new Date(t.getFullYear(),t.getMonth()+i,1);let a=0;const g=types.filter(k=>x.par[k]).map(k=>{const b=a+x.par[k]/x.total*100,c=`${RPT[k][1]} ${a.toFixed(1)}% ${b.toFixed(1)}%`;a=b;return c}).join(',');return `<div title="${esc(fmy(d)+' : '+eur(x.total))}"><i class="${x.total?'':'z'}" style="height:${x.total?Math.max(4,x.total/mx*100):2}%${x.total?`;background:linear-gradient(to top,${g})`:''}"></i>${i%2===0?`<span>${esc(d.toLocaleDateString('fr-FR',{month:'short'}))}</span>`:''}</div>`}).join('')}</div>`;
   const parType=types.map(k=>[k,S.filter(s=>s.type===k).reduce((s,x)=>s+x.mois.reduce((a,b)=>a+b,0),0)]);
   const top=S.map(s=>[s,s.mois.reduce((a,b)=>a+b,0)]).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  return `<section class="card"><div class="ct"><h3>Revenus passifs</h3><button class="btn sm sec" data-act="divload" title="Actualiser les dividendes">${ic('refresh',15)}</button></div><div class="big" style="font-size:26px">${eur(R.total)}<span class="mut sm" style="font-family:inherit"> sur 12 mois</span></div><div class="sm mut">Soit ${eur(R.total/12)} par mois en moyenne, avant impôts.</div>${barsH}<div class="xs mut" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">${parType.map(([k,v])=>`<span><i class="dot" style="background:${RPT[k][1]}"></i>${RPT[k][0]} ${eur(v)}</span>`).join('')}</div><div class="mt">${top.map(([s,v])=>`<button class="item sm" data-act="detail" data-id="${esc(s.id)}"><div class="ir"><span>${esc(s.nom)} <span class="xs mut">${esc(RPT[s.type][0].toLowerCase())}</span></span><b>${eur(v)}</b></div></button>`).join('')}</div><p class="hint">Loyers bruts, intérêts selon les taux renseignés (livrets au 31 décembre), dividendes d’après les versements des 12 derniers mois${HOSTED?'':' (ou saisis dans la fiche)'}. Montants estimés, non garantis.</p></section>`;
+  return `<section class="card"><div class="ct"><h3>Revenus passifs</h3><span style="display:flex;gap:6px"><button class="btn sm sec" data-act="go" data-v="rev">Tableau de bord</button><button class="btn sm sec" data-act="divload" title="Actualiser les dividendes" aria-label="Actualiser les dividendes">${ic('refresh',15)}</button></span></div><div class="big" style="font-size:26px">${eur(R.total)}<span class="mut sm" style="font-family:inherit"> sur 12 mois</span></div><div class="sm mut">Soit ${eur(R.total/12)} par mois en moyenne, avant impôts.</div>${barsH}<div class="xs mut" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">${parType.map(([k,v])=>`<span><i class="dot" style="background:${RPT[k][1]}"></i>${RPT[k][0]} ${eur(v)}</span>`).join('')}</div><div class="mt">${top.map(([s,v])=>`<button class="item sm" data-act="detail" data-id="${esc(s.id)}"><div class="ir"><span>${esc(s.nom)} <span class="xs mut">${esc(RPT[s.type][0].toLowerCase())}</span></span><b>${eur(v)}</b></div></button>`).join('')}</div><p class="hint">Loyers bruts, intérêts selon les taux renseignés (livrets au 31 décembre), dividendes d’après les versements des 12 derniers mois${HOSTED?'':' (ou saisis dans la fiche)'}. Montants estimés, non garantis.</p></section>`;
+}
+/* ===================== Revenus passifs : tableau de bord (réel contre prévu, brut et net, par source, projection) =====================
+   Réel = versements confirmés dans les rappels (intérêts, hors capital remboursé) et dividendes versés d'après Yahoo pour la quantité
+   détenue ; prévu = échéanciers des placements, taux renseignés (livrets et fonds en euros au 31 décembre), loyers, dividendes à venir.
+   Net = après l'imposition de chaque source, d'après les taux réglables (D.fisc, CL.tauxImpot). Calculs : CL.tableauRevenus, CL.rendements. */
+const REVT={crowd:['Crowdlending','#34d399'],immo:['Immobilier fractionné','#fbbf24'],div:['Dividendes','#60a5fa'],livret:['Livrets et épargne','#94a3b8'],av:['Assurance-vie','#a78bfa'],loyer:['Loyers','#fb923c']};
+const fiscD=()=>CL.fiscalite(D.fisc);
+let REVC=null; /* calcul gardé jusqu'au prochain affichage complet (render) : pas de recalcul à chaque lecture */
+/* Intérêts prévus d'un projet sans échéancier : chaque mois ou trimestre si renseigné, sinon en une fois à l'échéance */
+function prevuProjet(a,P,mois){
+  const base=inv(a),r=num(a.rate)/100,s=a.date?a.date.slice(0,7):null,e=endDate(a),em=e?e.toLocaleDateString('sv-SE').slice(0,7):null;if(!(r>0)||!s)return;
+  if(a.freq==='mens'||a.freq==='trim'){const pas=a.freq==='mens'?1:3;mois.forEach(m=>{const k=(+m.slice(0,4)-+s.slice(0,4))*12+(+m.slice(5)-+s.slice(5));if(k>0&&k%pas===0&&(!em||m<=em))P[m]=(P[m]||0)+base*r*pas/12})}
+  else if(em&&mois.includes(em))P[em]=(P[em]||0)+base*r*num(a.dur)/12;
+}
+function revSources(mois){
+  const S=[],f=D.fisc,cur=moisCourant(),moisSet=new Set(mois),ans=[...new Set(mois.map(m=>m.slice(0,4)))];
+  owned().forEach(a=>{
+    const k=tauxDev(a),add=(type,o)=>S.push(Object.assign({type,nom:a.name,plat:a.plat||'',id:a.id},o)),P={};
+    if(a.cat==='bien'){if(num(a.rent)>0&&a.usage!=='rp'){mois.forEach(m=>{P[m]=num(a.rent)*k});add('loyer',{taux:CL.tauxImpot('loyer',f),reel:null,prevu:P})}return}
+    if(a.cat==='bourse'){
+      const ex=['pea','peapme','av','per'].includes(a.env),t=CL.tauxImpot('div',f,{pea:ex}),R={};
+      if(Array.isArray(a.divs)&&a.divs.length){
+        a.divs.forEach(x=>{const d=new Date(num(x.date)*1000),m=d.toLocaleDateString('sv-SE').slice(0,7),v=num(x.amount)*num(a.qty);if(moisSet.has(m)&&m<=cur){R[m]=(R[m]||0)+v;P[m]=(P[m]||0)+v}});
+        CL.dividendesAVenir(a.divs,a.qty).forEach((v,i)=>{const m=moisDecale(cur,i);if(v&&moisSet.has(m)&&!(m===cur&&R[m]))P[m]=(P[m]||0)+v});
+        if(Object.keys(R).length||Object.keys(P).length)add('div',{taux:t,reel:R,prevu:P,estime:true})}
+      else if(num(a.div)>0){const mo=String(Math.max(1,Math.min(12,Math.round(num(a.divm))||6))).padStart(2,'0');ans.forEach(y=>{if(moisSet.has(y+'-'+mo))P[y+'-'+mo]=num(a.div)*num(a.qty)});add('div',{taux:t,reel:null,prevu:P})}
+      return}
+    if(isRisky(a)){
+      const R={};(a.paie||[]).forEach(p=>{const m=p.mois||String(p.d||'').slice(0,7);if(moisSet.has(m))R[m]=(R[m]||0)+Math.max(0,num(p.m)-num(p.c))*k});
+      const E=echOf(a);if(E)E.lignes.forEach(x=>{if(moisSet.has(x.mois))P[x.mois]=(P[x.mois]||0)+(E.mode==='loyer'?x.total:x.interets)*k});else if(a.status!=='rembourse'||(a.paie||[]).length)prevuProjet(a,P,mois);
+      if(a.status==='defaut')Object.keys(P).forEach(m=>{if(m>=cur)delete P[m]});
+      if(Object.keys(R).length||Object.keys(P).length)add(a.cat,{taux:CL.tauxImpot(a.cat,f),reel:R,prevu:P});return}
+    if((a.cat==='cash'||a.cat==='epargne')&&num(a.rate)>0){
+      const av=a.cat==='epargne'&&(a.env==='av'||/assurance.vie/.test(nrm(a.name))),exo=a.cat==='cash'&&RE_EXO.test(nrm(a.name)),type=av?'av':'livret';
+      ans.forEach(y=>{if(moisSet.has(y+'-12'))P[y+'-12']=val(a)*num(a.rate)/100});
+      if(Object.keys(P).length)add(type,{taux:CL.tauxImpot(type,f,{exonere:exo||a.env==='per'}),reel:null,prevu:P});
+    }
+  });
+  return S;
+}
+/* Rendement annualisé par plateforme (ou par type de placement sans plateforme), brut et net */
+function revRendements(){
+  const G={};owned().forEach(a=>{const F=flux(a);if(!F||!F.length)return;const t=a.cat==='bourse'?'div':a.cat==='bien'?'loyer':a.cat==='epargne'?'av':a.cat==='cash'?'livret':a.cat,k=a.plat||(CATS[a.cat]||CATS.autre).n;
+    const g=G[k]=G[k]||{nom:k,flux:[],valeur:0,taux:CL.tauxImpot(t,D.fisc,{pea:['pea','peapme','av','per'].includes(a.env),exonere:a.cat==='cash'&&RE_EXO.test(nrm(a.name))})};g.flux.push(...F);g.valeur+=val(a)});
+  return CL.rendements(Object.values(G));
+}
+function revData(){
+  if(REVC)return REVC;const cur=moisCourant(),Y=+(UI.revAn||cur.slice(0,4)),p0=moisDecale(cur,-11);
+  const debut=[p0,Y+'-01'].sort()[0],fin=[moisDecale(cur,12),Y+'-12'].sort()[1],n=(+fin.slice(0,4)-+debut.slice(0,4))*12+(+fin.slice(5)-+debut.slice(5))+1;
+  const mois=CL.listeMois(debut,n),S=revSources(mois),sel=L=>CL.tableauRevenus(S,L);
+  const ans=[...new Set(S.flatMap(s=>Object.keys(s.reel||{}).concat(Object.keys(s.prevu||{}))).map(m=>m.slice(0,4)))].sort();
+  REVC={ok:S.length>0,S,passe:sel(CL.listeMois(p0,12)),avenir:sel(CL.listeMois(moisDecale(cur,1),12)),annee:sel(CL.listeMois(Y+'-01',12)),Y,ans:ans.length?ans:[cur.slice(0,4)],F:fiscD()};
+  return REVC;
+}
+/* Barres empilées par source. Passé : reçu (sources suivies) + estimé (sources sans suivi), trait = prévu ; avenir : prévu. */
+function revBars(M,passe,aria){
+  const n=UI.revNet?'Net':'',v=o=>passe?o['reel'+n]+o['estime'+n]:o['prevu'+n],KP='prevu'+n,mx=Math.max(1,...M.map(x=>Math.max(v(x),passe?x[KP]:0))),prevu=passe;
+  return `<div class="bars rev-bars" role="img" aria-label="${esc(aria)}">${M.map((x,i)=>{let a=0;const tot=v(x),g=Object.keys(REVT).filter(t=>x.par[t]&&v(x.par[t])>0).map(t=>{const b=a+v(x.par[t])/tot*100,c=`${REVT[t][1]} ${a.toFixed(1)}% ${b.toFixed(1)}%`;a=b;return c}).join(',');
+    return `<div title="${esc(moisNom(x.mois)+' : '+eur(tot)+(prevu?' reçus ou estimés, '+eur(x[KP])+' prévus':' prévus'))}"><i class="${tot?'':'z'}" style="height:${tot?Math.max(3,tot/mx*100):2}%${tot?`;background:linear-gradient(to top,${g})`:''}"></i>${prevu&&x[KP]>0?`<em class="pv" style="bottom:${(x[KP]/mx*100).toFixed(1)}%"></em>`:''}${i%2===0?`<span>${esc(new Date(x.mois+'-15T12:00:00').toLocaleDateString('fr-FR',{month:'short'}))}</span>`:''}</div>`}).join('')}</div>`;
+}
+const revLeg=(T,prevu)=>`<div class="xs mut" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">${Object.keys(REVT).filter(t=>T.par[t]&&(T.par[t].reel||T.par[t].prevu)).map(t=>`<span><i class="dot" style="background:${REVT[t][1]}"></i>${REVT[t][0]}</span>`).join('')}${prevu?'<span><i class="dot pvd"></i>Prévu</span>':''}</div>`;
+function renderRev(){
+  const el=$('v-rev');if(!el||typing(el))return;const R=revData(),net=!!UI.revNet,k=x=>net?x+'Net':x,F=R.F;
+  if(!R.ok){el.innerHTML=`<section class="card"><h3>Revenus passifs</h3><p class="sm mut" style="margin-top:6px">Aucun revenu passif à suivre pour l’instant. Ils apparaissent ici dès que vous renseignez :</p><ul class="sm" style="padding-left:18px;margin-top:8px;line-height:1.7"><li>le taux de vos projets de crowdlending et d’immobilier fractionné (et confirmez leurs versements dans les rappels) ;</li><li>le taux de vos livrets et fonds en euros ;</li><li>le loyer de vos biens loués ;</li><li>le ticker de vos actions (dividendes).</li></ul><div class="g2 mt"><button class="btn" data-act="add">${ic('plus',18)}Ajouter un placement</button><button class="btn sec" data-act="go" data-v="assets">Mes placements</button></div></section>`;return}
+  const P=R.passe.total,A=R.avenir.total,taux=P[k('suivi')]>0?P[k('reel')]/P[k('suivi')]*100:null;
+  let h=`<div class="grid2"><section class="card span2"><div class="ct"><h3>Vos revenus passifs</h3><div class="chips" role="group" aria-label="Montants affichés"><button class="chip${net?'':' on'}" data-act="revnet" data-v="0" aria-pressed="${!net}">Brut</button><button class="chip${net?' on':''}" data-act="revnet" data-v="1" aria-pressed="${net}">Net d’impôt</button></div></div>
+  <div class="kpis"><div><span>Reçus sur 12 mois</span><b>${eur(P[k('reel')])}</b></div><div><span>Prévus sur 12 mois</span><b>${eur(P[k('suivi')])}</b></div><div><span>À venir sur 12 mois</span><b>${eur(A[k('prevu')])}</b></div></div>
+  <p class="sm mt">${taux!=null?`<b class="${taux>=95?'pos':taux>=75?'warnc':'neg'}">${nf(taux,0)} %</b> des versements prévus de vos projets et dividendes ont été reçus. `:''}${P[k('estime')]>0?`S’y ajoutent environ ${eur(P[k('estime')])} estimés (livrets, assurance-vie, loyers). `:''}À venir : environ <b>${eur(A[k('prevu')]/12)}</b> par mois${net?', après impôt':', avant impôt'}.</p>
+  ${revBars(R.passe.mois,true,'Revenus des 12 derniers mois : reçus ou estimés, et prévus')}${revLeg(P,true)}
+  <details class="mt"><summary class="sm">Reçu contre prévu, mois par mois</summary><div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 84px 84px 76px;border-top:0"><span>Mois</span><span style="text-align:right">Reçu</span><span style="text-align:right">Prévu</span><span style="text-align:right">Écart</span></div>${R.passe.mois.slice().reverse().map(x=>{const e=x[k('reel')]-x[k('suivi')];return `<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 84px 84px 76px"><span>${esc(moisNom(x.mois))}</span><b style="text-align:right">${eur(x[k('reel')])}</b><span style="text-align:right">${eur(x[k('suivi')])}</span><span style="text-align:right" class="${Math.abs(e)<1?'mut':e>0?'pos':'neg'}">${Math.abs(e)<1?'=':sgn(e)}</span></div>`}).join('')}</details>
+  <p class="hint">Reçu : versements confirmés dans les rappels (intérêts, sans le capital remboursé) et dividendes versés pour la quantité détenue aujourd’hui. Barres : reçu, plus l’estimation des livrets, de l’assurance-vie et des loyers (sans suivi réel) ; trait : prévu.</p></section>`;
+  h+=`<section class="card"><h3>Projection des 12 prochains mois</h3><div class="big" style="font-size:24px;margin-top:4px">${eur(A[k('prevu')])}</div>${revBars(R.avenir.mois,false,'Revenus prévus, 12 prochains mois')}${revLeg(A,false)}<p class="hint">D’après les échéanciers, les taux renseignés et les dividendes des 12 derniers mois. Estimation non garantie : un projet peut prendre du retard.</p></section>`;
+  const types=Object.keys(REVT).filter(t=>(P.par[t]&&(P.par[t].reel||P.par[t].prevu))||(A.par[t]&&A.par[t].prevu));
+  h+=`<section class="card"><h3>Par source</h3><div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 84px 84px;border-top:0;margin-top:8px"><span>Source</span><span style="text-align:right">12 derniers mois</span><span style="text-align:right">12 prochains</span></div>${types.map(t=>{const p=P.par[t]||{},a=A.par[t]||{},sr=R.S.find(s=>s.type===t);return `<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 84px 84px"><span><i class="dot" style="background:${REVT[t][1]}"></i>${esc(REVT[t][0])}<span class="xs mut" style="display:block">${R.S.filter(s=>s.type===t).some(s=>s.reel)?'reçu '+eur(p[k('reel')]||0)+' · ':'estimé · '}imposé ${nf(sr?sr.taux:0,1)} %</span></span><b style="text-align:right">${eur(p[k('prevu')]||0)}</b><b style="text-align:right">${eur(a[k('prevu')]||0)}</b></div>`}).join('')}<p class="hint">Montants prévus${net?', nets d’impôt':', bruts'}. Imposition retenue : PFU ${nf(F.ir,1)} % + prélèvements sociaux ${nf(F.ps,1)} %, assurance-vie ${nf(F.psAV,1)} % (fonds en euros), loyers à la tranche de ${nf(F.tmi,0)} % + ${nf(F.psImmo,1)} % après ${nf(F.abatFoncier,0)} % d’abattement ; livrets réglementés et PEA exonérés.</p><button class="btn sec blk mt" data-act="fisc">${ic('sliders',18)}Modifier les taux d’imposition</button></section>`;
+  const RD=revRendements(),pc=v=>v==null?'–':nf(v*100,1)+' %';
+  h+=`<section class="card"><h3>Rendement annualisé</h3>${RD.lignes.length?`<div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 64px 64px;border-top:0;margin-top:8px"><span>Plateforme</span><span style="text-align:right">Brut</span><span style="text-align:right">Net</span></div>${RD.lignes.slice(0,12).map(x=>`<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 64px 64px"><span>${esc(x.nom)}<span class="xs mut" style="display:block">${eur(x.valeur)} · ${x.gain>=0?'gain':'perte'} ${eur(Math.abs(x.gain))}</span></span><span style="text-align:right">${pc(x.tri)}</span><b style="text-align:right" class="${x.triNet>0?'pos':x.triNet<0?'neg':''}">${pc(x.triNet)}</b></div>`).join('')}${RD.global?`<div class="trow" style="grid-template-columns:minmax(0,1fr) 64px 64px"><b>Global</b><b style="text-align:right">${pc(RD.global.tri)}</b><b style="text-align:right">${pc(RD.global.triNet)}</b></div>`:''}<p class="hint">Taux de rendement interne d’après les versements datés (dont les paiements confirmés) et la valeur actuelle ; net = brut moins l’imposition des revenus de la source. Moins de 30 jours de recul : pas de taux.</p>`:'<p class="sm mut" style="margin-top:6px">Renseignez la date et le montant de vos placements pour calculer leur rendement.</p>'}</section>`;
+  const Y=R.Y,YA=R.annee;
+  h+=`<section class="card span2"><div class="ct"><h3>Par année</h3></div><div class="chips">${[...new Set(R.ans.concat([moisCourant().slice(0,4)]))].sort().map(y=>`<button class="chip${+y===Y?' on':''}" data-act="revan" data-v="${y}">${y}</button>`).join('')}</div><div class="kpis"><div><span>Reçu en ${Y}</span><b>${eur(YA.total[k('reel')])}</b></div><div><span>Prévu en ${Y}</span><b>${eur(YA.total[k('prevu')])}</b></div><div><span>Par mois (prévu)</span><b>${eur(YA.total[k('prevu')]/12)}</b></div></div>${revBars(YA.mois,true,'Revenus reçus ou estimés, et prévus, en '+Y)}${revLeg(YA.total,true)}</section></div>`;
+  el.innerHTML=h;
+}
+/* Taux d'imposition réglables (synchronisés) : ils évoluent d'une année à l'autre */
+function openFisc(){
+  const F=fiscD(),Dft=CL.FISC_DEFAUT,f=(k,l,h)=>`<div class="fld"><label for="fi-${k}">${l}</label><div class="inp has"><input id="fi-${k}" type="number" inputmode="decimal" step="0.1" min="0" max="100" value="${F[k]}"><span class="suf">%</span></div><div class="hint">${h} Par défaut : ${nf(Dft[k],1)} %.</div></div>`;
+  sheet('Fiscalité des revenus',`<p class="sm mut">Taux utilisés pour les montants nets, l’aide à la déclaration et les simulateurs. Ils changent avec les lois de finances : vérifiez-les chaque année sur impots.gouv.fr.</p><div class="g2">${f('ir','Impôt forfaitaire (PFU)','Part « impôt sur le revenu » du prélèvement forfaitaire unique.')}${f('ps','Prélèvements sociaux','Intérêts, dividendes, plus-values.')}${f('psAV','Prélèvements sociaux, assurance-vie','Fonds en euros, PEL.')}${f('psImmo','Prélèvements sociaux, immobilier','Loyers, plus-values immobilières.')}${f('tmi','Votre tranche marginale','Pour les loyers et la comparaison au barème.')}${f('abatFoncier','Abattement micro-foncier','Sur les loyers d’une location vide.')}</div><div class="err" id="fi-e"></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="fiscdef">Valeurs par défaut</button><button class="btn" data-act="fiscsave">Enregistrer</button></div>`);
+}
+function fiscSave(def){
+  if(def){D.fisc={};save();closeM();render();toast('Taux par défaut rétablis');return}
+  const o={};for(const k of Object.keys(CL.FISC_DEFAUT)){const v=$('fi-'+k).value;if(v===''||!(num(v)>=0&&num(v)<=100)){$('fi-e').textContent='Chaque taux doit être compris entre 0 et 100 %.';return}o[k]=Math.round(num(v)*100)/100}
+  D.fisc=o;save();closeM();render();toast('Taux d’imposition enregistrés');
 }
 let DIVB=false;
 async function divLoad(force){
@@ -1884,6 +1978,7 @@ function renderSet(){
 <div class="set"><div><b>Actualiser les cours à l’ouverture</b><div class="hint">Récupère les cours Yahoo des positions avec ticker, au plus toutes les 6 heures.</div></div>${sw('auto',D.set.auto!==false,'Actualiser les cours à l’ouverture')}</div></section>
 <section class="card"><h3>Marchés en direct</h3><p class="sm mut" style="margin-top:6px">Les cours de vos placements et de l’écran Marchés se mettent à jour en continu. Seuls les symboles suivis (par exemple CW8.PA ou BTC-EUR) sont transmis à Yahoo Finance et à Binance, jamais vos montants. Désactivez pour économiser la batterie et les données.</p><div class="set" style="margin-top:6px"><div><b>Cours en direct</b><div class="hint">Flux continu tant que l’application est ouverte.</div></div>${sw('live',D.set.live!==false,'Cours en direct')}</div></section>
 ${macSetHTML()}<section class="card"><h3>Assistant IA</h3><p class="sm mut" style="margin-top:6px">${MAC&&MAC.ia?'L’IA du Mac rédige librement sans Internet ; l’IA locale répond instantanément par des calculs.':'L’IA locale fonctionne sans Internet ni clé, et vos données restent sur l’appareil.'} Gemini et Grok rédigent plus librement, mais reçoivent vos placements. L’enquête web et la lecture de photos passent par Gemini.</p><div class="mt">${provChips()}</div>${aiSetBlock()}<div class="set" style="margin-top:6px"><div><b>Relais par l’IA locale</b><div class="hint">Si Gemini ou Grok ne répond pas, l’IA locale répond à sa place au lieu d’afficher une erreur.</div></div>${sw('fb',D.set.fb!==false,'Relais par l’IA locale')}</div></section>
+<section class="card"><h3>Fiscalité</h3><p class="sm mut" style="margin-top:6px">PFU ${nf(fiscD().ir,1)} % + prélèvements sociaux ${nf(fiscD().ps,1)} %, tranche marginale ${nf(fiscD().tmi,0)} %. Taux utilisés pour les revenus nets, la vue fiscale et les simulateurs.</p><button class="btn sec blk mt" data-act="fisc">${ic('sliders',18)}Modifier les taux</button></section>
 <section class="card span2"><h3>Mes données</h3><p class="sm mut" style="margin-top:6px">${syncOn()?'Enregistré sur cet appareil et synchronisé avec votre compte sur tous vos appareils.':'Tout est enregistré dans ce navigateur, sur cet appareil uniquement.'}</p><div class="kv" style="margin-top:8px"><span>Dernière sauvegarde</span><b>${D.lastBackup?esc(fd(new Date(D.lastBackup))):'Jamais'}</b></div><div class="g2 mt"><button class="btn sec" data-act="exp">${ic('download',18)}Exporter (JSON)</button><button class="btn sec" data-act="expcsv">${ic('download',18)}Exporter (CSV)</button></div><button class="btn sec blk mt" data-act="bilan">${ic('printer',18)}Bilan patrimonial en PDF</button><button class="btn sec blk mt" data-act="docs">${ic('folder',18)}Coffre à documents${D.docs.length?' ('+D.docs.length+')':''}</button><div class="fld"><label for="rest">Restaurer une sauvegarde</label><input id="rest" type="file" accept=".json,application/json" data-ch="restore"></div><button class="btn dng blk mt" data-act="reset">Réinitialiser mes données</button></section>
 <section class="card span2"><h3>À propos</h3><p class="sm mut" style="margin-top:6px"><b>Patrimoine AI ${VER}</b> · produit par <b>QuenTools</b>. Les données sont chiffrées sur l’appareil avant toute sauvegarde dans le cloud (Firebase, lié à votre compte Google) ; ni Google ni QuenTools ne peuvent les lire. Avec l’IA locale, rien ne sort de votre appareil hormis la liste des symboles suivis, envoyée à Yahoo Finance et à Binance pour les cours en direct. Si vous activez Gemini ou Grok, vos questions et un résumé de vos placements et de votre budget leur sont envoyés. Le coffre à documents reste toujours sur l’appareil. Les scores, estimations et simulations sont indicatifs et ne constituent pas un conseil en investissement.</p><a class="btn sec mt" style="text-decoration:none" href="${CGU}" target="_blank" rel="noopener">Conditions d’utilisation et confidentialité</a></section></div>`;
 }
@@ -2508,7 +2603,11 @@ function dossier(){
     objectifs:(D.goals||[]).map(g=>{const s=gState(g);return{nom:g.name,montant_vise:Math.round(s.t),deja_atteint:Math.round(s.cur),progression_pct:Math.round(s.p),echeance:g.date||undefined,mois_restants:s.m??undefined,effort_mensuel_necessaire:s.need!=null?Math.round(s.need):undefined,versement_prevu_par_mois:s.mo||undefined,rendement_estime_pct:num(g.rate)||undefined,etat:GST[s.k][0]}}),
     depenses_reelles:(()=>{if(!D.ops.length)return undefined;const m=moisDecale(moisCourant(),-1),r=CL.reelDuMois(D.ops,m);if(r.n<5)return undefined;const c=CL.comparer(catPrevu(),r),ab=CL.abonnements(D.ops).filter(a=>!a.arrete);return{mois:moisTxt(m),revenus:Math.round(r.rev),depenses:Math.round(r.dep),mis_de_cote:Math.round(r.epargne),par_categorie:Object.fromEntries(Object.entries(r.cat).filter(([k,v])=>v>=1).map(([k,v])=>[ccat(k),Math.round(v)])),depassements:c.depasse.map(x=>ccat(x.cat)+' : +'+Math.round(x.ecart)+' €'),abonnements_par_an:Math.round(ab.reduce((s,a)=>s+a.parAn,0)),abonnements:ab.slice(0,10).map(a=>a.nom+' ('+Math.round(a.montant)+' € '+a.freq+')')}})(),
     rendement_reel:(()=>{const P=perfData();return P&&P.R.tri!=null?{taux_annuel_pct:Math.round(P.R.tri*1000)/10,verse:Math.round(P.R.verse),valeur:Math.round(P.V),livret_a_meme_versements:Math.round(CL.aTauxFixe(P.F,livretA()))}:undefined})(),
-    revenus_passifs_12_mois:(()=>{const S=sourcesPassives();return S.length?Math.round(CL.revenusPassifs(S).total):undefined})(),
+    revenus_passifs:(()=>{const R=revData();if(!R.ok)return undefined;const P=R.passe.total,A=R.avenir.total,RD=revRendements(),r=x=>Math.round(x);
+      return{recus_12_derniers_mois:{brut:r(P.reel),net:r(P.reelNet)},prevus_12_derniers_mois:{brut:r(P.prevu),net:r(P.prevuNet)},a_venir_12_mois:{brut:r(A.prevu),net:r(A.prevuNet)},
+        par_source_a_venir:Object.fromEntries(Object.keys(REVT).filter(t=>A.par[t]&&A.par[t].prevu).map(t=>[REVT[t][0],{brut:r(A.par[t].prevu),net:r(A.par[t].prevuNet)}])),
+        rendement_annualise_pct:RD.lignes.filter(x=>x.tri!=null).slice(0,10).map(x=>({plateforme:x.nom,brut:Math.round(x.tri*1000)/10,net:Math.round(x.triNet*1000)/10})),
+        fiscalite_retenue_pct:{pfu_impot:R.F.ir,prelevements_sociaux:R.F.ps,assurance_vie_ps:R.F.psAV,tranche_marginale:R.F.tmi}}})(),
     paiements_a_confirmer:(()=>{const L=rapDus();return L.length?L.map(x=>x.r.nom+' (prévu le '+x.date+(x.statut==='alerte'?', en alerte : plus de 10 jours de retard':x.statut==='retard'?', en retard':'')+')'):undefined})(),
     rappels_versements:(()=>{const R=(D.rappels||[]).filter(r=>r.actif!==false);return R.length?R.map(r=>({plateforme:r.nom,jour_du_mois:r.jour,prochain:CL.prochaineEcheance(r,today())||undefined,montant_habituel:CL.montantHabituel(r)||undefined,derniers_recus:CL.historique(r).filter(h=>h.s==='recu').slice(0,3).map(h=>({mois:h.mois,montant:h.m,capital:num(h.c)||undefined}))})):undefined})(),
     echeanciers:(()=>{const L=owned().map(a=>[a,echOf(a)]).filter(x=>x[1]);return L.length?L.map(([a,e])=>({placement:a.name,mode:ECHM[e.mode],versement_mensuel_prevu:e.mensualite,capital_restant_prevu:e.mode==='loyer'?undefined:Math.round(e.capitalRestantPrevu),capital_restant_reel:e.mode==='loyer'?undefined:Math.round(e.capitalRestantReel)})):undefined})(),
@@ -2653,7 +2752,7 @@ const LAI=(()=>{
     decl:[['declaration',6],['declarer',6],['ifu',6],['quelle case',6],['case 2',5],['feuille d impot',5],['impots du printemps',5]],
     frais:[['frais',4],['frais caches',7],['frais de gestion',7],['frais bancaires',7],['cotisation carte',6],['agios',6]],
     rappel:[['versement',4],['versements',4],['rappel',4],['rappels',4],['paiement recu',5],['paiements recus',5],['est arrive',3],['bricks',3],['bienpreter',3],['bien preter',3],['capital restant de',4],['echeancier',5],['en attente de paiement',5]],
-    passif:[['revenus passifs',5],['revenu passif',5],['dividende',3],['dividendes',3],['combien me rapporte',3],['loyers',2]],
+    passif:[['revenus passifs',5],['revenu net',5],['revenus nets',5],['net d impot',4],['apres impot',3],['reel contre prevu',6],['recu contre prevu',6],['rendement net',5],['projection des revenus',6],['revenus a venir',5],['par plateforme',2],['revenu passif',5],['dividende',3],['dividendes',3],['combien me rapporte',3],['loyers',2]],
     news:[['actualite',4],['actualites',4],['news',4],['nouvelles',3],['quoi de neuf',3],['que se passe',3],['dernieres infos',3],['infos',2]],
     budget:[['budget',3],['depenses',3],['depense',2],['reste a vivre',4],['combien investir',4],['dois investir',4],['investir chaque mois',4],['investir par mois',4],['epargner par mois',4],['mettre de cote chaque mois',4],['combien dois je investir',4],['combien placer',3],['combien epargner',3],['capacite d epargne',4],['taux d epargne',4],['fin de mois',3],['economies',2],['frais',2],['charges',2],['salaire',2],['revenus mensuels',3]],
     debt:[['credit',2],['emprunt',3],['dette',3],['mensualite',3],['capital restant',3],['endettement',3],['rembourser mon pret',3],['reste a rembourser',4],['mon pret',3],['mon credit',3],['mes credits',3],['pret immo',3],['remboursement anticipe',2],['net',1]]
@@ -2882,9 +2981,12 @@ const LAI=(()=>{
     return s+'\n\nUn versement non confirmé passe en retard au bout de 3 jours, en alerte au bout de 10. Validez-le sur l’accueil ; l’historique et l’annulation sont dans **Mes banques**.';
   }
   function aPassif(){
-    const S=sourcesPassives();if(!S.length)return 'Je ne trouve pas encore de revenus passifs : renseignez les loyers de vos biens, les taux de vos livrets et projets, et les tickers de vos actions pour leurs dividendes.';
-    const R=CL.revenusPassifs(S),by={};S.forEach(x=>{by[x.type]=(by[x.type]||0)+x.mois.reduce((a,b)=>a+b,0)});
-    return `#### Vos revenus passifs sur 12 mois : ${E(R.total)}\nSoit ${E(R.total/12)} par mois en moyenne, avant impôts.\n`+Object.entries(by).map(([k,v])=>`- ${RPT[k][0]} : ${E(v)}`).join('\n')+'\n\nLe détail mois par mois est dans **Analyse**.';
+    const R=revData();if(!R.ok)return 'Je ne trouve pas encore de revenus passifs : renseignez les loyers de vos biens, les taux de vos livrets et projets, et les tickers de vos actions pour leurs dividendes.';
+    const T0=R.passe.total,A=R.avenir.total,F=R.F,RD=revRendements();
+    let s=`#### Vos revenus passifs\n- Reçus sur les 12 derniers mois : **${E(T0.reel)}** brut, ${E(T0.reelNet)} net (prévus : ${E(T0.prevu)})\n- À venir sur 12 mois : **${E(A.prevu)}** brut, soit ${E(A.prevuNet)} net, environ ${E(A.prevuNet/12)} par mois\n`;
+    s+='\n#### Par source (12 prochains mois, brut → net)\n'+Object.keys(REVT).filter(t=>A.par[t]&&A.par[t].prevu).map(t=>`- ${REVT[t][0]} : ${E(A.par[t].prevu)} → ${E(A.par[t].prevuNet)}`).join('\n');
+    if(RD.lignes.length)s+='\n\n#### Rendement annualisé net\n'+RD.lignes.filter(x=>x.triNet!=null).slice(0,6).map(x=>`- ${x.nom} : ${P(x.triNet*100)} (brut ${P(x.tri*100)})`).join('\n')+(RD.global&&RD.global.triNet!=null?`\n- **Global : ${P(RD.global.triNet*100)}**`:'');
+    return s+`\n\nNet d’après vos taux (PFU ${P(F.ir)} + prélèvements sociaux ${P(F.ps)}, modifiables dans Réglages → Fiscalité). Le détail mois par mois et le réel contre le prévu sont dans **Revenus**.`;
   }
   function aDebt(){
     const L=D.assets.filter(isDebt),T=totals();
@@ -3251,8 +3353,8 @@ let PALI=[],PALS=0;
 function palItems(q){
   const n=N0(q.trim()),hit=t=>!n||N0(t).includes(n),out=[];
   const add=(g,l,i,fn,x)=>{if(hit(l+' '+(x||'')))out.push({g,l,i,fn,x:x||''})};
-  const V={news:'Actualités économiques',home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
-  Object.keys(V).forEach(v=>add('Aller à',V[v],({news:'news',home:'home',assets:'list',budget:'wallet',goals:'target',bank:'bank',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v),v==='bank'?'boursorama compte courant solde synchroniser rappels paiement':''));
+  const V={rev:'Revenus passifs',news:'Actualités économiques',home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
+  Object.keys(V).forEach(v=>add('Aller à',V[v],({rev:'coins',news:'news',home:'home',assets:'list',budget:'wallet',goals:'target',bank:'bank',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v),v==='bank'?'boursorama compte courant solde synchroniser rappels paiement':''));
   add('Actions','Nouveau rappel de paiement','bell',()=>openRap(''),'bricks bienpreter versement mensuel');
   add('Actions','Ajouter un placement','plus',()=>openPick());
   add('Actions','Nouvel objectif','target',()=>openGoalForm(''),'projet épargne');
@@ -3444,7 +3546,7 @@ const ACT={
   nth:d=>{D.set.nth=d.v;NW.q='';save();NW.items=[];renderNews();newsLoad();setTitle()},
   nrg:d=>{D.set.nrg=d.v;save();NW.items=[];renderNews();newsLoad();setTitle()},
   nre:()=>newsLoad(true),
-  more:()=>sheet('Plus',[['bank','Mes banques','bank','Comptes liés, soldes, rappels de paiement'],['news','Actualités','news','Économie, marchés, énergie, tech… par région'],['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Retraite, impôts, vente, succession, crédit'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
+  more:()=>sheet('Plus',[['rev','Revenus passifs','coins','Reçus contre prévus, brut et net, 12 prochains mois'],['bank','Mes banques','bank','Comptes liés, soldes, rappels de paiement'],['news','Actualités','news','Économie, marchés, énergie, tech… par région'],['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Retraite, impôts, vente, succession, crédit'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
   bstart:()=>{const B=D.budget;B.inc=BTPL.inc.map(x=>({id:newId(),n:x[0],v:''}));B.exp=BTPL.exp.filter(x=>!(x[2]==='logement'&&loanPay()>0)).map(x=>({id:newId(),n:x[0],k:x[1],c:x[2],v:''}));save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('#b-inc input[data-f=v]');if(i&&!typing($('v-budget')))i.focus()},50)},
   bblank:()=>{const B=D.budget;B.inc=[{id:newId(),n:'Salaire net',v:''}];B.exp=[{id:newId(),n:'',k:'fixe',v:''}];save();renderBudget(true)},
   badd:d=>{const l={id:newId(),n:'',v:''};if(d.t==='exp')l.k='fixe';D.budget[d.t].push(l);save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('[data-id="'+l.id+'"][data-f=n]');if(i)i.focus()},40)},
@@ -3472,6 +3574,7 @@ const ACT={
   bqcopie:()=>{try{navigator.clipboard.writeText((BQ.mac&&BQ.mac.retour)||'https://ikeupods-del.github.io/patrimoineai/');toast('Adresse copiée')}catch(e){}},bqsync:()=>bqSync(true),bqdeco:()=>bqDeco(),bqetat:async()=>{closeM();BQ.vu=0;await bqEtat();if(bqLie())bqSync(true)},
   rapoui:d=>{const r=D.rappels.find(x=>x.id===d.id);if(!r)return;const att=rapAttendu(r,d.m);if(att>0&&rapPlacements(r).length<=1)rapValider(r.id,d.m,att);else rapMontant(r.id,d.m)},
   rapannul:d=>rapAnnuler(d.id,d.m),raphist:d=>openRapHist(d.id),
+  revnet:d=>{UI.revNet=d.v==='1';renderRev()},revan:d=>{UI.revAn=d.v;REVC=null;renderRev()},fisc:()=>openFisc(),fiscsave:()=>fiscSave(false),fiscdef:()=>fiscSave(true),
   rapok:d=>{const o=D.ops.find(x=>x.id===d.tx);if(o)rapValider(d.id,d.m,o.m,{tx:o.id,d:o.d})},
   rapautre:d=>rapMontant(d.id,d.m),rapnon:d=>rapNon(d.id,d.m),
   rapsave:d=>{const m=num($('rv-m').value),dt=$('rv-d').value;if(!(m>0)||!dt){$('rv-e').textContent='Indiquez le montant reçu et sa date.';return}rapValider(d.id,d.m,m,{d:dt,c:num($('rv-c').value),aid:$('rv-a')?$('rv-a').value:undefined})},
@@ -3764,7 +3867,7 @@ function onAuth(fresh){
 const idName=()=>ID.user?((ID.user.user_metadata&&(ID.user.user_metadata.full_name||ID.user.user_metadata.name))||ID.user.email):'';
 
 /* --- Suivi des modifications (fusion fine entre appareils) --- */
-const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target','ops','regles','fire','bank','rappels'];
+const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target','ops','regles','fire','bank','rappels','fisc'];
 let SNAP=null;
 const ajson=a=>{const o=Object.assign({},a);delete o.u;return JSON.stringify(o)};
 /* Les rappels sont suivis un par un (date u, suppressions dans D.del) et leur historique mois par mois (date t) : deux appareils
@@ -3781,7 +3884,7 @@ function track(){
   SF.forEach(f=>{if(SNAP.f[f]!==JSON.stringify(D[f]===undefined?null:D[f])){D.mt[f]=now;ch=true}});
   SNAP=snapOf();return ch;
 }
-const payload=()=>({v:3,sv:SCHEMA,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget,ops:(D.ops||[]).slice(-OPS_MAX).map(o=>[o.id,o.d,String(o.lib||'').slice(0,60),o.m,o.cat,o.fid||'']),regles:D.regles||{},fire:D.fire||{},bank:D.bank||null,rappels:D.rappels||[]}); /* opérations en format compact : la sauvegarde chiffrée reste sous 1 Mo */
+const payload=()=>({v:3,sv:SCHEMA,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget,ops:(D.ops||[]).slice(-OPS_MAX).map(o=>[o.id,o.d,String(o.lib||'').slice(0,60),o.m,o.cat,o.fid||'']),regles:D.regles||{},fire:D.fire||{},bank:D.bank||null,rappels:D.rappels||[],fisc:D.fisc||{}}); /* opérations en format compact : la sauvegarde chiffrée reste sous 1 Mo */
 /* Fusion : chaque placement garde sa version la plus récente, les suppressions sont respectées, l'historique est réuni. */
 function mergeRemote(R){
   if(!R||typeof R!=='object')return false;
@@ -3807,7 +3910,7 @@ function mergeRemote(R){
   const H=new Map((R.hist||[]).map(h=>[h.d,h]));(L.hist||[]).forEach(h=>{if(!H.has(h.d)){H.set(h.d,h);localWins=true}else H.set(h.d,h)});
   L.hist=[...H.values()].sort((x,y)=>String(x.d).localeCompare(String(y.d))).slice(-1500);
   if(!Array.isArray(L.chat))L.chat=[];if(!Array.isArray(L.watch))L.watch=[];if(!Array.isArray(L.alerts))L.alerts=[];if(!Array.isArray(L.goals))L.goals=[];if(!L.budget||typeof L.budget!=='object'||!Array.isArray(L.budget.inc)||!Array.isArray(L.budget.exp))L.budget={inc:[],exp:[],loans:true,mois:6,marge:10,delai:12};if(!L.target||typeof L.target!=='object')L.target={};L.ops=Array.isArray(L.ops)?L.ops.map(o=>Array.isArray(o)?{id:o[0],d:o[1],lib:o[2],m:o[3],cat:o[4],fid:o[5]||undefined}:o).filter(o=>o&&o.id&&o.d&&isFinite(o.m)):[];if(!L.regles||typeof L.regles!=='object')L.regles={};if(!L.fire||typeof L.fire!=='object')L.fire={};if(!L.plat||typeof L.plat!=='object')L.plat={};
-  if(!Array.isArray(L.rappels))L.rappels=[];if(!L.bank||typeof L.bank!=='object'||Array.isArray(L.bank))L.bank=null;
+  if(!Array.isArray(L.rappels))L.rappels=[];if(!L.fisc||typeof L.fisc!=='object'||Array.isArray(L.fisc))L.fisc={};if(!L.bank||typeof L.bank!=='object'||Array.isArray(L.bank))L.bank=null;
   SNAP=snapOf();
   try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}
   return localWins;
