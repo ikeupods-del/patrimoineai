@@ -243,6 +243,10 @@ header.top h1{white-space:nowrap;min-width:0}
 .bars i{display:block;width:100%;max-width:28px;border-radius:6px 6px 2px 2px;background:var(--pt);min-height:2px}
 .bars i.z{background:var(--card2)}
 .bars span{position:absolute;bottom:-18px;font-size:10px;color:var(--mut);white-space:nowrap}
+.dz{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:26px 16px;border:2px dashed var(--line);border-radius:16px;background:var(--bg);cursor:pointer;color:var(--tx)}
+.dz.over{border-color:var(--pt);background:var(--card2)}
+.dz input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.dz:focus-within{outline:2px solid var(--pt);outline-offset:2px}
 .bars .pv{position:absolute;left:8%;right:8%;height:0;border-top:2px dashed var(--tx);opacity:.55;pointer-events:none}
 .dot.pvd{background:none;border-top:2px dashed var(--tx);border-radius:0;height:0;width:12px;opacity:.6}
 .trow{display:grid;grid-template-columns:minmax(0,1fr) 64px 88px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
@@ -435,7 +439,8 @@ function load(){
   d.fx=d.fx&&typeof d.fx==='object'&&!Array.isArray(d.fx)?d.fx:{};d.fire=d.fire&&typeof d.fire==='object'&&!Array.isArray(d.fire)?d.fire:{};d.docs=Array.isArray(d.docs)?d.docs.filter(x=>x&&x.id):[];
   d.alerts=Array.isArray(d.alerts)?d.alerts.filter(x=>x&&x.s&&num(x.p)>0):[];d.target=d.target&&typeof d.target==='object'&&!Array.isArray(d.target)?d.target:{};
   d.bank=d.bank&&typeof d.bank==='object'&&!Array.isArray(d.bank)?d.bank:null; /* banque liée : noms des comptes et soldes (la session reste sur le serveur) */
-  d.fisc=d.fisc&&typeof d.fisc==='object'&&!Array.isArray(d.fisc)?d.fisc:{}; /* taux d'imposition réglables (Réglages → Fiscalité) */
+  d.fisc=d.fisc&&typeof d.fisc==='object'&&!Array.isArray(d.fisc)?d.fisc:{};
+  d.impMap=d.impMap&&typeof d.impMap==='object'&&!Array.isArray(d.impMap)?d.impMap:{}; /* colonnes choisies par format de fichier importé (synchronisées) */ /* taux d'imposition réglables (Réglages → Fiscalité) */
   d.rappels=d.rappels===undefined?rapDefaut():Array.isArray(d.rappels)?d.rappels.filter(r=>r&&typeof r==='object'&&r.id):[];
   d.set=Object.assign({theme:'auto',hide:false,auto:true,prov:localStorage.getItem(KK)?'gemini':'local',fb:true,gmodel:'',gsrc:'key',mtab:'etf'},d.set||{});
   return migrate(d);
@@ -820,7 +825,7 @@ function onboarding(){
 <li><div><b>Suivez l’essentiel automatiquement</b><div class="sm mut">Répartition, évolution, échéances, alertes et indice de fiabilité se calculent tout seuls.</div></div></li>
 <li><div><b>Remplissez votre budget et vos objectifs</b><div class="sm mut">Revenus et dépenses du mois : l’application calcule votre reste à vivre et combien investir chaque mois pour vos projets.</div></div></li>
 <li><div><b>Posez vos questions à l’assistant</b><div class="sm mut">${MAC?'L’IA du Mac rédige sans Internet : vos données ne quittent jamais l’ordinateur.':'L’IA locale fonctionne tout de suite, sans Internet ni clé. Une clé Gemini gratuite (facultative) ajoute l’enquête web et la lecture de photos.'}</div></div></li></ol>
-<div class="stack"><button class="btn" data-act="add">${ic('plus',18)}Ajouter mon premier placement</button><button class="btn sec" data-act="go" data-v="budget">${ic('wallet',18)}Remplir mon budget</button><button class="btn sec" data-act="imp">${ic('upload',18)}Importer un contrat ou un CSV</button><button class="btn ghost" data-act="demo">${ic('gem',18)}Découvrir avec des exemples</button></div></section>`;
+<div class="stack"><button class="btn" data-act="add">${ic('plus',18)}Ajouter mon premier placement</button><button class="btn sec" data-act="go" data-v="budget">${ic('wallet',18)}Remplir mon budget</button><button class="btn sec" data-act="imptab">${ic('upload',18)}Importer depuis Finary ou un tableur</button><button class="btn ghost" data-act="demo">${ic('gem',18)}Découvrir avec des exemples</button></div></section>`;
 }
 function renderHome(){
   const A=D.assets,el=$('v-home');
@@ -2816,6 +2821,7 @@ const LAI=(()=>{
     bouge:[['pourquoi mon patrimoine',7],['a bouge',5],['a baisse',4],['a augmente',4],['a diminue',4],['variation',3],['pourquoi ca bouge',6],['explique la variation',6]],
     decl:[['vue fiscale',7],['deja preleve',6],['preleve a la source',6],['prelevements a la source',6],['pertes en capital',6],['imputer',5],['pfu ou bareme',6],['bareme ou pfu',6],['declaration',6],['declarer',6],['ifu',6],['quelle case',6],['case 2',5],['feuille d impot',5],['impots du printemps',5]],
     frais:[['frais',4],['frais caches',7],['frais de gestion',7],['frais bancaires',7],['cotisation carte',6],['agios',6]],
+    import:[['finary',8],['importer',4],['import',4],['excel',5],['xlsx',6],['tableur',5],['capture d ecran',5],['fichier csv',5],['depuis finary',8],['annuler l import',8]],
     rappel:[['versement',4],['versements',4],['rappel',4],['rappels',4],['paiement recu',5],['paiements recus',5],['est arrive',3],['bricks',3],['bienpreter',3],['bien preter',3],['capital restant de',4],['echeancier',5],['en attente de paiement',5]],
     passif:[['revenus passifs',5],['revenu net',5],['revenus nets',5],['net d impot',4],['apres impot',3],['reel contre prevu',6],['recu contre prevu',6],['rendement net',5],['projection des revenus',6],['revenus a venir',5],['par plateforme',2],['revenu passif',5],['dividende',3],['dividendes',3],['combien me rapporte',3],['loyers',2]],
     news:[['actualite',4],['actualites',4],['news',4],['nouvelles',3],['quoi de neuf',3],['que se passe',3],['dernieres infos',3],['infos',2]],
@@ -3037,6 +3043,10 @@ const LAI=(()=>{
     if(fb&&fb.total>0)s+=`\n\n**Frais bancaires des 12 derniers mois : ${E(fb.total)}**\n`+fb.lignes.slice(0,4).map(x=>`- ${x.nom} : ${E(x.total)}`).join('\n');
     return s+'\n\nLe détail est dans **Analyse → Frais cachés**.';
   }
+  function aImport(){
+    const U=D.impUndo;
+    return `#### Importer depuis Finary ou un tableur\nFinary n’a pas d’accès public : l’import se fait **sans identifiant ni connexion à Finary**.\n1. Exportez vos actifs en **CSV ou Excel** (ou faites une **capture d’écran** de leur liste).\n2. **Placements → Importer → Depuis Finary ou un tableur** : déposez le fichier.\n3. Vérifiez les colonnes (retenues pour la prochaine fois), puis chaque ligne : **mettre à jour** un placement existant, **créer** ou **ignorer** ; les doublons sont repérés.\n4. L’import se **annule** en un geste.\n\nLa capture d’écran est lue par Gemini (clé dans Réglages → Assistant IA) : vérifiez chaque montant.`+(U?`\n\nDernier import : ${fd(new Date(U.at))}, ${U.n} ligne${U.n>1?'s':''} (annulable dans l’écran d’import).`:'');
+  }
   function aRappel(){
     const R=(D.rappels||[]).filter(r=>r.actif!==false);
     if(!R.length)return 'Aucun rappel de versement actif. Dans **Mes banques**, ajoutez un rappel (par exemple Bricks le 8, BienPrêter le 5) : le jour J, l’accueil vous demande si le versement est arrivé.';
@@ -3217,7 +3227,7 @@ const LAI=(()=>{
   }
 
   /* ---------- Aiguillage ---------- */
-  const SUG={rappel:['Quel est le capital restant de mes prêts ?','Combien je touche de revenus passifs ?'],news:['Actualités du pétrole en Asie','Actualités technologie aux États-Unis'],budget:['Où en sont mes objectifs ?','Comment mieux diversifier ?'],debt:['Remboursement anticipé : ça vaut le coup ?','Fais le bilan de mon patrimoine'],global:['Que me conseilles-tu en priorité ?','Quels sont mes principaux risques ?','Quand arrivent mes échéances ?'],risk:['Comment mieux diversifier ?','Explique mon indice de fiabilité','Que faire si un projet est en retard ?'],divers:['Que me conseilles-tu en priorité ?','Combien j’ai de liquidités ?'],score:['Quels sont mes principaux risques ?','Comment mieux diversifier ?'],due:['Combien je touche d’intérêts ?','Fais le bilan de mon patrimoine'],income:['Impôt avec une TMI à 11 %','Quand arrivent mes échéances ?'],perf:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],total:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],tax:['C’est quoi le PFU ?','Combien je touche d’intérêts ?'],sim:['Simule 500 € par mois à 7 % pendant 20 ans','Quand vais-je atteindre mon objectif ?'],goal:['Simule 300 € par mois à 6 % pendant 15 ans','Que me conseilles-tu en priorité ?'],newproj:['Quelles garanties regarder ?','Comment mieux diversifier ?'],liquid:['C’est quoi l’épargne de précaution ?','Fais le bilan de mon patrimoine'],advice:['Quels sont mes principaux risques ?','Simule 300 € par mois à 6 % pendant 15 ans'],list:['Fais le bilan de mon patrimoine'],help:['Fais le bilan de mon patrimoine','Simule 200 € par mois à 5 % pendant 10 ans']};
+  const SUG={import:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],rappel:['Quel est le capital restant de mes prêts ?','Combien je touche de revenus passifs ?'],news:['Actualités du pétrole en Asie','Actualités technologie aux États-Unis'],budget:['Où en sont mes objectifs ?','Comment mieux diversifier ?'],debt:['Remboursement anticipé : ça vaut le coup ?','Fais le bilan de mon patrimoine'],global:['Que me conseilles-tu en priorité ?','Quels sont mes principaux risques ?','Quand arrivent mes échéances ?'],risk:['Comment mieux diversifier ?','Explique mon indice de fiabilité','Que faire si un projet est en retard ?'],divers:['Que me conseilles-tu en priorité ?','Combien j’ai de liquidités ?'],score:['Quels sont mes principaux risques ?','Comment mieux diversifier ?'],due:['Combien je touche d’intérêts ?','Fais le bilan de mon patrimoine'],income:['Impôt avec une TMI à 11 %','Quand arrivent mes échéances ?'],perf:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],total:['Fais le bilan de mon patrimoine','Comment mieux diversifier ?'],tax:['C’est quoi le PFU ?','Combien je touche d’intérêts ?'],sim:['Simule 500 € par mois à 7 % pendant 20 ans','Quand vais-je atteindre mon objectif ?'],goal:['Simule 300 € par mois à 6 % pendant 15 ans','Que me conseilles-tu en priorité ?'],newproj:['Quelles garanties regarder ?','Comment mieux diversifier ?'],liquid:['C’est quoi l’épargne de précaution ?','Fais le bilan de mon patrimoine'],advice:['Quels sont mes principaux risques ?','Simule 300 € par mois à 6 % pendant 15 ans'],list:['Fais le bilan de mon patrimoine'],help:['Fais le bilan de mon patrimoine','Simule 200 € par mois à 5 % pendant 10 ans']};
   const FOL={global:'advice',risk:'divers',divers:'advice',score:'risk',due:'income',income:'tax',perf:'divers',total:'divers',advice:'risk',liquid:'advice'};
   const DATA=['global','risk','divers','score','due','income','perf','total','liquid','advice','list','debt'];
   const DEF=/(c est quoi|qu est ce|definition|explique moi (le|la|les|l )|comment (ca )?(marche|fonctionne)|a quoi sert|difference entre|que choisir|avantages?|inconvenients?|c est quoi la difference)/;
@@ -3249,6 +3259,7 @@ const LAI=(()=>{
       case 'abo':return aAbo();
       case 'retraite':return aRetraite();
       case 'rappel':return aRappel();
+      case 'import':return aImport();
       case 'passif':return aPassif();
       case 'bouge':return aBouge();
       case 'decl':return aDecl();
@@ -3319,8 +3330,95 @@ function parseCSV(t){
 }
 function openImport(){
   IMP={};
-  sheet('Importer',`<h3>Un contrat ou une fiche de projet</h3><p class="sm mut">PDF, photo ou texte. L’analyse locale ne quitte pas votre appareil.</p><div class="fld"><label for="imp-f">Fichier</label><input type="file" id="imp-f" accept="application/pdf,image/*,.txt"></div><div class="fld"><label for="imp-t">Ou collez le texte</label><textarea id="imp-t" rows="3"></textarea></div><button class="btn blk mt" data-act="runlocal">Analyser en local</button><div id="imp-s" class="hint"></div><div id="imp-r"></div>
+  sheet('Importer',`<button class="item imp-fin" data-act="imptab"><div class="ir"><div class="it"><span class="ico" style="--c:var(--pt)">${ic('upload')}</span><div><b>Depuis Finary ou un tableur</b><span class="mut xs" style="white-space:normal">Fichier CSV ou Excel, ou capture d’écran de vos actifs : aperçu, rapprochement avec vos placements, annulable.</span></div></div>${ic('chev',18)}</div></button>
+<h3 style="margin-top:22px">Un contrat ou une fiche de projet</h3><p class="sm mut">PDF, photo ou texte. L’analyse locale ne quitte pas votre appareil.</p><div class="fld"><label for="imp-f">Fichier</label><input type="file" id="imp-f" accept="application/pdf,image/*,.txt"></div><div class="fld"><label for="imp-t">Ou collez le texte</label><textarea id="imp-t" rows="3"></textarea></div><button class="btn blk mt" data-act="runlocal">Analyser en local</button><div id="imp-s" class="hint"></div><div id="imp-r"></div>
 <h3 class="mt2" style="margin-top:26px">Plusieurs placements d’un coup (CSV)</h3><p class="sm mut">Une ligne par placement : catégorie;nom;plateforme;montant;valeur;taux;durée;statut;date;quantité;pru;ticker</p><div class="fld"><label for="imp-c">Collez vos lignes</label><textarea id="imp-c" rows="4" placeholder="crowd;Résidence des Lilas;Bienprêter;5000;5000;9,5;24;cours"></textarea></div><div class="fld"><label for="imp-cf">Ou choisissez un fichier .csv</label><input type="file" id="imp-cf" accept=".csv,.txt,text/csv" data-ch="csvfile"></div><div class="g2 mt"><button class="btn sec" data-act="csvtpl">Télécharger un modèle</button><button class="btn" data-act="csvchk">Vérifier</button></div><div id="csv-r"></div>`);
+}
+/* ===================== Import depuis Finary ou un tableur (CSV, Excel, capture d'écran lue par Gemini) =====================
+   Aucune API ni identifiant Finary : l'utilisateur exporte lui-même. Étapes : fichier → colonnes (choix retenu par format, D.impMap)
+   → rapprochement avec les placements (mettre à jour, créer, ignorer ; doublons) → import annulable (D.impUndo, gardé sur l'appareil).
+   Calculs : CL.lireXLSX, CL.tableauImport, CL.devinerColonnes, CL.lignesImport, CL.rapprocherImport, CL.tableauDepuisJSON. */
+const IMPCH={nom:'Nom du placement',type:'Type',plateforme:'Plateforme ou établissement',valeur:'Valeur actuelle',quantite:'Quantité',pru:'Prix de revient unitaire (PRU)',date:'Date'};
+const impSig=t=>t.entetes.map(h=>N0(h)).join('|');
+function openImpTab(){
+  IMP={};
+  sheet('Importer depuis Finary ou un tableur',`<p class="sm mut">Exportez vos actifs depuis Finary (ou n’importe quel tableur) au format CSV ou Excel, ou faites une capture d’écran de leur liste. Aucun identifiant n’est demandé et rien n’est envoyé à Finary.</p>
+  <label class="dz mt" id="imp-dz">${ic('upload',26)}<b>Déposez le fichier ici</b><span class="sm mut">ou touchez pour le choisir : CSV, Excel (.xlsx), capture d’écran</span><input type="file" id="imp-tf" accept=".csv,.txt,.tsv,.xlsx,image/*" data-ch="imptab" aria-label="Choisir un fichier CSV, Excel ou une capture d’écran"></label>
+  <div id="imp-st" class="sm mt" role="status"></div>
+  <details class="mt"><summary class="sm">Comment obtenir le fichier ?</summary><ul class="sm mut" style="padding-left:18px;margin-top:6px;line-height:1.6"><li>Si Finary propose un export de vos actifs (CSV ou Excel), utilisez-le tel quel : les colonnes sont reconnues, vous pouvez les corriger.</li><li>Sinon, une capture d’écran de la liste de vos actifs suffit : elle est lue par Gemini (clé à ajouter dans Réglages → Assistant IA). Vérifiez chaque ligne avant d’importer.</li><li>Un tableau à vous convient aussi : une ligne par placement, avec au moins un nom et une valeur.</li></ul></details>
+  ${D.impUndo?`<button class="btn sec blk mt" data-act="impundo">${ic('refresh',18)}Annuler le dernier import (${esc(fd(new Date(D.impUndo.at)))}, ${D.impUndo.n} ligne${D.impUndo.n>1?'s':''})</button>`:''}`);
+}
+const impSt=(t,bad)=>{const e=$('imp-st');if(e){e.className='sm mt'+(bad?' neg':'');e.textContent=t}};
+async function impLire(f){
+  if(!f)return;if(f.size>15e6){impSt('Fichier trop volumineux (15 Mo au plus).',true);return}
+  try{
+    if(/^image\//.test(f.type))return impCapture(f);
+    const b=new Uint8Array(await f.arrayBuffer());let rows;
+    if(b[0]===0x50&&b[1]===0x4b)rows=await CL.lireXLSX(b);
+    else if(b[0]===0xd0&&b[1]===0xcf){impSt('Ancien format Excel (.xls) : enregistrez le fichier au format .xlsx ou .csv, puis recommencez.',true);return}
+    else rows=CL.decouperCSV(await lireFichierTexte(f));
+    const t=CL.tableauImport(rows);if(!t.lignes.length){impSt('Aucune ligne lisible dans ce fichier.',true);return}
+    IMP.tab=t;IMP.fichier=f.name;IMP.map=Object.assign({},CL.devinerColonnes(t.entetes),(D.impMap||{})[impSig(t)]||{});IMP.memo=!!(D.impMap||{})[impSig(t)];impColonnes();
+  }catch(e){impSt('Lecture impossible : '+e.message,true)}
+}
+async function impCapture(f){
+  if(!keyOf('gemini')||navigator.onLine===false){impSt(navigator.onLine===false?'Hors ligne : la lecture d’une capture demande une connexion.':'La lecture d’une capture d’écran passe par Gemini : ajoutez votre clé dans Réglages → Assistant IA, ou importez un fichier CSV ou Excel.',true);return}
+  impSt('Lecture de la capture par Gemini, jusqu’à une minute…');
+  try{
+    const data=await new Promise((ok,ko)=>{const x=new FileReader();x.onload=()=>ok(String(x.result).split(',')[1]);x.onerror=()=>ko(Error('fichier illisible'));x.readAsDataURL(f)});
+    const t=await gem([{inlineData:{mimeType:f.type,data}},{text:'Cette image est une capture d’écran d’une application de suivi de patrimoine (Finary ou autre) ou d’un relevé. Recopie chaque actif visible, sans rien inventer ni calculer : réponds uniquement par un tableau JSON d’objets {"nom","type","plateforme","valeur","quantite","pru","date"} avec les textes et nombres tels qu’affichés (chaîne vide si absent). Pas de total, pas de commentaire.'}],'Tu recopies fidèlement des données visibles. Tu ne devines jamais un montant absent.');
+    const tab=CL.tableauDepuisJSON(t);if(!tab||!tab.lignes.length){impSt('Aucun actif reconnu sur cette capture. Essayez une image plus nette, ou un fichier CSV ou Excel.',true);return}
+    IMP.tab=tab;IMP.fichier='capture';IMP.capture=true;IMP.map=Object.fromEntries(CL.CHAMPS_IMPORT.map((c,i)=>[c,i]));impRappro();
+  }catch(e){impSt('Lecture impossible : '+e.message,true)}
+}
+function impApercu(){
+  const L=CL.lignesImport(IMP.tab,IMP.map).slice(0,5);
+  return L.length?`<div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 92px 96px;border-top:0"><span>Placement</span><span>Type</span><span style="text-align:right">Valeur</span></div>${L.map(x=>`<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 92px 96px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.nom||'—')}${x.plat?`<span class="xs mut" style="display:block">${esc(x.plat)}</span>`:''}</span><span class="xs">${esc((CATS[x.cat]||CATS.autre).n)}</span><b style="text-align:right" class="${x.erreur?'neg':''}">${x.erreur?esc(x.erreur):x.valeur!=null?eur(x.valeur,2):eur(x.quantite*x.pru,2)}</b></div>`).join('')}`:'<p class="sm neg">Aucune ligne utilisable avec ces colonnes.</p>';
+}
+function impColonnes(){
+  const t=IMP.tab,opt=ch=>`<option value="-1">— aucune —</option>`+t.entetes.map((h,i)=>`<option value="${i}"${IMP.map[ch]===i?' selected':''}>${esc(h||'Colonne '+(i+1))}</option>`).join('');
+  sheet('Colonnes du fichier',`<p class="sm mut">${esc(IMP.fichier||'')} · ${t.lignes.length} ligne${t.lignes.length>1?'s':''}. ${IMP.memo?'Colonnes reprises de votre dernier import de ce format.':'Colonnes reconnues automatiquement : corrigez-les si besoin.'}</p><div class="g2">${CL.CHAMPS_IMPORT.map(ch=>`<div class="fld"><label for="ic-${ch}">${IMPCH[ch]}${ch==='nom'||ch==='valeur'?'':'<span class="opt">facultatif</span>'}</label><select id="ic-${ch}" data-ch="impcol" data-k="${ch}">${opt(ch)}</select></div>`).join('')}</div><div class="lbl mt">Aperçu</div><div id="imp-ap">${impApercu()}</div><div class="err" id="imp-e"></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="imptab">Autre fichier</button><button class="btn" data-act="imprap">Continuer</button></div>`);
+}
+function impRappro(){
+  const L=CL.lignesImport(IMP.tab,IMP.map);
+  if(!IMP.capture&&IMP.map.nom<0){if($('imp-e'))$('imp-e').textContent='Choisissez la colonne du nom.';return}
+  if(!L.some(x=>!x.erreur)){if($('imp-e'))$('imp-e').textContent='Aucune ligne n’a de nom et de valeur : vérifiez les colonnes.';return}
+  if(!IMP.capture){D.impMap=Object.assign({},D.impMap,{[impSig(IMP.tab)]:IMP.map});save()} /* colonnes retenues pour le prochain fichier de ce format */
+  IMP.R=CL.rapprocherImport(L,D.assets.map(a=>({id:a.id,nom:a.name,plat:a.plat||'',valeur:Math.round(val(a)*100)/100})));impRapHTML();
+}
+function impRapHTML(){
+  const R=IMP.R,n=k=>R.filter(x=>x.action===k).length,av=x=>{const a=x.cible&&D.assets.find(y=>y.id===x.cible);return a?a.name:''};
+  sheet('Vérifier avant d’importer',`${IMP.capture?'<p class="box sm" style="border-color:var(--warn)">Lu sur une capture d’écran par Gemini : vérifiez chaque nom et chaque montant.</p>':''}<div id="imp-k">${impCompte()}</div>
+  <div class="mt">${R.map((x,i)=>`<div class="set imp-l"><div style="min-width:0;flex:1"><b>${esc(x.nom||'Ligne '+x.ligne)}</b><div class="xs mut">${x.plat?esc(x.plat)+' · ':''}${x.valeur!=null?eur(x.valeur,2):x.quantite&&x.pru?eur(x.quantite*x.pru,2):'—'}${x.quantite?' · '+nf(x.quantite,4).replace(/,?0+$/,'')+' parts':''}</div>${x.action==='maj'||x.cible?`<div class="xs">${esc(av(x))} : ${eur(x.ancienne,2)} → <b>${x.valeur!=null?eur(x.valeur,2):'—'}</b>${x.platDiff?' <span class="warnc">(autre établissement)</span>':''}</div>`:''}${x.raison?`<div class="xs ${x.erreur?'neg':'mut'}">${esc(x.raison)}</div>`:''}${x.action==='creer'?`<select class="xs" aria-label="Type de ${esc(x.nom)}" data-ch="impcat" data-i="${i}" style="min-height:32px;padding:2px 6px;margin-top:4px">${Object.entries(CATS).map(([k,c])=>`<option value="${k}"${k===x.cat?' selected':''}>${esc(c.n)}</option>`).join('')}</select>`:''}</div><select aria-label="Action pour ${esc(x.nom||'la ligne '+x.ligne)}" data-ch="impact" data-i="${i}" style="min-height:44px;width:auto;flex:none;font-size:14px;padding:4px 28px 4px 10px"${x.erreur?' disabled':''}>${x.cible?`<option value="maj"${x.action==='maj'?' selected':''}>Mettre à jour</option>`:''}<option value="creer"${x.action==='creer'?' selected':''}>Créer</option><option value="ignorer"${x.action==='ignorer'?' selected':''}>Ignorer</option></select></div>`).join('')}</div>
+  <p class="hint">Mettre à jour remplace la valeur (et pour la bourse la quantité et le prix de revient) du placement existant. Un compte synchronisé avec la banque sera remis à jour à la prochaine synchronisation. L’import peut être annulé ensuite.</p><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="${IMP.capture?'imptab':'impcols'}">Retour</button><button class="btn" data-act="impgo" id="imp-go"${n('creer')+n('maj')?'':' disabled'}>Importer ${n('creer')+n('maj')} ligne${n('creer')+n('maj')>1?'s':''}</button></div>`);
+}
+function impCompte(){const n=k=>(IMP.R||[]).filter(x=>x.action===k).length;return `<div class="kpis"><div><span>À créer</span><b>${n('creer')}</b></div><div><span>À mettre à jour</span><b>${n('maj')}</b></div><div><span>Ignorées</span><b>${n('ignorer')}</b></div></div>`}
+/* Changement d'action d'une ligne : compteurs et bouton mis à jour sans redessiner la liste (la position est gardée) */
+function impMaj(){const k=$('imp-k'),b=$('imp-go'),n=(IMP.R||[]).filter(x=>x.action==='creer'||x.action==='maj').length;if(k)k.innerHTML=impCompte();if(b){b.disabled=!n;b.textContent='Importer '+n+' ligne'+(n>1?'s':'')}}
+function impAppliquer(){
+  const R=(IMP.R||[]).filter(x=>x.action==='creer'||x.action==='maj');if(!R.length)return;
+  const crees=[],avant={},q=(v,d)=>v!=null&&isFinite(v)?Math.round(v*1e6)/1e6:d;
+  R.forEach(x=>{
+    if(x.action==='maj'){const a=D.assets.find(y=>y.id===x.cible);if(!a)return;avant[a.id]=JSON.stringify(a);
+      if(a.cat==='bourse'){if(x.quantite>0)a.qty=q(x.quantite);if(x.pru>0)a.pru=q(x.pru);if(x.valeur!=null)a.price=q(x.valeur/(num(a.qty)||1))}
+      else if(x.valeur!=null)a.value=x.valeur;
+      a.imp=today();delete a.demo;return}
+    const a={id:newId(),cat:x.cat,name:x.nom.slice(0,80),crAt:today(),imp:today()};
+    if(x.plat)a.plat=x.plat.slice(0,60);if(x.date)a.date=x.date;
+    if(a.cat==='bourse'){const n=x.quantite>0?x.quantite:1;a.qty=q(n);a.pru=q(x.pru>0?x.pru:(x.valeur||0)/n);a.price=q(x.valeur!=null?x.valeur/n:a.pru)}
+    else if(a.cat==='bien'){a.value=x.valeur;a.amount='';a.usage='rp'}
+    else{a.amount=x.valeur!=null?x.valeur:q(x.quantite*x.pru);a.value=a.amount;if(isRisky(a)){a.status='cours';a.plat=a.plat||'Autre plateforme'}}
+    D.assets.push(a);crees.push(a.id)});
+  D.impUndo={at:Date.now(),n:crees.length+Object.keys(avant).length,crees,avant};
+  save();closeM();render();
+  toast(`${crees.length} placement${crees.length>1?'s':''} créé${crees.length>1?'s':''}, ${Object.keys(avant).length} mis à jour`,{l:'Annuler',fn:impAnnuler});
+}
+/* Annule le dernier import : placements créés retirés, placements mis à jour remis comme avant (même s'ils ont été supprimés depuis) */
+function impAnnuler(){
+  const U=D.impUndo;if(!U)return;const cr=new Set(U.crees||[]);
+  D.assets=D.assets.filter(a=>!cr.has(a.id));
+  Object.entries(U.avant||{}).forEach(([id,j])=>{const o=JSON.parse(j),i=D.assets.findIndex(a=>a.id===id);if(i>=0)D.assets[i]=o;else D.assets.push(o)});
+  delete D.impUndo;save();closeM();render();toast('Import annulé : vos placements sont revenus comme avant');
 }
 function csvCheck(){
   const p=IMP.csv=parseCSV($('imp-c').value);
@@ -3421,6 +3519,7 @@ function palItems(q){
   const V={rev:'Revenus passifs',news:'Actualités économiques',home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
   Object.keys(V).forEach(v=>add('Aller à',V[v],({rev:'coins',news:'news',home:'home',assets:'list',budget:'wallet',goals:'target',bank:'bank',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v),v==='bank'?'boursorama compte courant solde synchroniser rappels paiement':''));
   add('Actions','Nouveau rappel de paiement','bell',()=>openRap(''),'bricks bienpreter versement mensuel');
+  add('Actions','Importer depuis Finary ou un tableur','upload',()=>openImpTab(),'finary csv excel xlsx capture ecran import');
   add('Aller à','Vue fiscale annuelle','file',()=>{UI.tool='decl';go('tools');renderTools(true)},'impots declaration ifu 2tr 2dc pfu bareme pertes');
   add('Actions','Ajouter un placement','plus',()=>openPick());
   add('Actions','Nouvel objectif','target',()=>openGoalForm(''),'projet épargne');
@@ -3573,7 +3672,7 @@ const ACT={
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
   refresh:()=>refresh(false),
   tsearch:()=>tsearch(),tpick:d=>tpick(d),
-  imp:()=>openImport(),runlocal:()=>runLocal(),gemc:()=>gemContract(),mkfiche:()=>mkFiche(),enq:()=>enquete(),
+  imp:()=>openImport(),imptab:()=>openImpTab(),imprap:()=>impRappro(),impcols:()=>impColonnes(),impgo:()=>impAppliquer(),impundo:()=>impAnnuler(),runlocal:()=>runLocal(),gemc:()=>gemContract(),mkfiche:()=>mkFiche(),enq:()=>enquete(),
   csvchk:()=>csvCheck(),csvgo:()=>csvGo(),csvtpl:()=>dl('modele-patrimoine.csv','\ufeff'+CSVT,'text/csv'),
   aisend:()=>sendFromBox(),
   aidictee:()=>basculerDictee(),
@@ -3749,6 +3848,11 @@ const onIn=e=>{
   else if(k==='rvcap'){const c=$('rv-c');if(c&&c.dataset.cap)c.value=CL.partCapital({capital:num(c.dataset.cap),interets:num(c.dataset.int),total:num(c.dataset.tot)},num(t.value))||''}
 };
 document.addEventListener('input',onIn);
+/* Glisser-déposer d'un fichier sur la zone d'import */
+const dzDe=e=>e.target&&e.target.closest?e.target.closest('#imp-dz'):null;
+document.addEventListener('dragover',e=>{const z=dzDe(e);if(z){e.preventDefault();z.classList.add('over')}});
+document.addEventListener('dragleave',e=>{const z=dzDe(e);if(z)z.classList.remove('over')});
+document.addEventListener('drop',e=>{const z=dzDe(e);if(!z)return;e.preventDefault();z.classList.remove('over');const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(f)impLire(f)});
 document.addEventListener('change',e=>{
   const t=e.target,k=t.dataset&&t.dataset.ch;
   if(k==='sort'){UI.sort=t.value;renderList()}
@@ -3759,6 +3863,10 @@ document.addEventListener('change',e=>{
   else if(k==='restore')restoreFile(t);
   else if(k==='opsfile'){if(t.files&&t.files.length)opsLire([...t.files])}
   else if(k==='opcat')opCat(t.dataset.id,t.value);
+  else if(k==='imptab'){if(t.files&&t.files[0])impLire(t.files[0]);t.value=''}
+  else if(k==='impcol'){IMP.map[t.dataset.k]=+t.value;const e=$('imp-ap');if(e)e.innerHTML=impApercu()}
+  else if(k==='impact'){const x=IMP.R[+t.dataset.i];if(x){x.action=t.value;impMaj()}}
+  else if(k==='impcat'){const x=IMP.R[+t.dataset.i];if(x)x.cat=t.value}
   else if(k==='fiscsrc'){D.fisc=Object.assign({},D.fisc,{src:Object.assign({},(D.fisc||{}).src,{[plKey(t.dataset.p)]:t.value})});save();REVC=null;renderTools(true);toast(t.value==='net'?'Versements nets : brut reconstitué':'Versements bruts')}
   else if(k==='docfile'){if(t.files&&t.files.length)docsAjouter([...t.files],t.dataset.aid,t.dataset.cat||($('doc-cat')?$('doc-cat').value:''))}
   else if(k==='csvfile'){const f=t.files[0];if(f){const r=new FileReader();r.onload=()=>{$('imp-c').value=r.result;csvCheck()};r.readAsText(f)}}
@@ -3936,7 +4044,7 @@ function onAuth(fresh){
 const idName=()=>ID.user?((ID.user.user_metadata&&(ID.user.user_metadata.full_name||ID.user.user_metadata.name))||ID.user.email):'';
 
 /* --- Suivi des modifications (fusion fine entre appareils) --- */
-const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target','ops','regles','fire','bank','rappels','fisc'];
+const SF=['goal','goals','budget','plat','lastBackup','chat','watch','alerts','target','ops','regles','fire','bank','rappels','fisc','impMap'];
 let SNAP=null;
 const ajson=a=>{const o=Object.assign({},a);delete o.u;return JSON.stringify(o)};
 /* Les rappels sont suivis un par un (date u, suppressions dans D.del) et leur historique mois par mois (date t) : deux appareils
@@ -3953,7 +4061,7 @@ function track(){
   SF.forEach(f=>{if(SNAP.f[f]!==JSON.stringify(D[f]===undefined?null:D[f])){D.mt[f]=now;ch=true}});
   SNAP=snapOf();return ch;
 }
-const payload=()=>({v:3,sv:SCHEMA,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget,ops:(D.ops||[]).slice(-OPS_MAX).map(o=>[o.id,o.d,String(o.lib||'').slice(0,60),o.m,o.cat,o.fid||'']),regles:D.regles||{},fire:D.fire||{},bank:D.bank||null,rappels:D.rappels||[],fisc:D.fisc||{}}); /* opérations en format compact : la sauvegarde chiffrée reste sous 1 Mo */
+const payload=()=>({v:3,sv:SCHEMA,assets:D.assets,del:D.del||{},mt:D.mt||{},hist:D.hist,goal:D.goal??null,plat:D.plat,lastBackup:D.lastBackup??null,chat:D.chat,watch:D.watch||[],alerts:D.alerts||[],target:D.target||{},goals:D.goals||[],budget:D.budget,ops:(D.ops||[]).slice(-OPS_MAX).map(o=>[o.id,o.d,String(o.lib||'').slice(0,60),o.m,o.cat,o.fid||'']),regles:D.regles||{},fire:D.fire||{},bank:D.bank||null,rappels:D.rappels||[],fisc:D.fisc||{},impMap:D.impMap||{}}); /* opérations en format compact : la sauvegarde chiffrée reste sous 1 Mo */
 /* Fusion : chaque placement garde sa version la plus récente, les suppressions sont respectées, l'historique est réuni. */
 function mergeRemote(R){
   if(!R||typeof R!=='object')return false;
@@ -3979,7 +4087,7 @@ function mergeRemote(R){
   const H=new Map((R.hist||[]).map(h=>[h.d,h]));(L.hist||[]).forEach(h=>{if(!H.has(h.d)){H.set(h.d,h);localWins=true}else H.set(h.d,h)});
   L.hist=[...H.values()].sort((x,y)=>String(x.d).localeCompare(String(y.d))).slice(-1500);
   if(!Array.isArray(L.chat))L.chat=[];if(!Array.isArray(L.watch))L.watch=[];if(!Array.isArray(L.alerts))L.alerts=[];if(!Array.isArray(L.goals))L.goals=[];if(!L.budget||typeof L.budget!=='object'||!Array.isArray(L.budget.inc)||!Array.isArray(L.budget.exp))L.budget={inc:[],exp:[],loans:true,mois:6,marge:10,delai:12};if(!L.target||typeof L.target!=='object')L.target={};L.ops=Array.isArray(L.ops)?L.ops.map(o=>Array.isArray(o)?{id:o[0],d:o[1],lib:o[2],m:o[3],cat:o[4],fid:o[5]||undefined}:o).filter(o=>o&&o.id&&o.d&&isFinite(o.m)):[];if(!L.regles||typeof L.regles!=='object')L.regles={};if(!L.fire||typeof L.fire!=='object')L.fire={};if(!L.plat||typeof L.plat!=='object')L.plat={};
-  if(!Array.isArray(L.rappels))L.rappels=[];if(!L.fisc||typeof L.fisc!=='object'||Array.isArray(L.fisc))L.fisc={};if(!L.bank||typeof L.bank!=='object'||Array.isArray(L.bank))L.bank=null;
+  if(!Array.isArray(L.rappels))L.rappels=[];if(!L.fisc||typeof L.fisc!=='object'||Array.isArray(L.fisc))L.fisc={};if(!L.impMap||typeof L.impMap!=='object'||Array.isArray(L.impMap))L.impMap={};if(!L.bank||typeof L.bank!=='object'||Array.isArray(L.bank))L.bank=null;
   SNAP=snapOf();
   try{localStorage.setItem(K,JSON.stringify(D))}catch(e){}
   return localWins;

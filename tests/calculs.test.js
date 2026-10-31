@@ -237,4 +237,41 @@ ok(C.rapprocher({ nom: 'Bricks', jour: 8, attendu: 42.1 }, '2026-10', [{ id: 'z'
 }
 
 ok(C.fraisBancaires([{ d: '2026-10-31', lib: 'COTISATION CARTE', m: -10, cat: 'autre' }], new Date('2026-10-31T00:30:00')).total === 10, 'frais bancaires : une opération du jour compte même avant midi');
+/* import d'un tableau (Finary, tableur, capture) : colonnes devinées, types, rapprochement, doublons, Excel */
+const zlib = require('zlib');
+function zipDe(fichiers) { /* petit fichier zip (deflate) pour essayer la lecture Excel */
+  const loc = [], cen = []; let off = 0;
+  for (const [nom, txt] of Object.entries(fichiers)) {
+    const n = Buffer.from(nom), d = Buffer.from(txt), c = zlib.deflateRawSync(d), h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(8, 8); h.writeUInt32LE(c.length, 18); h.writeUInt32LE(d.length, 22); h.writeUInt16LE(n.length, 26);
+    const g = Buffer.alloc(46); g.writeUInt32LE(0x02014b50, 0); g.writeUInt16LE(20, 4); g.writeUInt16LE(20, 6); g.writeUInt16LE(8, 10); g.writeUInt32LE(c.length, 20); g.writeUInt32LE(d.length, 24); g.writeUInt16LE(n.length, 28); g.writeUInt32LE(off, 42);
+    loc.push(h, n, c); cen.push(g, n); off += 30 + n.length + c.length;
+  }
+  const C = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(cen.length / 2, 8); e.writeUInt16LE(cen.length / 2, 10); e.writeUInt32LE(C.length, 12); e.writeUInt32LE(off, 16);
+  return new Uint8Array(Buffer.concat([...loc, C, e]));
+}
+(async () => {
+  const mp = C.devinerColonnes(['Nom', 'Catégorie', 'Établissement', 'Valeur actuelle', 'Quantité', 'Prix de revient unitaire', 'Date']);
+  ok(mp.nom === 0 && mp.type === 1 && mp.plateforme === 2 && mp.valeur === 3 && mp.quantite === 4 && mp.pru === 5 && mp.date === 6, 'import : colonnes devinées (français)');
+  const me = C.devinerColonnes(['Asset', 'Account', 'Category', 'Balance']); ok(me.nom === 0 && me.plateforme === 1 && me.type === 2 && me.valeur === 3 && me.quantite === -1, 'import : colonnes devinées (anglais), colonne absente');
+  ok(C.typeImport('ETF', 'Amundi MSCI World') === 'bourse' && C.typeImport('Crowdlending', '') === 'crowd' && C.typeImport('', 'Livret A', 'BoursoBank') === 'cash' && C.typeImport('Real estate', 'SCPI Corum') === 'immo' && C.typeImport('Cryptos', 'Bitcoin') === 'autre' && C.typeImport('Assurance vie', '') === 'epargne' && C.typeImport('Loan', 'Prêt immo') === 'credit', 'import : type de placement');
+  const tab = C.tableauImport(C.decouperCSV('Export Finary;;\nNom;Catégorie;Établissement;Valeur actuelle;Quantité;PRU;Date\nAmundi MSCI World;ETF;Boursorama;5 120,50 €;10;480;15/03/2024\nLivret A;Livret;BoursoBank;12 000;;;\nAmundi MSCI World;ETF;Boursorama;5 120,50;10;480;\nProjet X;Crowdlending;Bienprêter;1000;;;\n;;;;;;\nSans valeur;Livret;;;;;'));
+  ok(tab.entetes[0] === 'Nom' && tab.lignes.length === 5, 'import : en-têtes repérés sous une ligne de titre');
+  const L = C.lignesImport(tab, C.devinerColonnes(tab.entetes));
+  ok(L.length === 5 && L[0].valeur === 5120.5 && L[0].quantite === 10 && L[0].pru === 480 && L[0].date === '2024-03-15' && L[0].cat === 'bourse' && L[1].cat === 'cash' && L[4].erreur === 'valeur manquante', 'import : montants, quantités, dates, types, ligne incomplète');
+  const R = C.rapprocherImport(L, [{ id: 'a0', nom: 'Livret A', plat: '', valeur: 50 }, { id: 'a1', nom: 'Livret A', plat: 'Boursorama', valeur: 12000 }, { id: 'a2', nom: 'Projet X', plat: 'BienPrêter', valeur: 1000 - 200 }]);
+  ok(R[0].action === 'creer' && R[1].action === 'ignorer' && R[1].raison === 'déjà à jour' && R[2].action === 'ignorer' && /doublon/.test(R[2].raison) && R[3].action === 'maj' && R[3].cible === 'a2' && R[3].ancienne === 800 && R[4].action === 'ignorer', 'import : créer, déjà à jour, doublon, mettre à jour, ligne en erreur');
+  const J = C.tableauDepuisJSON('Voici :\n```json\n[{"nom":"Apple","type":"Actions","plateforme":"Trade Republic","valeur":"1 900","quantite":10}]\n```');
+  ok(J && J.entetes[0] === 'nom' && J.lignes[0][0] === 'Apple' && J.lignes[0][3] === '1 900' && C.tableauDepuisJSON('pas de tableau') === null, 'import par capture : réponse JSON de l’IA lue');
+  ok(C.dateExcel(45366) === '2024-03-15' && C.dateExcel(5) === null, 'date Excel');
+  const X = zipDe({
+    'xl/workbook.xml': '<workbook><sheets><sheet name="Portefeuille" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+    'xl/sharedStrings.xml': '<sst><si><t>Nom</t></si><si><t>Valeur</t></si><si><t>Ma &amp; SCPI</t></si><si><r><t>Livret </t></r><r><t>A</t></r></si></sst>',
+    'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="D1" t="inlineStr"><is><t>Date</t></is></c></row><row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>2500.5</v></c><c r="D2"><v>45366</v></c></row><row r="3"><c r="A3" t="s"><v>3</v></c><c r="B3"><v>100</v></c></row></sheetData></worksheet>' });
+  const xr = await C.lireXLSX(X), xt = C.tableauImport(xr), xl = C.lignesImport(xt, C.devinerColonnes(xt.entetes));
+  ok(xr.length === 3 && xt.entetes.join() === 'Nom,Valeur,,Date' && xl[0].nom === 'Ma & SCPI' && xl[0].valeur === 2500.5 && xl[0].date === '2024-03-15' && xl[0].cat === 'immo' && xl[1].nom === 'Livret A', 'fichier Excel : texte partagé, nombres, cellules vides, date Excel');
+  console.log('calculs (import) :', n, 'contrôles réussis');
+})().catch(e => { console.error(e); process.exit(1); });
+
 console.log('calculs :', n, 'contrôles réussis');

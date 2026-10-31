@@ -739,6 +739,129 @@
     return { annee: o.annee, lignes: L, rappels: R };
   }
 
+  /* ===================== Import d'un tableau de placements (export Finary, tableur, capture lue par l'IA) =====================
+     Aucune API ni identifiant : l'utilisateur exporte lui-même un fichier (CSV ou Excel) ou fait une capture d'écran. */
+  const CHAMPS_IMPORT = ['nom', 'type', 'plateforme', 'valeur', 'quantite', 'pru', 'date'];
+  const MOTS_COLONNES = {
+    nom: ['nom', 'name', 'libelle', 'actif', 'asset', 'titre', 'security', 'designation', 'placement', 'investissement', 'produit', 'holding'],
+    type: ['type', 'categorie', 'category', 'classe', 'asset class', 'nature', 'kind'],
+    plateforme: ['plateforme', 'etablissement', 'institution', 'banque', 'courtier', 'broker', 'account', 'compte', 'platform', 'bank', 'provider', 'source'],
+    valeur: ['valeur', 'value', 'montant', 'solde', 'balance', 'valorisation', 'current value', 'valeur actuelle', 'market value', 'total', 'amount', 'encours'],
+    quantite: ['quantite', 'quantity', 'qty', 'nombre', 'parts', 'shares', 'units', 'nb'],
+    pru: ['pru', 'prix de revient', 'buying price', 'prix moyen', 'average price', 'avg price', 'cost', 'cout moyen', 'prix d achat', 'purchase price', 'unit cost'],
+    date: ['date', 'ouverture', 'opening', 'depuis', 'since', 'created']
+  };
+  /* Colonnes devinées d'après les en-têtes : {champ: index de colonne ou -1}. Un en-tête sert une seule fois ; l'en-tête exact passe avant le mot inclus. */
+  function devinerColonnes(entetes) {
+    const H = (entetes || []).map(h => norm(h).replace(/[_\-()]/g, ' ').replace(/\s+/g, ' ').trim()), pris = new Set(), out = {};
+    for (const ch of CHAMPS_IMPORT) {
+      let best = -1, bs = 0;
+      H.forEach((h, i) => { if (pris.has(i) || !h) return; for (const m of MOTS_COLONNES[ch]) { const s = h === m ? 3 : new RegExp('(^| )' + m + '( |$)').test(h) ? 2 : 0; if (s > bs) { bs = s; best = i; } } });
+      out[ch] = best; if (best >= 0) pris.add(best);
+    }
+    return out;
+  }
+  /* Type de placement de l'application d'après le libellé du type (Finary, banques…), à défaut d'après le nom et l'établissement */
+  function typeImport(t, nom, plat) {
+    const s = norm([t, nom, plat].filter(Boolean).join(' '));
+    const T = [['credit', /\b(credit|pret immobilier|emprunt|loan|mortgage|dette)\b/], ['cash', /\b(livret|ldds|lep|compte courant|checking|savings|epargne bancaire|cash|liquidit|compte a terme|cat)\b/],
+      ['epargne', /\b(assurance vie|life insurance|per|pel|cel|epargne salariale|pee|perco|fonds euros?)\b/], ['crowd', /\b(crowdlending|crowdfunding|pret participatif|bienpreter|october|homunity|anaxago|enerfip|tudigo|fundimmo|raizers|pretup|lendosphere|clubfunding)\b/],
+      ['immo', /\b(scpi|immobilier fractionne|bricks|ma premiere brique|opci|real estate crowdfunding|briques?)\b/], ['bien', /\b(real estate|immobilier|appartement|maison|residence|terrain|property)\b/],
+      ['autre', /\b(cryptos?|cryptocurrency|bitcoin|ethereum|or|gold|metaux|montre|vin|art|startup)\b/], ['bourse', /\b(stock|stocks|action|actions|etf|equity|fund|fonds|obligation|bond|pea|cto|compte titres|tracker|sicav|fcp|securities|investments?)\b/]];
+    const st = norm(t), immo = T.find(x => x[0] === 'immo')[1];
+    for (const [c, re] of T) if (st && re.test(st)) return c === 'bien' && immo.test(s) ? 'immo' : c; /* « Real estate » + SCPI : immobilier fractionné */
+    for (const [c, re] of T) if (re.test(s)) return c;
+    return 'autre';
+  }
+  /* Lignes du tableau → placements à importer {ligne, nom, cat, plat, valeur, quantite, pru, date, erreur} */
+  function lignesImport(tab, map) {
+    const g = (l, ch) => map[ch] >= 0 && map[ch] < l.length ? String(l[map[ch]] ?? '').trim() : '';
+    return (tab.lignes || []).map((l, i) => {
+      const nom = g(l, 'nom'), valeur = lireMontant(g(l, 'valeur')), q = lireMontant(g(l, 'quantite')), p = lireMontant(g(l, 'pru')), dt = g(l, 'date');
+      const o = { ligne: i + 1, nom, cat: typeImport(g(l, 'type'), nom, g(l, 'plateforme')), plat: g(l, 'plateforme'), valeur: valeur == null ? null : r2(valeur), quantite: q == null ? null : q, pru: p == null ? null : p, date: lireDate(dt) || (/^\d{5}(\.\d+)?$/.test(dt) ? dateExcel(+dt) : null) };
+      if (!nom) o.erreur = 'nom manquant'; else if (o.valeur == null && !(o.quantite > 0 && o.pru > 0)) o.erreur = 'valeur manquante';
+      return o;
+    }).filter(o => o.nom || o.valeur != null);
+  }
+  /* Date Excel (nombre de jours depuis le 30/12/1899) */
+  function dateExcel(n) { if (!(n > 20000 && n < 80000)) return null; const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5); return d.toISOString().slice(0, 10); }
+  /* Rapprochement avec les placements existants : même nom (et même établissement si les deux en ont un) → mettre à jour ;
+     sinon créer. Une ligne déjà vue dans le même import est un doublon (ignorée par défaut) ; une ligne identique au placement
+     existant (même valeur) est « déjà à jour » (ignorée par défaut). actifs : [{id, nom, plat, valeur}] */
+  function rapprocherImport(items, actifs) {
+    const ALIAS = { boursobank: 'boursorama', bienpreter: 'bienpreter', lcl: 'creditlyonnais', labanquepostale: 'banquepostale' };
+    const cle = s => { const k = norm(s).replace(/[^a-z0-9]/g, ''); return ALIAS[k] || k; }, vu = new Map();
+    return (items || []).map(it => {
+      const kn = cle(it.nom), kp = cle(it.plat), k = kn + '|' + kp, r = Object.assign({}, it);
+      if (it.erreur) return Object.assign(r, { action: 'ignorer', raison: it.erreur });
+      if (vu.has(k)) return Object.assign(r, { action: 'ignorer', doublon: vu.get(k), raison: 'doublon de la ligne ' + vu.get(k) });
+      vu.set(k, it.ligne);
+      const cands = (actifs || []).filter(a => cle(a.nom) === kn && kn);
+      /* même établissement ; à défaut, le seul placement de ce nom (l'établissement diffère ou manque : à confirmer) */
+      const memeEt = a => cle(a.plat) && kp && (cle(a.plat) === kp || cle(a.plat).includes(kp) || kp.includes(cle(a.plat)));
+      const m = cands.find(memeEt) || cands.find(a => !kp || !cle(a.plat)) || (cands.length === 1 ? Object.assign({ platDiff: true }, cands[0]) : null);
+      if (m && m.platDiff) r.platDiff = true;
+      if (!m) return Object.assign(r, { action: 'creer' });
+      r.cible = m.id; r.ancienne = m.valeur;
+      if (it.valeur != null && Math.abs(num(m.valeur) - it.valeur) < 0.01) return Object.assign(r, { action: 'ignorer', raison: 'déjà à jour' });
+      return Object.assign(r, { action: 'maj' });
+    });
+  }
+  /* Réponse de l'IA (capture d'écran) : un tableau JSON d'objets, éventuellement entouré de texte ou de ``` → tableau d'import */
+  function tableauDepuisJSON(texte) {
+    const t = String(texte || ''), i = t.indexOf('['), j = t.lastIndexOf(']');
+    if (i < 0 || j <= i) return null;
+    let L; try { L = JSON.parse(t.slice(i, j + 1)); } catch (e) { return null; }
+    if (!Array.isArray(L)) return null;
+    const v = x => x == null ? '' : String(x);
+    return { entetes: CHAMPS_IMPORT.slice(), lignes: L.filter(o => o && typeof o === 'object').slice(0, 300).map(o => CHAMPS_IMPORT.map(ch => v(o[ch] ?? o[{ quantite: 'quantité' }[ch]] ?? o[{ plateforme: 'etablissement' }[ch]]))) };
+  }
+  /* Fichier Excel (.xlsx) : première feuille, valeurs affichées (texte partagé, texte en ligne, nombres). bytes : Uint8Array.
+     Lecture du zip par le navigateur (DecompressionStream), sans bibliothèque. */
+  async function lireXLSX(bytes) {
+    const B = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), dv = new DataView(B.buffer, B.byteOffset, B.byteLength), td = new TextDecoder();
+    let e = -1; for (let i = B.length - 22; i >= Math.max(0, B.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error('fichier Excel illisible');
+    const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const F = {};
+    for (let k = 0; k < n; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const meth = dv.getUint16(p + 10, true), cs = dv.getUint32(p + 20, true), ln = dv.getUint16(p + 28, true), lx = dv.getUint16(p + 30, true), lc = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      F[td.decode(B.subarray(p + 46, p + 46 + ln))] = { meth, cs, off }; p += 46 + ln + lx + lc;
+    }
+    const lire = async nom => {
+      const f = F[nom]; if (!f) return null; const lo = f.off, d0 = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), data = B.subarray(d0, d0 + f.cs);
+      if (f.meth === 0) return td.decode(data);
+      if (f.meth !== 8 || typeof DecompressionStream === 'undefined') throw new Error('compression non prise en charge');
+      return td.decode(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    };
+    const xml = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, c) => String.fromCharCode(+c)).replace(/&amp;/g, '&');
+    const ss = []; const sx = await lire('xl/sharedStrings.xml');
+    if (sx) for (const m of sx.matchAll(/<si>([\s\S]*?)<\/si>/g)) ss.push(xml([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')));
+    let feuille = 'xl/worksheets/sheet1.xml';
+    const wb = await lire('xl/workbook.xml'), rels = await lire('xl/_rels/workbook.xml.rels');
+    if (wb && rels) { const rid = (/<sheet\b[^>]*r:id="([^"]+)"/.exec(wb) || [])[1], t = rid && new RegExp('<Relationship\\b[^>]*Id="' + rid + '"[^>]*Target="([^"]+)"').exec(rels) || (rid && new RegExp('<Relationship\\b[^>]*Target="([^"]+)"[^>]*Id="' + rid + '"').exec(rels)); if (t) feuille = 'xl/' + t[1].replace(/^\/?xl\//, ''); }
+    const ws = await lire(feuille); if (!ws) throw new Error('feuille introuvable');
+    const col = r => { let c = 0; for (const ch of r.replace(/\d+$/, '')) c = c * 26 + ch.charCodeAt(0) - 64; return c - 1; }, rows = [];
+    for (const m of ws.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+      const R = [];
+      for (const c of m[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const at = c[1], ref = (/\br="([A-Z]+\d+)"/.exec(at) || [])[1], t = (/\bt="(\w+)"/.exec(at) || [])[1], body = c[2] || '';
+        const v = (/<v>([\s\S]*?)<\/v>/.exec(body) || [])[1];
+        let val = t === 's' ? ss[+v] ?? '' : t === 'inlineStr' ? xml([...body.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')) : v != null ? xml(v) : '';
+        R[ref ? col(ref) : R.length] = val;
+      }
+      rows.push(Array.from(R, x => x ?? ''));
+    }
+    return rows.filter(r => r.some(x => String(x).trim()));
+  }
+  /* Tableau lu (CSV ou Excel) → {entetes, lignes} : la première ligne non vide qui contient du texte sert d'en-têtes */
+  function tableauImport(rows) {
+    const R = (rows || []).filter(r => r && r.some(x => String(x).trim()));
+    if (!R.length) return { entetes: [], lignes: [] };
+    const k = R.findIndex(r => r.filter(x => /[a-z]/i.test(String(x)) && lireMontant(x) == null).length >= 2), h = k < 0 ? 0 : k;
+    return { entetes: R[h].map(x => String(x).trim()), lignes: R.slice(h + 1) };
+  }
+
   /* ===================== Vue fiscale annuelle ===================== */
   /* Montant brut d'un intérêt reçu : si la plateforme verse les intérêts nets des prélèvements retenus à la source (acompte d'impôt
      et prélèvements sociaux), le brut est reconstitué avec les taux réglés ; sinon le montant reçu est le brut. */
@@ -822,7 +945,7 @@
     return { lignes, total: r2(lignes.reduce((s, x) => s + x.total, 0)) };
   }
 
-  const API = { brutDe, comparerPfuBareme, imputationPertes, vueFiscale, variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
+  const API = { CHAMPS_IMPORT, devinerColonnes, typeImport, lignesImport, dateExcel, rapprocherImport, tableauDepuisJSON, lireXLSX, tableauImport, brutDe, comparerPfuBareme, imputationPertes, vueFiscale, variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, FISC_DEFAUT, fiscalite, SOURCES_REV, tauxImpot, tableauRevenus, listeMois, rendements, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
     echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;

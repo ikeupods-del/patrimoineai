@@ -235,6 +235,36 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const ya = String(new Date().getFullYear() - 1); if (await pg.locator(`#v-rev [data-act=revan][data-v="${ya}"]`).count()) { await pg.click(`#v-rev [data-act=revan][data-v="${ya}"]`); ok(/Reçu en \d{4}/.test(await pg.textContent('#v-rev')) && (await pg.evaluate(() => revData().Y)) === +ya, 'choix de l’année'); }
   ok(/Revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)) || /Vos revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)), 'assistant local : revenus nets');
   await pg.evaluate(() => { UI.revNet = false; UI.revAn = ''; D.assets = D.assets.filter(a => a.id !== 'rv1'); D.rappels = D.rappels.filter(r => r.id !== 'rrv'); save(); render(); go('home'); });
+  /* 6.8 : import depuis Finary ou un tableur (glisser-déposer, colonnes retenues, rapprochement, doublons, Excel, capture, annulation) */
+  await pg.evaluate(() => { D.assets.push({ id: 'fi1', cat: 'cash', name: 'Livret A', plat: 'Boursorama', amount: 4000, value: 4000 }); save(); go('assets'); openImport(); });
+  await pg.click('[data-act=imptab]'); ok(await pg.locator('#imp-dz').count() === 1 && /Aucun identifiant/.test(await pg.textContent('#sheet')), 'import Finary : zone de dépôt, sans identifiant');
+  const csvFin = 'Nom;Catégorie;Établissement;Valeur actuelle;Quantité;PRU\nAmundi MSCI World;ETF;Boursorama;5 120,50 €;10;480\nLivret A;Livret;BoursoBank;4 250,00;;\nAmundi MSCI World;ETF;Boursorama;5 120,50;10;480\nProjet Lyon;Crowdlending;Bienprêter;1 000;;\n';
+  await pg.evaluate(t => { const dt = new DataTransfer(); dt.items.add(new File([t], 'finary.csv', { type: 'text/csv' })); document.getElementById('imp-dz').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }, csvFin);
+  await pg.waitForSelector('#ic-nom'); ok(await pg.inputValue('#ic-valeur') === '3' && await pg.inputValue('#ic-plateforme') === '2' && /5 120,50/.test((await pg.textContent('#imp-ap')).replace(/[ \u202f]/g, ' ')), 'fichier déposé : colonnes reconnues, aperçu');
+  await pg.click('[data-act=imprap]'); await pg.waitForTimeout(100);
+  const ir = await pg.evaluate(() => IMP.R.map(x => x.action + (x.cible ? ':' + x.cible : '') + (x.doublon ? ':doublon' : '')));
+  ok(ir.join() === 'creer,maj:fi1,ignorer:doublon,creer' && /4 000,00 € → /.test((await pg.textContent('#sheet')).replace(/[ \u202f]/g, ' ')), 'rapprochement : créer, mettre à jour le Livret A (BoursoBank = Boursorama), doublon ignoré (' + ir + ')');
+  await pg.selectOption('[data-ch=impact][data-i="3"]', 'ignorer'); ok(/Importer 2 lignes/.test(await pg.textContent('#imp-go')), 'choix par ligne : compteur mis à jour');
+  await pg.click('#imp-go'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => { const a = D.assets.find(x => x.name === 'Amundi MSCI World'), l = D.assets.find(x => x.id === 'fi1'); return a && a.cat === 'bourse' && a.qty === 10 && a.pru === 480 && Math.abs(a.price - 512.05) < 1e-6 && l.value === 4250 && !D.assets.some(x => x.name === 'Projet Lyon') && D.impUndo.n === 2 && Object.values(D.impMap)[0].valeur === 3; }), 'import appliqué : titre créé (quantité, PRU, cours), livret mis à jour, colonnes retenues');
+  await pg.click('#toast [data-act=toastact]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => !D.assets.some(x => x.name === 'Amundi MSCI World') && D.assets.find(x => x.id === 'fi1').value === 4000 && !D.impUndo), 'annulation de l’import : tout revient comme avant');
+  /* fichier Excel (.xlsx) */
+  const xlsx = await pg.evaluate(async () => {
+    const enc = new TextEncoder(), F = { 'xl/workbook.xml': '<workbook><sheets><sheet name="A" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/sharedStrings.xml': '<sst><si><t>Asset</t></si><si><t>Balance</t></si><si><t>SCPI Corum</t></si></sst>', 'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row><row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>3000</v></c></row></sheetData></worksheet>' };
+    const parts = [], cen = []; let off = 0; const u16 = n => [n & 255, n >> 8], u32 = n => [n & 255, (n >> 8) & 255, (n >> 16) & 255, n >>> 24];
+    for (const [nom, t] of Object.entries(F)) { const n = enc.encode(nom), d = enc.encode(t); parts.push(new Uint8Array([...u32(0x04034b50), ...u16(20), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(d.length), ...u32(d.length), ...u16(n.length), 0, 0]), n, d);
+      cen.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(d.length), ...u32(d.length), ...u16(n.length), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(off)]), n); off += 30 + n.length + d.length; }
+    const cl = cen.reduce((s, x) => s + x.length, 0); parts.push(...cen, new Uint8Array([...u32(0x06054b50), 0, 0, 0, 0, ...u16(4), ...u16(4), ...u32(cl), ...u32(off), 0, 0]));
+    openImpTab(); await impLire(new File(parts, 'export.xlsx')); return { val: $('ic-valeur') && $('ic-valeur').value, ap: $('imp-ap').textContent };
+  });
+  ok(xlsx.val === '1' && /SCPI Corum/.test(xlsx.ap) && /Immobilier fractionné/.test(xlsx.ap), 'fichier Excel lu : colonnes et type (SCPI → immobilier fractionné)');
+  /* capture d'écran lue par Gemini (réponse simulée), même écran de vérification */
+  const cap = await pg.evaluate(async () => { localStorage.setItem('pat_ai_key', 'AIza' + 'x'.repeat(35)); const g0 = window.gem; window.gem = async () => 'Voici : [{"nom":"Bitcoin","type":"Crypto","plateforme":"Coinbase","valeur":"1 500 €","quantite":"0,02"}]';
+    openImpTab(); await impLire(new File([new Uint8Array([137, 80, 78, 71])], 'capture.png', { type: 'image/png' })); window.gem = g0; localStorage.removeItem('pat_ai_key'); return { R: IMP.R && IMP.R.map(x => x.nom + ':' + x.action + ':' + x.cat + ':' + x.valeur), t: $('sheet').textContent }; });
+  ok(cap.R && cap.R[0] === 'Bitcoin:maj:autre:1500' && /vérifiez chaque nom/.test(cap.t) && /6 000,00 € → 1 500,00 €/.test(cap.t.replace(/[\u00a0\u202f]/g, ' ')), 'capture d’écran : lignes lues par l’IA, rapprochées du Bitcoin existant, vérification avant import');
+  ok(/Finary/.test(await pg.evaluate(() => LAI.answer('comment importer depuis Finary ?').t)), 'assistant local : import Finary');
+  await pg.evaluate(() => { closeM(); D.assets = D.assets.filter(a => a.id !== 'fi1'); D.impMap = {}; save(); render(); go('home'); });
   ok(!errs.length, 'aucune erreur JavaScript (version 6.3) : ' + errs.join(' | '));
   /* application Mac (pont simulé) : verrouillage Touch ID, délai réglable, montant masqué dans la barre des menus */
   { const pm = await ctx.newPage(); const errsMac = []; pm.on('pageerror', e => errsMac.push(e.message));
