@@ -184,6 +184,7 @@ ok(fb.total === 150 && fb.lignes.length === 2 && fb.lignes[0].total === 134 && f
   const F = C.fusionRappels(L, R, { b: 15 }, true), fa = F.find(x => x.id === 'a');
   ok(fa.nom === 'A (renommé)' && fa.hist['2026-09'].s === 'annule' && fa.hist['2026-10'].m === 11, 'fusion des rappels : réglages les plus récents, historique mois par mois');
   ok(!F.find(x => x.id === 'b') && F.find(x => x.id === 'loc') && F.find(x => x.id === 'dist') && F.length === 3, 'fusion des rappels : suppression respectée, ajouts des deux côtés gardés');
+  ok(C.fusionRappels([{ id: 'v1', nom: 'Ancien', jour: 5, hist: {} }], [{ id: 'v2', nom: 'Ancien distant', jour: 8, hist: {} }], {}, true).length === 2 && C.fusionRappels([{ id: 'v1', jour: 5 }], [], { v1: 5 }, true).length === 0, 'fusion : rappels d’avant la 6.8 (sans date) gardés, suppression datée respectée');
   ok(C.fusionHist({ m: { s: 'recu', m: 1 } }, { m: { s: 'absent', t: 1 } }).m.s === 'absent' && C.fusionHist({ m: { s: 'recu', t: 9 } }, { m: { s: 'absent', t: 1 } }).m.s === 'recu', 'fusion d’historique : l’entrée datée la plus récente gagne');
 }
 /* échéancier : prêt amortissable (BienPrêter), in fine, loyers (Bricks) */

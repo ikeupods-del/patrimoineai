@@ -304,6 +304,14 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   ok(/configuration est incomplète/.test(gd) && /ENABLE_APP_ID/.test(gd), 'serveur sans clés : configuration manquante indiquée');
   ok(/Environment variables/.test(gd) && /ENABLE_BANKING_PRIVATE_KEY \(manquante\)/.test(gd) && /ENABLE_ALLOWED_EMAILS/.test(gd) && /Authorized domains/.test(gd) && !/ENABLE_ALLOWED_EMAILS \(manquante\)/.test(gd), 'guide de configuration à la place d’une erreur, variables manquantes signalées');
 
+  /* 6.8 : accessibilité des nouveaux écrans (revenus, vue fiscale, import, historique des versements) */
+  if (AXE) {
+    await pg.evaluate(() => { closeM(); go('rev'); }); await audit(pg, 'Revenus passifs', '#v-rev');
+    await pg.evaluate(() => { UI.tool = 'decl'; go('tools'); renderTools(true); }); await audit(pg, 'Vue fiscale', '#v-tools');
+    await pg.evaluate(() => openImpTab()); await audit(pg, 'Import Finary', '#modal');
+    await pg.evaluate(() => openRapHist('')); await audit(pg, 'Historique des versements', '#modal');
+    await pg.evaluate(() => { closeM(); go('home'); });
+  }
   ok(!AXEV.length, 'accessibilité (axe-core) : ' + (AXEV.join(', ') || 'aucun problème'));
   ok(!errs.length, 'aucune erreur JavaScript : ' + errs.join(' | '));
   await b.close(); srv.close();

@@ -538,7 +538,7 @@
      mois par mois, rappels supprimés (del : {id: date}) écartés. « prefLocal » départage deux versions de même date. */
   function fusionRappels(local, distant, del, prefLocal) {
     const D = del || {}, L = new Map((local || []).map(r => [r.id, r])), out = [];
-    const garde = r => r && r.id && !(num(D[r.id]) >= num(r.u));
+    const garde = r => r && r.id && !(D[r.id] != null && num(D[r.id]) >= num(r.u)); /* supprimé seulement s'il existe une trace de suppression */
     for (const r of distant || []) {
       if (!garde(r)) { L.delete(r && r.id); continue; }
       const l = L.get(r.id); L.delete(r.id);

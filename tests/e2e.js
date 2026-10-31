@@ -76,7 +76,7 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const net = await pg.evaluate(() => { const d = new Date(); d.setMonth(d.getMonth() - 12); D.assets.push({ id: 'b1', cat: 'bien', name: 'Appartement', usage: 'rp', value: 200000, amount: 180000 }, { id: 'c1', cat: 'credit', name: 'Prêt', amount: 120000, rate: 3, dur: 240, date: d.toLocaleDateString('sv-SE'), value: '' }); save(); render(); const T = totals(), a = D.assets.find(x => x.id === 'c1'); return { crd: crd(a), m: loanM(a), net: T.net, tv: T.tv, debt: T.debt }; });
   ok(Math.abs(net.m - 665.52) < 0.5, 'mensualité du crédit ' + net.m.toFixed(2));
   ok(Math.abs(net.crd - 115553) < 20 && Math.abs(net.net - (net.tv - net.debt)) < 0.01, 'capital restant dû ' + Math.round(net.crd) + ', patrimoine net');
-  ok((await pg.textContent('#h-lab')) === 'Patrimoine net', 'accueil en patrimoine net');
+  ok((await pg.evaluate(() => { renderHome(); return $('h-lab').textContent; })) === 'Patrimoine net', 'accueil en patrimoine net');
   /* budget : épargne possible et plan d'investissement */
   await pg.click('#tmore'); await pg.click('.tile[data-v=tools]'); await pg.click('.tab[data-nav=budget]'); await pg.click('[data-act=bstart]'); await pg.waitForTimeout(120);
   const fill = async (sel, v) => { await pg.fill(sel, String(v)); };
@@ -235,6 +235,16 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const ya = String(new Date().getFullYear() - 1); if (await pg.locator(`#v-rev [data-act=revan][data-v="${ya}"]`).count()) { await pg.click(`#v-rev [data-act=revan][data-v="${ya}"]`); ok(/Reçu en \d{4}/.test(await pg.textContent('#v-rev')) && (await pg.evaluate(() => revData().Y)) === +ya, 'choix de l’année'); }
   ok(/Revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)) || /Vos revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)), 'assistant local : revenus nets');
   await pg.evaluate(() => { UI.revNet = false; UI.revAn = ''; D.assets = D.assets.filter(a => a.id !== 'rv1'); D.rappels = D.rappels.filter(r => r.id !== 'rrv'); save(); render(); go('home'); });
+  /* 6.8 : sauvegarde complète et restauration « ajouter » : rappels, objectifs, opérations, fiscalité repris sans écraser l'existant */
+  ok(await pg.evaluate(() => {
+    const avant = JSON.parse(JSON.stringify(D)), b = JSON.parse(JSON.stringify(D)); b.assets = [{ id: 'zz1', cat: 'cash', name: 'Livret sauvegardé', amount: 10 }];
+    b.rappels = [{ id: 'rz', nom: 'Homunity', jour: 12, hist: { '2025-01': { s: 'recu', m: 9, d: '2025-01-12' } } }]; b.goals = [{ id: 'gz', name: 'Voyage', target: 3000 }]; b.ops = [{ id: 'oz', d: '2025-01-03', lib: 'TEST', m: -5, cat: 'autre' }]; b.fisc = { tmi: 11, src: { x: 'brut' } }; delete b.sv;
+    IMP.rest = b; restore('merge'); const r = D.rappels.find(x => x.id === 'rz');
+        const res = D.assets.some(a => a.id === 'zz1') && r && r.hist['2025-01'].t > 0 && D.goals.some(g => g.id === 'gz') && D.ops.some(o => o.id === 'oz') && D.fisc.tmi === 11 && D.rappels.length === avant.rappels.length + 1;
+    D = Object.assign(load(), avant); save(); render(); return res;
+  }), 'restauration « ajouter » : placements, rappels (schéma mis à jour), objectifs, opérations et fiscalité repris');
+  ok(await pg.evaluate(() => { const avant = JSON.parse(JSON.stringify(D)), R = JSON.parse(JSON.stringify(payload())); R.rappels = (R.rappels || []).concat([{ id: 'old1', nom: 'Ancien appareil', jour: 3, hist: { '2025-05': { s: 'recu', m: 4, d: '2025-05-03' } } }]); delete R.sv; R.mt = Object.assign({}, R.mt, { rappels: 1 });
+    mergeRemote(R); const r = D.rappels.find(x => x.id === 'old1'), res = !!r && r.hist['2025-05'].m === 4 && D.rappels.length === avant.rappels.length + 1; D = Object.assign(load(), avant); save(); render(); return res; }), 'synchronisation avec un appareil d’avant la 6.8 : ses rappels et leur historique sont gardés');
   /* 6.8 : import depuis Finary ou un tableur (glisser-déposer, colonnes retenues, rapprochement, doublons, Excel, capture, annulation) */
   await pg.evaluate(() => { D.assets.push({ id: 'fi1', cat: 'cash', name: 'Livret A', plat: 'Boursorama', amount: 4000, value: 4000 }); save(); go('assets'); openImport(); });
   await pg.click('[data-act=imptab]'); ok(await pg.locator('#imp-dz').count() === 1 && /Aucun identifiant/.test(await pg.textContent('#sheet')), 'import Finary : zone de dépôt, sans identifiant');

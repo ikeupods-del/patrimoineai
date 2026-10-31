@@ -1,5 +1,14 @@
 # Nouveautés de Patrimoine AI pour Mac
 
+## 6.8.0
+- **Rappels de versement plus complets** : un versement non confirmé passe en orange au bout de 3 jours et en **rouge au bout de 10 jours**. L’**historique** de toutes vos validations est consultable (Mes banques), et chaque validation peut être **annulée** : le placement, le portefeuille et le capital remboursé reviennent comme avant.
+- **Échéancier de vos placements** : pour un prêt BienPrêter, chaque mensualité prévue (intérêts et capital) et le capital restant, prévu et réel ; pour Bricks, le revenu mensuel. Quand vous confirmez un versement, la part de capital est proposée automatiquement.
+- **Revenus passifs** (nouvel écran Revenus) : ce que vous avez reçu comparé à ce qui était prévu, mois par mois et par année, par source (crowdlending, immobilier fractionné, dividendes, livrets, assurance-vie, loyers), en brut ou net d’impôt, rendement annualisé par plateforme et projection des 12 prochains mois. Les taux d’imposition se règlent dans Réglages → Fiscalité.
+- **Vue fiscale annuelle** (Simulateurs → Vue fiscale) : choix de l’année, intérêts par plateforme, prélèvements déjà retenus à la source, pertes en capital, comparaison PFU ou barème, cases de la déclaration (chacune marquée « à vérifier » quand elle n’est pas certaine), export CSV et PDF.
+- **Import depuis Finary ou un tableur** : déposez un fichier CSV ou Excel (ou une capture d’écran), vérifiez les colonnes, puis chaque ligne (mettre à jour, créer ou ignorer). Les doublons sont repérés et l’import s’annule en un geste.
+- **Mes banques** : un versement attendu reconnu dans vos opérations se valide en un clic ; bouton « Actualiser ».
+- L’assistant répond aussi sur vos versements, vos revenus nets, la vue fiscale, l’import et vos comptes.
+
 ## 6.7.0
 - **Pourquoi mon patrimoine a bougé** : dans Analyse et dans le bilan du mois, la variation est expliquée en trois parts (vos versements et retraits, le marché, les crédits remboursés) avec le type de placement qui a le plus compté. Au choix : ce mois-ci, le mois dernier ou 12 mois.
 - **Aide à la déclaration des revenus** (Simulateurs → Déclaration) : intérêts reçus, dividendes, plus-values de vos ventes et loyers de l’année, avec la case habituelle de la déclaration, les comptes à l’étranger à déclarer et ce qui n’a rien à déclarer. Récapitulatif à copier. Vos ventes de titres gardent désormais leur plus-value.
