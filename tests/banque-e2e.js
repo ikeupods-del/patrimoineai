@@ -28,6 +28,7 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   /* fonctions Netlify : stockage en mémoire, clés « Google » de test */
   const { DEP } = await import(path.join(ROOT, 'banque/commun.mjs'));
   const H = {}; for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) H[f] = (await import(path.join(ROOT, 'banque/routes/' + f + '.mjs'))).default;
+  for (const f of ['cle', 'abonnement']) H['push-' + f] = (await import(path.join(ROOT, 'push/routes/' + f + '.mjs'))).default;
   const g = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }), jwk = Object.assign(g.publicKey.export({ format: 'jwk' }), { kid: 'k1', alg: 'RS256' });
   const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url'), s = Math.floor(Date.now() / 1000);
   const hb = b64({ alg: 'RS256', kid: 'k1', typ: 'JWT' }) + '.' + b64({ aud: 'quentools-adca1', iss: 'https://securetoken.google.com/quentools-adca1', sub: 'uid-1', email: 'moi@exemple.fr', email_verified: true, iat: s - 5, exp: s + 3600 });
@@ -38,8 +39,8 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
 
   const srv = http.createServer(async (q, r) => {
     const p = q.url.split('?')[0];
-    if (p.startsWith('/api/banque/')) {
-      const nom = p.slice(12), h = H[nom]; APPELS.push(q.method + ' ' + nom); if (!h) { r.writeHead(404); return r.end(); }
+    if (p.startsWith('/api/banque/') || p.startsWith('/api/push/')) {
+      const nom = p.startsWith('/api/push/') ? 'push-' + p.slice(10) : p.slice(12), h = H[nom]; APPELS.push(q.method + ' ' + nom); if (!h) { r.writeHead(404); return r.end(); }
       const corps = await new Promise(ok => { let b = ''; q.on('data', c => b += c); q.on('end', () => ok(b)); });
       const res = await h(new Request('http://' + q.headers.host + q.url, { method: q.method, headers: q.headers, body: q.method === 'GET' || q.method === 'OPTIONS' ? undefined : corps }), { ip: '81.2.3.4' });
       r.writeHead(res.status, Object.fromEntries(res.headers)); return r.end(await res.text());
@@ -173,6 +174,12 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   const nOps = T.ops.length; await pg.click('[data-act=bqsync]'); await pg.waitForFunction(() => !BQ.busy);
   ok(await pg.evaluate(n => D.ops.filter(o => /^eb:/.test(o.fid)).length === n && D.assets.filter(a => a.bq).length === 1, nOps), 'nouvelle synchronisation : aucune opération ni compte en double');
 
+  /* --- notifications push (hébergement facultatif) : interrupteur quand le serveur a ses clés VAPID, explication sinon --- */
+  ok(/clés VAPID ne sont pas encore configurées/.test(await pg.evaluate(async () => { PUSH.vu = 0; await pushEtat(); return pushHTML(); })), 'push : serveur sans clés VAPID, explication affichée');
+  { const kp = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), j = kp.privateKey.export({ format: 'jwk' }); Object.assign(process.env, { VAPID_PUBLIC_KEY: Buffer.concat([Buffer.from([4]), Buffer.from(j.x, 'base64url'), Buffer.from(j.y, 'base64url')]).toString('base64url'), VAPID_PRIVATE_KEY: j.d }); }
+  const ph = await pg.evaluate(async () => { PUSH.vu = 0; await pushEtat(); go('bank'); return { conf: PUSH.conf, cle: PUSH.cle.length, sw: !!document.querySelector('#v-bank [data-act=tog][data-k=push]'), d: pushDonnees() }; });
+  ok(ph.conf === true && ph.cle === 87 && ph.sw && ph.d.jours.some(x => x.j === 5) && ph.d.attente.length > 0 && !JSON.stringify(ph.d).match(/Bricks|Prêter|42/), 'push : interrupteur « Prévenir même application fermée », données envoyées sans montant ni plateforme');
+  delete process.env.VAPID_PUBLIC_KEY; delete process.env.VAPID_PRIVATE_KEY;
   /* --- rapprochement avec la banque --- */
   await pg.evaluate(() => go('bank')); await pg.waitForTimeout(100);
   ok(await pg.locator('#v-bank [data-act=rapok][data-id=rbp]').count() >= 1 && /Versement BienPrêter de/.test(await pg.textContent('#v-bank')) && /Actualiser/.test(await pg.textContent('#v-bank')), 'opérations de la banque : versement attendu reconnu, validation en un clic ; bouton Actualiser');

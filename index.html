@@ -1488,7 +1488,48 @@ async function bqEtat(){
   try{bqApplique(await bqApi('etat'));save();if(BQ.code!=='banque_indisponible'){BQ.err='';BQ.code=''}}catch(e){BQ.err=e.message;BQ.code=e.code||''}
   renderBank();
 }
-function bqVue(){if(bqBase()&&(MAC||ID.user)&&!BQ.busy&&Date.now()-BQ.vu>5*60e3)bqEtat().then(bqAuto)}
+function bqVue(){if(bqBase()&&(MAC||ID.user)&&!BQ.busy&&Date.now()-BQ.vu>5*60e3)bqEtat().then(bqAuto);pushEtat()}
+/* ===================== Notifications push des rappels, application fermée (hébergement Netlify facultatif, docs/PUSH.md) =====================
+   Le serveur ne reçoit que l'adresse d'envoi du navigateur, les jours du mois des rappels et les dates à confirmer : ni montant ni
+   plateforme. La notification arrive sans contenu ; le service worker compose le texte d'après les dates gardées sur l'appareil. */
+const PUSH={conf:null,cle:'',busy:false,vu:0};
+const pushOk=()=>!MAC&&'serviceWorker' in navigator&&'PushManager' in window&&typeof Notification!=='undefined';
+async function pushApi(ch,opt){
+  const base=bqBase();if(!base)throw Error('Aucun serveur');let tok='';try{const{u}=await fbUser();tok=await u.getIdToken()}catch(e){throw Error('Connectez-vous avec Google (Réglages).')}
+  opt=opt||{};const r=await tfetch(base+'/api/push/'+ch,{method:opt.method||'GET',headers:Object.assign({authorization:'Bearer '+tok},opt.body?{'content-type':'application/json'}:{}),body:opt.body?JSON.stringify(opt.body):undefined},20000),d=await rjson(r);
+  if(!r.ok)throw Error(d.message||'Service indisponible (erreur '+r.status+').');return d;
+}
+async function pushEtat(){
+  if(!pushOk()||!bqBase()||!(typeof ID!=='undefined'&&ID.user)||Date.now()-PUSH.vu<10*60e3)return;PUSH.vu=Date.now();
+  try{const d=await pushApi('cle');PUSH.conf=!!d.configure;PUSH.cle=d.cle||''}catch(e){PUSH.conf=null}
+  if(UI.view==='bank')renderBank();
+}
+const pushDonnees=()=>({jours:(D.rappels||[]).filter(r=>r.actif!==false&&num(r.jour)>=1).map(r=>({j:Math.round(num(r.jour)),ouvre:r.ouvre!==false})),attente:[...new Set(rapDus().map(x=>x.date))]});
+const u8=s=>{const b=atob(String(s).replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((String(s).length+3)%4));return Uint8Array.from(b,c=>c.charCodeAt(0))};
+async function pushActiver(on){
+  if(PUSH.busy)return;PUSH.busy=true;
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    if(on){const p=await Promise.resolve(Notification.requestPermission());if(p!=='granted')throw Error('Notifications non autorisées par le navigateur.');
+      const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:u8(PUSH.cle)});
+      await pushApi('abonnement',{method:'POST',body:Object.assign({abonnement:{endpoint:sub.endpoint}},pushDonnees())});D.set.push=true;rapPublier(false);toast('Vous serez prévenu même application fermée')}
+    else{const sub=await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe().catch(()=>{});await pushApi('abonnement',{method:'DELETE'}).catch(()=>{});D.set.push=false;toast('Notifications push coupées')}
+    save();
+  }catch(e){toast(e.message||String(e))}
+  PUSH.busy=false;renderBank();
+}
+/* Jours et dates à confirmer renvoyés au serveur quand les rappels changent (une fois par minute au plus) */
+function pushMaj(){if(!D.set.push||!pushOk()||!bqBase())return;clearTimeout(pushMaj.t);pushMaj.t=setTimeout(async()=>{try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub)await pushApi('abonnement',{method:'POST',body:Object.assign({abonnement:{endpoint:sub.endpoint}},pushDonnees())})}catch(e){}},60e3)}
+function pushHTML(){
+  if(MAC)return '';
+  const t='<div><b>Prévenir même application fermée</b><div class="hint">Notification push le jour du versement, puis 3 et 10 jours après s’il n’est pas confirmé. Le serveur ne reçoit que les jours et les dates, jamais les montants ni les plateformes.</div></div>';
+  if(!pushOk())return `<p class="hint mt">Ce navigateur ne reçoit pas de notifications push${/iPhone|iPad/.test(navigator.userAgent)?' : sur iPhone, installez d’abord l’application sur l’écran d’accueil (Safari → Partager → Sur l’écran d’accueil)':''}. Le calendrier ci-dessus sonne aussi application fermée.</p>`;
+  if(!bqBase())return `<details class="mt"><summary class="sm">Notifications même application fermée</summary><p class="sm mut" style="margin-top:6px">Elles demandent un petit serveur qui envoie un signal chaque matin : l’hébergement Netlify facultatif, avec des clés VAPID (mode d’emploi : docs/PUSH.md). En attendant, le calendrier ci-dessus sonne application fermée${'serviceWorker' in navigator?', et l’application installée vérifie elle-même vos versements quand le navigateur le permet':''}.</p></details>`;
+  if(PUSH.conf===false)return `<p class="hint mt">Notifications push : le serveur répond, mais les clés VAPID ne sont pas encore configurées (variables VAPID_PUBLIC_KEY et VAPID_PRIVATE_KEY, voir docs/PUSH.md).</p>`;
+  if(PUSH.conf!==true)return '';
+  return `<div class="set" style="margin-top:10px">${t}${sw('push',!!D.set.push,'Prévenir même application fermée')}</div>`;
+}
+
 async function bqLier(){
   if(BQ.busy)return;BQ.busy=true;BQ.err='';BQ.code='';renderBank();
   try{const r=await bqApi('demarrer',{method:'POST'});
@@ -1715,7 +1756,7 @@ function rapListeHTML(){
   if(R.some(r=>CL.historique(r).length))h+=`<button class="btn sm sec mt" data-act="raphist" data-id="">${ic('cal',15)}Historique des versements</button>`;
   if(perm==='default')h+=`<button class="btn sm sec mt" data-act="rapnotif">${ic('bell',15)}Recevoir aussi une notification du navigateur</button>`;
   else if(perm==='denied')h+='<p class="hint">Notifications du navigateur bloquées : les rappels s’affichent dans l’application.</p>';
-  if(R.some(r=>r.actif!==false))h+=`<button class="btn sm sec mt" data-act="rapics">${ic('cal',15)}Ajouter au calendrier (sonne application fermée)</button>`;
+  if(R.some(r=>r.actif!==false))h+=`<button class="btn sm sec mt" data-act="rapics">${ic('cal',15)}Ajouter au calendrier (sonne application fermée)</button>`+pushHTML();
   h+=R.length?R.map(r=>{const p=CL.prochaineEcheance(r,today()),H=Object.entries(r.hist||{}).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,4),cand=rapPlacements(r),libre=[moisCourant(),moisDecale(moisCourant(),-1)].find(m=>!(r.hist&&r.hist[m]));
     return `<div class="ins"><span class="ico" style="--c:${r.actif===false?'var(--mut)':'var(--pt)'};width:36px;height:36px">${ic('cal',18)}</span><div style="flex:1;min-width:0"><div class="row"><b>${esc(r.nom)}</b><span class="sm mut">le ${esc(r.jour)} de chaque mois</span></div><div class="xs mut">${r.actif===false?'Désactivé':p?'Prochain : '+esc(rapDate(p)):''}${CL.montantHabituel(r)>0?' · environ '+eur(CL.montantHabituel(r),2):''}${cand.length?' · '+esc(cand.length===1?cand[0].name:cand.length+' placements'):''}</div>${H.length?`<div class="xs mut" style="margin-top:2px">${H.map(([m,x])=>esc(moisNom(m))+' : '+(x.s==='recu'?eur(x.m,2):'aucun')).join(' · ')}</div>`:''}<div class="acts2"><button class="btn sm sec" data-act="rapedit" data-id="${esc(r.id)}">${ic('edit',15)}Modifier</button>${CL.historique(r).length?`<button class="btn sm sec" data-act="raphist" data-id="${esc(r.id)}">Historique</button>`:''}${libre?`<button class="btn sm sec" data-act="rapautre" data-id="${esc(r.id)}" data-m="${libre}">Enregistrer le paiement de ${esc(moisNom(libre))}</button>`:''}</div></div></div>`}).join(''):'<p class="sm mut mt">Aucun rappel.</p>';
   return h+'</section>';
@@ -1759,6 +1800,7 @@ function rapPublier(notifie){
   if(MAC||typeof caches==='undefined'||!HOSTED)return;
   const auj=today(),items=rapDus().map(x=>({nom:x.r.nom,date:x.date}));
   (D.rappels||[]).filter(r=>r.actif!==false).forEach(r=>{let m=moisCourant();for(let k=0;k<3;k++,m=moisDecale(m,1)){const e=CL.echeanceR(r,m);if(e>=auj&&!CL.traite(r.hist&&r.hist[m])&&!(r.cree&&e<r.cree))items.push({nom:r.nom,date:e})}});
+  pushMaj();
   caches.open('patrimoine-etat').then(c=>Promise.all([c.put('etat-rappels',new Response(JSON.stringify({maj:Date.now(),items}),{headers:{'content-type':'application/json'}})),notifie?c.put('notifie',new Response(auj)):0])).catch(()=>{});
 }
 /* Vérification quotidienne en arrière-plan (application installée, Chrome ou Edge) : sans effet ailleurs */
@@ -3685,7 +3727,7 @@ const ACT={
   bouge:d=>{UI.bouge=d.v;renderAnalyse()},
   bougemp:()=>{UI.bouge='mp';go('analyse');renderAnalyse()},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
-  tog:d=>{if(d.k==='capt'){MAC.captures(MACST.protegee).then(r=>{MACST.protegee=!!r.protegee;renderSet();toast(r.protegee?'Fenêtre de nouveau invisible aux captures':'Captures d’écran autorisées')}).catch(()=>{});return}if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
+  tog:d=>{if(d.k==='push'){pushActiver(!D.set.push);return}if(d.k==='capt'){MAC.captures(MACST.protegee).then(r=>{MACST.protegee=!!r.protegee;renderSet();toast(r.protegee?'Fenêtre de nouveau invisible aux captures':'Captures d’écran autorisées')}).catch(()=>{});return}if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
   unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
   sauvlist:()=>openSauv(),sauvdir:()=>MAC&&MAC.ouvrirSauvegardes(),sauvrest:d=>sauvRest(d.f),
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},

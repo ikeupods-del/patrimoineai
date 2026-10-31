@@ -4,7 +4,7 @@ name: Patrimoine AI — contrôles complets
 # les rappels de paiement et l'accessibilité (axe-core, thèmes clair et sombre). Lancé à chaque modification et sur les pull requests.
 on:
   push:
-    paths: ['index.html', 'fiscal-config.js', 'calculs.js', 'netlify/**', 'netlify.toml', 'marches.js', 'config.js', 'sw.js', 'banque/**', 'mac/banque-locale.js', 'tests/**', '.github/workflows/tests.yml']
+    paths: ['index.html', 'fiscal-config.js', 'calculs.js', 'netlify/**', 'netlify.toml', 'marches.js', 'config.js', 'sw.js', 'banque/**', 'push/**', 'mac/banque-locale.js', 'tests/**', '.github/workflows/tests.yml']
   pull_request:
   workflow_dispatch:
 
@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 22
       - name: Contrôles rapides
-        run: node tests/marches.test.js && node tests/calculs.test.js && node tests/banque.test.js
+        run: node tests/marches.test.js && node tests/calculs.test.js && node tests/banque.test.js && node tests/push.test.js
       - name: Les fonctions bancaires s'assemblent
         run: |
           for f in banque/routes/*.mjs; do npx --yes esbuild@0.24.0 "$f" --bundle --platform=node --target=node18 --format=esm --outfile="$RUNNER_TEMP/bundle/$(basename "$f")" --log-level=error; done
