@@ -739,6 +739,65 @@
     return { annee: o.annee, lignes: L, rappels: R };
   }
 
+  /* ===================== Vue fiscale annuelle ===================== */
+  /* Montant brut d'un intérêt reçu : si la plateforme verse les intérêts nets des prélèvements retenus à la source (acompte d'impôt
+     et prélèvements sociaux), le brut est reconstitué avec les taux réglés ; sinon le montant reçu est le brut. */
+  function brutDe(recu, net, f) { const F = fiscalite(f), t = (F.ir + F.ps) / 100, b = net ? num(recu) / (1 - t) : num(recu); return { brut: r2(b), ir: net ? r2(b * F.ir / 100) : 0, ps: net ? r2(b * F.ps / 100) : 0 }; }
+  /* PFU ou barème progressif pour les revenus du capital d'une année. r : {interets, dividendes, plusValues} ; f : taux réglés ;
+     regles : FISCAL_CONFIG.regles (abattement de 40 % des dividendes et CSG déductible au barème). Les prélèvements sociaux sont
+     les mêmes dans les deux cas. */
+  function comparerPfuBareme(r, f, regles) {
+    const F = fiscalite(f), R = regles || {}, I = Math.max(0, num(r.interets)), Dv = Math.max(0, num(r.dividendes)), PV = Math.max(0, num(r.plusValues)), base = I + Dv + PV;
+    const ab = num((R.abattementDividendes || {}).taux ?? 40) / 100, csg = num((R.csgDeductible || {}).taux ?? 6.8) / 100, T = F.tmi / 100, ps = r2(base * F.ps / 100);
+    const pfu = r2(base * F.ir / 100), bar = r2(Math.max(0, (I + Dv * (1 - ab) + PV) * T - base * csg * T));
+    return { base: r2(base), ps, pfu: { impot: pfu, total: r2(pfu + ps) }, bareme: { impot: bar, total: r2(bar + ps) }, meilleur: pfu <= bar ? 'pfu' : 'bareme', ecart: r2(Math.abs(pfu - bar)), tmi: F.tmi };
+  }
+  /* Imputation des pertes définitives sur prêts participatifs : sur les intérêts de même nature de l'année, dans la limite annuelle,
+     le reste reporté sur les années suivantes (au plus « reportAns » ans), les plus anciennes d'abord. Règle « à vérifier » (fiscal-config.js). */
+  function imputationPertes(pertesParAn, interetsParAn, annee, regle) {
+    const P = pertesParAn || {}, I = interetsParAn || {}, R = regle || {}, plaf = num(R.plafondAnnuel) > 0 ? num(R.plafondAnnuel) : Infinity, rep = num(R.reportAns) || 5;
+    const ans = Object.keys(P).concat(Object.keys(I)).map(Number).filter(y => y && y <= annee), y0 = ans.length ? Math.min(...ans) : annee;
+    let stock = [], res = { perteAnnee: r2(num(P[annee])), disponible: 0, impute: 0, reste: 0, plafond: plaf === Infinity ? null : plaf };
+    for (let y = y0; y <= annee; y++) {
+      stock.push({ an: y, reste: num(P[y]) }); stock = stock.filter(s => s.reste > 0 && y - s.an <= rep);
+      const dispo = stock.reduce((s, x) => s + x.reste, 0), cap = Math.min(plaf, Math.max(0, num(I[y]))); let imp = 0;
+      for (const s of stock) { const u = Math.min(s.reste, cap - imp); if (u <= 0) break; s.reste -= u; imp += u; }
+      if (y === annee) Object.assign(res, { disponible: r2(dispo), impute: r2(imp), reste: r2(stock.reduce((s, x) => s + x.reste, 0)) });
+    }
+    return res;
+  }
+  /* o : {annee, interets: [{nom, plat, brut, ir, ps, estime, pret}], dividendes: [{nom, m}], ventes: {n, gains, pertes, net},
+     loyers: [{nom, m}], etrangers, exoneres, crypto, pertes: {an: montant} (définitives, prêts participatifs), interetsPretsParAn,
+     enDefaut: [{nom, m, pret}]} ; cfg : FISCAL_CONFIG ; f : taux réglés → récapitulatif de l'année, lignes à reporter avec la case et
+     son degré de certitude, imputation des pertes, comparaison PFU / barème. */
+  function vueFiscale(o, cfg, f) {
+    const C = (cfg && cfg.cases) || {}, RG = (cfg && cfg.regles) || {}, cs = k => C[k] || {}, L = [], R = [], s = T => r2((T || []).reduce((a, x) => a + num(x), 0));
+    const it = o.interets || [], parPlat = {};
+    it.forEach(x => { const k = x.plat || x.nom; const p = parPlat[k] = parPlat[k] || { plat: k, brut: 0, ir: 0, ps: 0, estime: false, pret: false }; p.brut += num(x.brut); p.ir += num(x.ir); p.ps += num(x.ps); p.estime = p.estime || !!x.estime; p.pret = p.pret || !!x.pret; });
+    const plateformes = Object.values(parPlat).map(p => Object.assign(p, { brut: r2(p.brut), ir: r2(p.ir), ps: r2(p.ps), net: r2(p.brut - p.ir - p.ps) })).sort((a, b) => b.brut - a.brut);
+    const iPret = s(it.filter(x => x.pret).map(x => x.brut)), iAutre = s(it.filter(x => !x.pret).map(x => x.brut)), dv = s((o.dividendes || []).map(x => x.m));
+    const retIR = s(it.map(x => x.ir)), retPS = s(it.map(x => x.ps)), basePS = s(it.filter(x => num(x.ps) > 0).map(x => x.brut)), v = o.ventes || {}, ly = s((o.loyers || []).map(x => x.m));
+    const imput = imputationPertes(o.pertes, o.interetsPretsParAn, o.annee, RG.pertesPretsParticipatifs);
+    const ligne = (cle, k, montant, extra) => L.push(Object.assign({ cle, titre: cs(k).libelle || cle, montant: r2(montant), cases: cs(k).case || cs(k).formulaire || '', certitude: cs(k).certitude || 'a_verifier', note: cs(k).note || '' }, extra || {}));
+    const est = l => l.some(x => x.estime);
+    if (iPret > 0) ligne('interetsPrets', 'interetsPretsParticipatifs', iPret, { estime: est(it.filter(x => x.pret)), detail: it.filter(x => x.pret).map(x => ({ nom: x.nom, m: x.brut, estime: x.estime })) });
+    if (iAutre > 0) ligne('interets', 'interets', iAutre, { estime: est(it.filter(x => !x.pret)), detail: it.filter(x => !x.pret).map(x => ({ nom: x.nom, m: x.brut, estime: x.estime })) });
+    if (dv > 0) ligne('dividendes', 'dividendes', dv, { estime: true, detail: o.dividendes, note: 'Estimés avec la quantité détenue aujourd’hui ; le montant de l’IFU du courtier fait foi.' });
+    if (retIR > 0) ligne('acompte', 'acompte', retIR, { estime: true, note: 'Acompte d’impôt retenu par les plateformes qui versent des intérêts nets ; il est déduit de l’impôt (ou remboursé).' });
+    if (basePS > 0) ligne('dejaSoumisPS', 'dejaSoumisPS', basePS, { estime: true, note: (cs('dejaSoumisPS').note || '') + ' Prélèvements sociaux déjà retenus : ' + eu(retPS) + '.' });
+    if (v.n) ligne('ventes', v.net >= 0 ? 'plusValues' : 'moinsValues', Math.abs(v.net), { note: `Gains ${eu(v.gains)}, pertes ${eu(v.pertes)} sur ${v.n} vente${v.n > 1 ? 's' : ''} enregistrée${v.n > 1 ? 's' : ''}. Formulaire 2074 si les cessions sont nombreuses ou complexes.` });
+    if (imput.perteAnnee > 0 || imput.impute > 0) ligne('pertes', 'pertesPretsParticipatifs', imput.perteAnnee, { estime: true, note: `Imputable cette année sur vos intérêts de prêts participatifs : ${eu(imput.impute)}${imput.plafond ? ' (limite de ' + eu(imput.plafond) + ' par an)' : ''} ; reste reportable : ${eu(imput.reste)}. ` + ((RG.pertesPretsParticipatifs || {}).texte || '') });
+    if (ly > 0) ligne('loyers', ly <= 15000 ? 'microFoncier' : 'foncierReel', ly, { estime: true, detail: o.loyers, note: ly <= 15000 ? 'Loyers bruts de l’année ; l’abattement est appliqué par l’administration. Une location meublée se déclare autrement.' : 'Plus de 15 000 € de loyers : régime réel.' });
+    const liste = T => T.length > 1 ? T.slice(0, -1).join(', ') + ' et ' + T[T.length - 1] : T.join('');
+    if (o.crypto) R.push('Vente de cryptoactifs enregistrée : formulaire ' + (cs('crypto').formulaire || '2086') + ' si vous les avez échangés contre des euros.');
+    if ((o.etrangers || []).length) R.push('Comptes à l’étranger (' + liste(o.etrangers) + ') : case ' + (cs('comptesEtranger').case || '8UU') + ' et formulaire ' + (cs('comptesEtranger').formulaire || '3916') + ', même sans revenu.');
+    if ((o.enDefaut || []).length) R.push('Projets en défaut (' + liste(o.enDefaut.map(x => x.nom)) + ') : ' + ((RG.perteDefinitive || {}).texte || 'seule une perte définitive est imputable.') + (o.enDefaut.some(x => !x.pret) ? ' ' + ((RG.pertesObligations || {}).texte || '') : ''));
+    if ((o.exoneres || []).length) R.push('Rien à déclarer pour ' + liste(o.exoneres) + ', sauf retrait ou rachat dans l’année.');
+    const cmp = comparerPfuBareme({ interets: Math.max(0, iPret - imput.impute) + iAutre, dividendes: dv, plusValues: Math.max(0, num(v.net)) }, f, RG);
+    return { annee: o.annee, plateformes, totaux: { interets: r2(iPret + iAutre), interetsPrets: iPret, dividendes: dv, retenuIR: retIR, retenuPS: retPS, basePS, loyers: ly, plusValues: r2(num(v.net)) },
+      imputation: imput, enDefaut: o.enDefaut || [], comparaison: cmp, lignes: L, rappels: R, avertissement: (cfg && cfg.avertissement) || '' };
+  }
+
   /* ===================== Frais ===================== */
   /* Frais des placements : [{id, nom, valeur, frais (%/an)}] comparés à un ETF Monde (ref, %/an), sur 20 ans à 5 % brut */
   const FRAIS_REF = 0.2;
@@ -753,17 +812,17 @@
   const RE_FRAIS = /\b(frais|commissions?|cotisations? (carte|cb|visa|mastercard|offre|compte|forfait|package)|cotis (carte|cb)|agios?|interets debiteurs|tenue de compte|com(mission)? d intervention|frais de rejet|minimum forfaitaire|forfait (de )?compte)\b/;
   const PAS_FRAIS = /\b(grand frais|frais de port|livraison|ecole|scolarite|cantine|garde)\b/;
   function fraisBancaires(ops, auj = new Date()) {
-    const lim = new Date(auj); lim.setFullYear(lim.getFullYear() - 1); const G = {};
+    const lim = new Date(auj); lim.setFullYear(lim.getFullYear() - 1); const G = {}, finJour = new Date(auj); finJour.setHours(23, 59, 59, 999); /* une opération du jour compte, même avant midi */
     for (const o of ops || []) {
       if (!(o.m < 0) || ['revenu', 'epargne', 'virement', 'credit', 'impots', 'sante', 'logement', 'alimentation'].includes(o.cat)) continue;
-      const t = jour(o.d), l = norm(o.lib); if (!t || t < lim || t > auj || !RE_FRAIS.test(l) || PAS_FRAIS.test(l)) continue;
+      const t = jour(o.d), l = norm(o.lib); if (!t || t < lim || t > finJour || !RE_FRAIS.test(l) || PAS_FRAIS.test(l)) continue;
       const k = cleLibelle(o.lib) || l; (G[k] = G[k] || { nom: o.lib, total: 0, n: 0 }); G[k].total += -o.m; G[k].n++;
     }
     const lignes = Object.values(G).map(x => ({ nom: x.nom, total: r2(x.total), n: x.n })).sort((a, b) => b.total - a.total);
     return { lignes, total: r2(lignes.reduce((s, x) => s + x.total, 0)) };
   }
 
-  const API = { variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
+  const API = { brutDe, comparerPfuBareme, imputationPertes, vueFiscale, variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, FISC_DEFAUT, fiscalite, SOURCES_REV, tauxImpot, tableauRevenus, listeMois, rendements, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
     echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
   root.Calculs = API;

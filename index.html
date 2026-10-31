@@ -2,7 +2,7 @@
 <html lang="fr"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Patrimoine AI · QuenTools</title><meta name="author" content="QuenTools"><meta name="theme-color" content="#151311">
-<script src="config.js"></script><script src="marches.js"></script><script src="calculs.js"></script><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-192.png"><meta name="mobile-web-app-capable" content="yes">
+<script src="config.js"></script><script src="fiscal-config.js"></script><script src="marches.js"></script><script src="calculs.js"></script><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-192.png"><meta name="mobile-web-app-capable" content="yes">
 <style>
 :root{color-scheme:dark;--bg:#151311;--card:#211e1b;--card2:#2b2723;--line:rgba(255,255,255,.09);--tx:#f4f2ee;--mut:#a59f95;--p:#10b981;--pt:#34d399;--onp:#04231a;--ok:#34d399;--warn:#fbbf24;--red:#f87171;--onred:#2a0808;--blue:#60a5fa;--shadow:0 12px 32px rgba(0,0,0,.4);--num:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif}
 @media(prefers-color-scheme:light){:root:not([data-theme=dark]){color-scheme:light;--bg:#f3f4f1;--card:#fff;--card2:#eceee9;--line:rgba(20,30,25,.11);--tx:#16201b;--mut:#5b6961;--p:#047857;--pt:#047857;--onp:#fff;--ok:#047857;--warn:#a16207;--red:#dc2626;--onred:#fff;--blue:#1d4ed8;--shadow:0 12px 32px rgba(20,30,25,.14)}}
@@ -1322,7 +1322,7 @@ function revSources(mois){
       else if(num(a.div)>0){const mo=String(Math.max(1,Math.min(12,Math.round(num(a.divm))||6))).padStart(2,'0');ans.forEach(y=>{if(moisSet.has(y+'-'+mo))P[y+'-'+mo]=num(a.div)*num(a.qty)});add('div',{taux:t,reel:null,prevu:P})}
       return}
     if(isRisky(a)){
-      const R={};(a.paie||[]).forEach(p=>{const m=p.mois||String(p.d||'').slice(0,7);if(moisSet.has(m))R[m]=(R[m]||0)+Math.max(0,num(p.m)-num(p.c))*k});
+      const R={},nt=srcNet(a.plat);(a.paie||[]).forEach(p=>{const m=p.mois||String(p.d||'').slice(0,7);if(moisSet.has(m))R[m]=(R[m]||0)+CL.brutDe(Math.max(0,num(p.m)-num(p.c))*k,nt,f).brut}); /* reçu net de prélèvements → brut */
       const E=echOf(a);if(E)E.lignes.forEach(x=>{if(moisSet.has(x.mois))P[x.mois]=(P[x.mois]||0)+(E.mode==='loyer'?x.total:x.interets)*k});else if(a.status!=='rembourse'||(a.paie||[]).length)prevuProjet(a,P,mois);
       if(a.status==='defaut')Object.keys(P).forEach(m=>{if(m>=cur)delete P[m]});
       if(Object.keys(R).length||Object.keys(P).length)add(a.cat,{taux:CL.tauxImpot(a.cat,f),reel:R,prevu:P});return}
@@ -1367,7 +1367,7 @@ function renderRev(){
   <p class="hint">Reçu : versements confirmés dans les rappels (intérêts, sans le capital remboursé) et dividendes versés pour la quantité détenue aujourd’hui. Barres : reçu, plus l’estimation des livrets, de l’assurance-vie et des loyers (sans suivi réel) ; trait : prévu.</p></section>`;
   h+=`<section class="card"><h3>Projection des 12 prochains mois</h3><div class="big" style="font-size:24px;margin-top:4px">${eur(A[k('prevu')])}</div>${revBars(R.avenir.mois,false,'Revenus prévus, 12 prochains mois')}${revLeg(A,false)}<p class="hint">D’après les échéanciers, les taux renseignés et les dividendes des 12 derniers mois. Estimation non garantie : un projet peut prendre du retard.</p></section>`;
   const types=Object.keys(REVT).filter(t=>(P.par[t]&&(P.par[t].reel||P.par[t].prevu))||(A.par[t]&&A.par[t].prevu));
-  h+=`<section class="card"><h3>Par source</h3><div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 84px 84px;border-top:0;margin-top:8px"><span>Source</span><span style="text-align:right">12 derniers mois</span><span style="text-align:right">12 prochains</span></div>${types.map(t=>{const p=P.par[t]||{},a=A.par[t]||{},sr=R.S.find(s=>s.type===t);return `<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 84px 84px"><span><i class="dot" style="background:${REVT[t][1]}"></i>${esc(REVT[t][0])}<span class="xs mut" style="display:block">${R.S.filter(s=>s.type===t).some(s=>s.reel)?'reçu '+eur(p[k('reel')]||0)+' · ':'estimé · '}imposé ${nf(sr?sr.taux:0,1)} %</span></span><b style="text-align:right">${eur(p[k('prevu')]||0)}</b><b style="text-align:right">${eur(a[k('prevu')]||0)}</b></div>`}).join('')}<p class="hint">Montants prévus${net?', nets d’impôt':', bruts'}. Imposition retenue : PFU ${nf(F.ir,1)} % + prélèvements sociaux ${nf(F.ps,1)} %, assurance-vie ${nf(F.psAV,1)} % (fonds en euros), loyers à la tranche de ${nf(F.tmi,0)} % + ${nf(F.psImmo,1)} % après ${nf(F.abatFoncier,0)} % d’abattement ; livrets réglementés et PEA exonérés.</p><button class="btn sec blk mt" data-act="fisc">${ic('sliders',18)}Modifier les taux d’imposition</button></section>`;
+  h+=`<section class="card"><h3>Par source</h3><div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 84px 84px;border-top:0;margin-top:8px"><span>Source</span><span style="text-align:right">12 derniers mois</span><span style="text-align:right">12 prochains</span></div>${types.map(t=>{const p=P.par[t]||{},a=A.par[t]||{},sr=R.S.find(s=>s.type===t);return `<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 84px 84px"><span><i class="dot" style="background:${REVT[t][1]}"></i>${esc(REVT[t][0])}<span class="xs mut" style="display:block">${R.S.filter(s=>s.type===t).some(s=>s.reel)?'reçu '+eur(p[k('reel')]||0)+' · ':'estimé · '}imposé ${nf(sr?sr.taux:0,1)} %</span></span><b style="text-align:right">${eur(p[k('prevu')]||0)}</b><b style="text-align:right">${eur(a[k('prevu')]||0)}</b></div>`}).join('')}<p class="hint">Montants prévus${net?', nets d’impôt':', bruts'}. Imposition retenue : PFU ${nf(F.ir,1)} % + prélèvements sociaux ${nf(F.ps,1)} %, assurance-vie ${nf(F.psAV,1)} % (fonds en euros), loyers à la tranche de ${nf(F.tmi,0)} % + ${nf(F.psImmo,1)} % après ${nf(F.abatFoncier,0)} % d’abattement ; livrets réglementés et PEA exonérés.</p><div class="g2 mt"><button class="btn sec" data-act="fisc">${ic('sliders',18)}Taux d’imposition</button><button class="btn sec" data-act="tool" data-t="decl" data-go="tools">${ic('file',18)}Vue fiscale</button></div></section>`;
   const RD=revRendements(),pc=v=>v==null?'–':nf(v*100,1)+' %';
   h+=`<section class="card"><h3>Rendement annualisé</h3>${RD.lignes.length?`<div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 64px 64px;border-top:0;margin-top:8px"><span>Plateforme</span><span style="text-align:right">Brut</span><span style="text-align:right">Net</span></div>${RD.lignes.slice(0,12).map(x=>`<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 64px 64px"><span>${esc(x.nom)}<span class="xs mut" style="display:block">${eur(x.valeur)} · ${x.gain>=0?'gain':'perte'} ${eur(Math.abs(x.gain))}</span></span><span style="text-align:right">${pc(x.tri)}</span><b style="text-align:right" class="${x.triNet>0?'pos':x.triNet<0?'neg':''}">${pc(x.triNet)}</b></div>`).join('')}${RD.global?`<div class="trow" style="grid-template-columns:minmax(0,1fr) 64px 64px"><b>Global</b><b style="text-align:right">${pc(RD.global.tri)}</b><b style="text-align:right">${pc(RD.global.triNet)}</b></div>`:''}<p class="hint">Taux de rendement interne d’après les versements datés (dont les paiements confirmés) et la valeur actuelle ; net = brut moins l’imposition des revenus de la source. Moins de 30 jours de recul : pas de taux.</p>`:'<p class="sm mut" style="margin-top:6px">Renseignez la date et le montant de vos placements pour calculer leur rendement.</p>'}</section>`;
   const Y=R.Y,YA=R.annee;
@@ -1380,9 +1380,10 @@ function openFisc(){
   sheet('Fiscalité des revenus',`<p class="sm mut">Taux utilisés pour les montants nets, l’aide à la déclaration et les simulateurs. Ils changent avec les lois de finances : vérifiez-les chaque année sur impots.gouv.fr.</p><div class="g2">${f('ir','Impôt forfaitaire (PFU)','Part « impôt sur le revenu » du prélèvement forfaitaire unique.')}${f('ps','Prélèvements sociaux','Intérêts, dividendes, plus-values.')}${f('psAV','Prélèvements sociaux, assurance-vie','Fonds en euros, PEL.')}${f('psImmo','Prélèvements sociaux, immobilier','Loyers, plus-values immobilières.')}${f('tmi','Votre tranche marginale','Pour les loyers et la comparaison au barème.')}${f('abatFoncier','Abattement micro-foncier','Sur les loyers d’une location vide.')}</div><div class="err" id="fi-e"></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="fiscdef">Valeurs par défaut</button><button class="btn" data-act="fiscsave">Enregistrer</button></div>`);
 }
 function fiscSave(def){
-  if(def){D.fisc={};save();closeM();render();toast('Taux par défaut rétablis');return}
+  const src=(D.fisc||{}).src;
+  if(def){D.fisc=src?{src}:{};save();closeM();render();toast('Taux par défaut rétablis');return}
   const o={};for(const k of Object.keys(CL.FISC_DEFAUT)){const v=$('fi-'+k).value;if(v===''||!(num(v)>=0&&num(v)<=100)){$('fi-e').textContent='Chaque taux doit être compris entre 0 et 100 %.';return}o[k]=Math.round(num(v)*100)/100}
-  D.fisc=o;save();closeM();render();toast('Taux d’imposition enregistrés');
+  if(src)o.src=src;D.fisc=o;save();closeM();render();toast('Taux d’imposition enregistrés');
 }
 let DIVB=false;
 async function divLoad(force){
@@ -1810,14 +1811,15 @@ function openDocs(){
 const nfld=(id,label,v,suf,hint)=>`<div class="fld"><label for="${id}">${esc(label)}</label><div class="inp has"><input id="${id}" type="number" inputmode="decimal" step="any" min="0" value="${esc(v)}" data-in="calc"><span class="suf">${suf}</span></div>${hint?`<div class="hint">${esc(hint)}</div>`:''}</div>`;
 function renderTools(force){
   if(!force&&typing($('v-tools'))){calc();return}
-  const el=$('v-tools'),T=UI.tool,tabs=[['tax','Impôt'],['proj','Projection'],['fire','Retraite'],['vente','Vendre'],['succ','Succession'],['new','Avant d’investir'],['alloc','Répartition cible'],['loan','Crédit'],['decl','Déclaration']];
+  const el=$('v-tools'),T=UI.tool,tabs=[['decl','Vue fiscale'],['tax','Impôt'],['proj','Projection'],['fire','Retraite'],['vente','Vendre'],['succ','Succession'],['new','Avant d’investir'],['alloc','Répartition cible'],['loan','Crédit']];
   let h=`<div class="chips">${tabs.map(t=>`<button class="chip${t[0]===T?' on':''}" data-act="tool" data-t="${t[0]}">${t[1]}</button>`).join('')}</div>`;
-  if(T==='decl')h+=declHTML();
+  if(T==='decl')h+='<div class="grid2">'+declHTML()+'</div>';
   else if(T==='tax'){
-    h+=`<section class="card"><h3>Simulateur d’impôt</h3><p class="sm mut" style="margin-top:6px">Compare le prélèvement forfaitaire unique (PFU) et le barème progressif pour vos revenus du capital.</p>${nfld('t-inc','Revenus annuels du capital',Math.round(yearly()),'€','Intérêts, dividendes, plus-values imposables. Prérempli avec vos intérêts estimés.')}
-<div class="g2"><div class="fld"><label for="t-tmi">Tranche marginale</label><select id="t-tmi" data-in="calc">${[0,11,30,41,45].map(x=>`<option value="${x}"${x===30?' selected':''}>${x} %</option>`).join('')}</select></div><div class="fld"><label for="t-ps">Prélèvements sociaux</label><select id="t-ps" data-in="calc"><option value="18.6">18,6 %</option><option value="17.2">17,2 %</option></select></div></div>
-<div class="hint">18,6 % : comptes-titres, crowdlending, PER, PEA. 17,2 % : assurance-vie, PEL.</div><div id="t-out" class="mt"></div>
-<p class="hint">Base 2026 : PFU 31,4 % = 12,8 % d’impôt + 18,6 % de prélèvements sociaux (17,2 % pour l’assurance-vie et certains produits). Le choix du barème vaut pour tous vos revenus du capital de l’année. Calcul simplifié : CSG déductible 6,8 %, hors quotient familial et décote. Les pertes définitives sur prêts participatifs peuvent être déductibles : voyez un professionnel.</p></section>`;
+    const F=fiscD(),pre=UI.taxPre||{},tm=[0,11,30,41,45].includes(F.tmi)?[0,11,30,41,45]:[0,11,30,41,45,F.tmi].sort((a,b)=>a-b);UI.taxPre=null;
+    h+=`<section class="card"><h3>Simulateur d’impôt</h3><p class="sm mut" style="margin-top:6px">Compare le prélèvement forfaitaire unique (PFU) et le barème progressif pour vos revenus du capital.</p>${pre.i!=null?'<p class="hint">Prérempli avec les revenus de la vue fiscale.</p>':''}<div class="g2">${nfld('t-inc','Intérêts et plus-values',pre.i!=null?pre.i:Math.round(yearly()),'€','Imposables dans l’année. Prérempli avec vos intérêts estimés.')}${nfld('t-div','Dont dividendes en plus',pre.d!=null?pre.d:0,'€','Abattement de 40 % au barème.')}</div>
+<div class="g2"><div class="fld"><label for="t-tmi">Tranche marginale</label><select id="t-tmi" data-in="calc">${tm.map(x=>`<option value="${x}"${x===F.tmi?' selected':''}>${nf(x,1).replace(',0','')} %</option>`).join('')}</select></div><div class="fld"><label for="t-ps">Prélèvements sociaux</label><select id="t-ps" data-in="calc"><option value="${F.ps}">${nf(F.ps,1)} %</option>${F.psAV!==F.ps?`<option value="${F.psAV}">${nf(F.psAV,1)} %</option>`:''}</select></div></div>
+<div class="hint">${nf(F.ps,1)} % : comptes-titres, crowdlending, PER, PEA. ${nf(F.psAV,1)} % : assurance-vie, PEL.</div><div id="t-out" class="mt"></div>
+<p class="hint">PFU de ${nf(F.ir+F.ps,1)} % = ${nf(F.ir,1)} % d’impôt + ${nf(F.ps,1)} % de prélèvements sociaux, d’après vos taux (Réglages → Fiscalité). Le choix du barème vaut pour tous vos revenus du capital de l’année. Calcul simplifié : CSG déductible, abattement de 40 % des dividendes, hors quotient familial et décote. Les pertes définitives sur prêts participatifs : voyez la vue fiscale.</p></section>`;
   }else if(T==='proj'){
     h+=`<section class="card"><h3>Projection de patrimoine</h3><p class="sm mut" style="margin-top:6px">Estime la valeur de votre capital avec des versements réguliers.</p><div class="g2">${nfld('p-cap','Capital de départ',Math.max(0,Math.round(totals().fin)),'€','Vos placements, hors immobilier physique.')}${nfld('p-mo','Versement mensuel',200,'€')}${nfld('p-r','Rendement brut',6,'%/an')}${nfld('p-y','Durée',15,'ans')}</div>
 <div class="fld"><label for="p-env">Fiscalité à la sortie</label><select id="p-env" data-in="calc"><option value="31.4">Compte-titres ou crowdlending (PFU 31,4 %)</option><option value="18.6">PEA après 5 ans (prélèvements sociaux 18,6 %)</option><option value="30">Assurance-vie, moins de 8 ans (30 %)</option><option value="24.7">Assurance-vie, plus de 8 ans (24,7 %, hors abattement)</option><option value="0">Sans impôt</option></select></div><div id="p-out" class="mt"></div>
@@ -1867,7 +1869,7 @@ function calcLoan(){
   $('l-out').innerHTML=h;
 }
 function calcTax(){
-  const g=id=>num($(id).value),I=g('t-inc'),T=g('t-tmi')/100,P=g('t-ps')/100,pfu=I*(.128+P),bar=I*P+I*(1-.068)*T,win=pfu<=bar;
+  const g=id=>num($(id).value),C=CL.comparerPfuBareme({interets:g('t-inc'),dividendes:$('t-div')?g('t-div'):0},Object.assign({},D.fisc,{tmi:g('t-tmi'),ps:g('t-ps')}),FCFG().regles),I=C.base,pfu=C.pfu.total,bar=C.bareme.total,win=C.meilleur==='pfu';
   const bx=(t,v,w)=>`<div class="box"${w?' style="border-color:var(--pt)"':''}><div class="sm mut">${t}</div><div class="big" style="font-size:26px">${eur(v)}</div><div class="sm">net ${eur(I-v)}</div></div>`;
   $('t-out').innerHTML=`<div class="g2">${bx('PFU (flat tax)',pfu,win)}${bx('Barème progressif',bar,!win)}</div><p class="mt"><b class="pos">${win?'Le PFU':'Le barème progressif'}</b> est plus avantageux, avec ${eur(Math.abs(pfu-bar))} d’écart par an.</p>`;
 }
@@ -2129,19 +2131,27 @@ function partAnnee(a,Y){ /* part de l'année Y où le projet a couru (0 à 1) */
   const d0=new Date(Y,0,1),d1=new Date(Y,11,31,23),s=a.date?new Date(a.date+'T12:00:00'):d0,e=endDate(a)||d1;
   const x=Math.max(d0,s),y=Math.min(d1,e);return y>x?(y-x)/(d1-d0):0;
 }
+/* Vue fiscale annuelle (CL.vueFiscale) : cases et règles lues dans fiscal-config.js (modifiable, « à vérifier sur la notice officielle »),
+   taux réglés dans D.fisc. Les plateformes françaises de prêts versent en général les intérêts nets de l'acompte de 12,8 % et des
+   prélèvements sociaux retenus à la source ; une plateforme étrangère verse le brut. Réglable par plateforme (D.fisc.src). */
+const FCFG=()=>window.FISCAL_CONFIG||{cases:{},regles:{}};
+const srcNet=plat=>{const k=plKey(plat||''),s=(D.fisc&&D.fisc.src)||{};return s[k]!==undefined?s[k]==='net':!CL.etrangere(plat||'')};
 function declData(Y){
-  const o={annee:Y,interets:[],dividendes:[],ventes:{n:0,gains:0,pertes:0,net:0},loyers:[],etrangers:[],exoneres:[],pertesProjets:[],crypto:0},ex=new Set(),et=new Set();
+  const f=D.fisc,F=fiscD(),cy=new Date().getFullYear(),o={annee:Y,interets:[],dividendes:[],ventes:{n:0,gains:0,pertes:0,net:0},loyers:[],etrangers:[],exoneres:[],crypto:0,pertes:{},interetsPretsParAn:{},enDefaut:[]},ex=new Set(),et=new Set();
   owned().forEach(a=>{
-    const f=tauxDev(a),pays=CL.etrangere(a.plat,a.name,a.notes);if(pays)et.add(pays.replace(/\b[a-z]/g,c=>c.toUpperCase()));
+    const k=tauxDev(a),pays=CL.etrangere(a.plat,a.name,a.notes);if(pays)et.add(pays.replace(/\b[a-z]/g,c=>c.toUpperCase()));
     if(isRisky(a)){
-      if(a.status==='defaut')o.pertesProjets.push(a.name);
-      const recu=CL.interetsRecus(a.paie,Y)*f;
-      if(recu>0)o.interets.push({nom:a.name,m:recu});
-      else if(a.status!=='defaut'&&num(a.rate)>0&&Y<new Date().getFullYear()){const m=Math.round(inv(a)*num(a.rate)/100*partAnnee(a,Y)*100)/100;if(m>0)o.interets.push({nom:a.name,m,estime:true})}
+      const pret=a.cat==='crowd',net=srcNet(a.plat),pl=a.plat||a.name;
+      if(a.perte&&num(a.perte.m)>0){if(pret)o.pertes[a.perte.an]=(o.pertes[a.perte.an]||0)+num(a.perte.m)*k}
+      else if(a.status==='defaut'||(a.status==='rembourse'&&a.value!==''&&a.value!=null&&num(a.value)<num(a.amount)))o.enDefaut.push({id:a.id,nom:a.name,m:Math.round(Math.max(0,num(a.amount)-(a.status==='rembourse'?num(a.value):0))*k),pret});
+      (a.paie||[]).forEach(p=>{const y=+String(p.d||'').slice(0,4);if(pret&&y&&y<Y)o.interetsPretsParAn[y]=(o.interetsPretsParAn[y]||0)+CL.brutDe(Math.max(0,num(p.m)-num(p.c))*k,net,f).brut});
+      const recu=CL.interetsRecus(a.paie,Y)*k;
+      if(recu>0){const b=CL.brutDe(recu,net,f);o.interets.push({nom:a.name,plat:pl,brut:b.brut,ir:b.ir,ps:b.ps,pret})}
+      else if(a.status!=='defaut'&&num(a.rate)>0&&Y<cy){const m=Math.round(inv(a)*num(a.rate)/100*partAnnee(a,Y)*100)/100;if(m>0)o.interets.push({nom:a.name,plat:pl,brut:m,ir:net?Math.round(m*F.ir)/100:0,ps:net?Math.round(m*F.ps)/100:0,estime:true,pret})}
       return}
-    if(a.cat==='cash'){if(RE_EXO.test(nrm(a.name)))ex.add('les livrets réglementés (Livret A, LDDS, LEP)');else if(num(a.rate)>0)o.interets.push({nom:a.name,m:Math.round(val(a)*num(a.rate)/100*100)/100,estime:true});return}
+    if(a.cat==='cash'){if(RE_EXO.test(nrm(a.name)))ex.add('les livrets réglementés (Livret A, LDDS, LEP)');else if(num(a.rate)>0)o.interets.push({nom:a.name,plat:a.plat||a.name,brut:Math.round(val(a)*num(a.rate)/100*100)/100,estime:true});return}
     if(a.cat==='epargne'){if(a.env==='av'||/assurance.vie/.test(nrm(a.name)))ex.add('l’assurance-vie');else if(a.env==='per')ex.add('le PER');return}
-    if(a.cat==='bien'){if(a.usage==='loc'&&num(a.rent)>0)o.loyers.push({nom:a.name,m:Math.round(num(a.rent)*12*f)});return}
+    if(a.cat==='bien'){if(a.usage==='loc'&&num(a.rent)>0)o.loyers.push({nom:a.name,m:Math.round(num(a.rent)*12*k)});return}
     if(a.cat!=='bourse')return;
     if(a.env==='pea'||a.env==='peapme'){ex.add('le PEA');return}
     if(PAS_DECL.includes(a.env))return;
@@ -2151,21 +2161,75 @@ function declData(Y){
     const dv=Array.isArray(a.divs)&&a.divs.length?CL.dividendesAnnee(a.divs,a.qty,Y):num(a.div)*num(a.qty);
     if(dv>0)o.dividendes.push({nom:a.name,m:Math.round(dv*100)/100});
   });
-  o.etrangers=[...et];o.exoneres=[...ex];return CL.declaration(o);
+  o.interetsPretsParAn[Y]=o.interets.filter(x=>x.pret).reduce((s,x)=>s+x.brut,0);
+  o.etrangers=[...et];o.exoneres=[...ex];return CL.vueFiscale(o,FCFG(),D.fisc);
 }
-function declAnnee(){const y=new Date().getFullYear();return[y-1,y].includes(+UI.declAn)?+UI.declAn:y-1}
+/* Années proposées : celles des paiements, ventes, dividendes et placements, plus l'année en cours et la précédente (8 au plus) */
+function declAns(){
+  const cy=new Date().getFullYear(),S=new Set([cy-1,cy]);
+  owned().forEach(a=>{(a.paie||[]).forEach(p=>S.add(+String(p.d||'').slice(0,4)));(a.ventes||[]).forEach(v=>S.add(+String(v.d||'').slice(0,4)));if(isRisky(a)&&a.date)S.add(+a.date.slice(0,4));if(a.perte)S.add(+a.perte.an)});
+  return [...S].filter(y=>y>=2000&&y<=cy).sort((a,b)=>a-b).slice(-8);
+}
+function declAnnee(){const L=declAns();return L.includes(+UI.declAn)?+UI.declAn:new Date().getFullYear()-1}
+const CERT=c=>c==='courante'?'':' <span class="badge" style="--c:var(--warn)">à vérifier</span>';
 function declTexte(R){
-  return [`Patrimoine AI · revenus ${R.annee} à déclarer (aide indicative)`,'',...R.lignes.map(l=>`${l.titre} : ${nf(l.montant,2)} € (case ${l.cases})${l.estime?' [estimation]':''}`+(l.detail&&l.detail.length?'\n'+l.detail.map(x=>`  - ${x.nom} : ${nf(x.m,2)} €${x.estime?' (estimé)':''}`).join('\n'):'')+'\n  '+l.note),
-    ...(R.rappels.length?['','À vérifier :',...R.rappels.map(r=>'- '+r)]:[]),'','Les montants préremplis et les imprimés fiscaux uniques (IFU) de vos banques, courtiers et plateformes font foi.'].join('\n');
+  return [`Patrimoine AI · vue fiscale ${R.annee} (aide indicative)`,'',...R.lignes.map(l=>`${l.titre} : ${nf(l.montant,2)} € (${/^\d+$/.test(l.cases)?'formulaire':'case'} ${l.cases}${l.certitude==='courante'?'':', à vérifier'})${l.estime?' [estimation]':''}`+(l.detail&&l.detail.length?'\n'+l.detail.map(x=>`  - ${x.nom} : ${nf(x.m,2)} €${x.estime?' (estimé)':''}`).join('\n'):'')+(l.note?'\n  '+l.note:'')),
+    ...(R.plateformes.length?['','Intérêts par plateforme (brut / retenu à la source / net) :',...R.plateformes.map(p=>`- ${p.plat} : ${nf(p.brut,2)} € / ${nf(p.ir+p.ps,2)} € / ${nf(p.net,2)} €${p.estime?' (estimé)':''}`)]:[]),
+    '',`PFU ou barème (tranche de ${R.comparaison.tmi} %) : ${R.comparaison.meilleur==='pfu'?'le PFU':'le barème progressif (case 2OP)'} est plus avantageux, ${nf(R.comparaison.ecart,0)} € d’écart d’impôt.`,
+    ...(R.rappels.length?['','À vérifier :',...R.rappels.map(r=>'- '+r)]:[]),'',R.avertissement||'Les montants préremplis et les imprimés fiscaux uniques (IFU) font foi.'].join('\n');
 }
 function declHTML(){
-  const Y=declAnnee(),R=declData(Y),cy=new Date().getFullYear();
-  let h=`<section class="card"><h3>Aide à la déclaration des revenus</h3><p class="sm mut" style="margin-top:6px">Ce que vos placements ont rapporté sur l’année et la case habituelle de la déclaration, pour préparer la déclaration du printemps.</p><div class="chips mt">${[cy-1,cy].map(y=>`<button class="chip${y===Y?' on':''}" data-act="declan" data-v="${y}">Revenus ${y}${y===cy?' (en cours)':''}</button>`).join('')}</div>`;
-  if(!R.lignes.length&&!R.rappels.length)return h+`<p class="sm mut mt">Rien à reporter d’après vos placements pour ${Y}. Ajoutez vos projets, titres, livrets et biens loués pour obtenir le récapitulatif.</p></section>`;
-  h+=R.lignes.map(l=>`<div class="box mt"><div class="row"><b>${esc(l.titre)}</b><span class="badge" style="--c:var(--blue)">Case ${esc(l.cases)}</span></div><div class="big" style="font-size:22px;margin-top:4px">${eur(l.montant,2)}${l.estime?' <span class="badge" style="--c:var(--warn)">estimation</span>':''}</div>${l.detail&&l.detail.length>1?`<details><summary class="sm">Détail (${l.detail.length})</summary>${l.detail.map(x=>kv(esc(x.nom)+(x.estime?' <span class="xs mut">estimé</span>':''),eur(x.m,2))).join('')}</details>`:''}<p class="hint">${esc(l.note)}</p></div>`).join('');
+  const Y=declAnnee(),R=declData(Y),cy=new Date().getFullYear(),T=R.totaux,C=R.comparaison,I=R.imputation,F=fiscD();
+  let h=`<section class="card span2"><div class="ct"><h3>Vue fiscale ${Y}</h3>${Y===cy?'<span class="badge" style="--c:var(--blue)">année en cours</span>':''}</div><p class="sm mut" style="margin-top:6px">Ce que vos placements ont rapporté, ce qui a déjà été prélevé, vos pertes et les cases habituelles, pour préparer la déclaration du printemps.</p><div class="chips mt" role="group" aria-label="Année">${declAns().map(y=>`<button class="chip${y===Y?' on':''}" data-act="declan" data-v="${y}" aria-pressed="${y===Y}">Revenus ${y}${y===cy?' (en cours)':''}</button>`).join('')}</div>`;
+  if(!R.lignes.length&&!R.rappels.length&&!R.enDefaut.length)return h+`<p class="sm mut mt">Rien à reporter d’après vos placements pour ${Y}. Ajoutez vos projets, titres, livrets et biens loués, et confirmez vos versements dans les rappels, pour obtenir le récapitulatif.</p></section>`;
+  h+=`<div class="kpis k4"><div><span>Intérêts bruts</span><b>${eur(T.interets,2)}</b></div><div><span>Dividendes</span><b>${eur(T.dividendes,2)}</b></div><div><span>Déjà prélevé à la source</span><b>${eur(T.retenuIR+T.retenuPS,2)}</b></div><div><span>Pertes en capital</span><b class="${I.perteAnnee>0?'neg':''}">${eur(I.perteAnnee,2)}</b></div></div></section>`;
+  if(R.plateformes.length)h+=`<section class="card"><h3>Intérêts par plateforme</h3><div class="trow xs mut" style="grid-template-columns:minmax(0,1fr) 78px 78px;border-top:0;margin-top:8px"><span>Plateforme</span><span style="text-align:right">Brut</span><span style="text-align:right">Retenu</span></div>${R.plateformes.map(p=>`<div class="trow sm" style="grid-template-columns:minmax(0,1fr) 78px 78px"><div style="min-width:0"><b>${esc(p.plat)}</b>${p.estime?' <span class="xs mut">estimé</span>':''}<div class="xs mut">net ${eur(p.net,2)}${p.pret?' · prêts participatifs':''}</div>${owned().some(a=>isRisky(a)&&(a.plat||a.name)===p.plat)?`<select class="xs" aria-label="Versements de ${esc(p.plat)}" data-ch="fiscsrc" data-p="${esc(p.plat)}" style="min-height:32px;padding:2px 6px;margin-top:4px"><option value="net"${srcNet(p.plat)?' selected':''}>Reçus nets</option><option value="brut"${srcNet(p.plat)?'':' selected'}>Reçus bruts</option></select>`:''}</div><b style="text-align:right">${eur(p.brut,2)}</b><span style="text-align:right">${eur(p.ir+p.ps,2)}</span></div>`).join('')}<p class="hint">Brut reconstitué quand la plateforme verse les intérêts nets de l’acompte (${nf(F.ir,1)} %) et des prélèvements sociaux (${nf(F.ps,1)} %). Vérifiez sur votre relevé ou votre IFU et changez le réglage si besoin.</p></section>`;
+  h+=`<section class="card"><h3>Prélèvements retenus à la source</h3>${kv('Acompte d’impôt (case '+esc((FCFG().cases.acompte||{}).case||'2CK')+')',eur(T.retenuIR,2))}${kv('Prélèvements sociaux',eur(T.retenuPS,2))}${kv('Revenus déjà soumis aux prélèvements (case '+esc((FCFG().cases.dejaSoumisPS||{}).case||'2BH')+')',eur(T.basePS,2))}<p class="hint">L’acompte est déduit de l’impôt calculé au printemps, ou remboursé s’il dépasse l’impôt dû. ${esc(((FCFG().regles||{}).dispenseAcompte||{}).texte||'')}${CERT(((FCFG().regles||{}).dispenseAcompte||{}).certitude)}</p></section>`;
+  if(I.perteAnnee>0||I.disponible>0||R.enDefaut.length){const rg=(FCFG().regles||{}).pertesPretsParticipatifs||{};
+    h+=`<section class="card"><h3>Pertes en capital</h3>${I.perteAnnee>0||I.disponible>0?kv('Pertes définitives constatées en '+Y,eur(I.perteAnnee,2))+kv('Imputables cette année sur les intérêts de prêts participatifs',eur(I.impute,2))+kv('Reste reportable',eur(I.reste,2)):''}${R.enDefaut.length?`<div class="lbl mt">Projets en défaut ou remboursés en partie</div>${R.enDefaut.map(x=>`<div class="set"><div style="min-width:0"><b>${esc(x.nom)}</b><div class="xs mut">Perte possible : ${eur(x.m)} · ${x.pret?'prêt participatif':'titre de créance ou obligation'}</div></div><button class="btn sm sec" data-act="perte" data-id="${esc(x.id)}">Perte définitive</button></div>`).join('')}`:''}${owned().filter(a=>a.perte&&num(a.perte.m)>0&&+a.perte.an===Y).map(a=>`<div class="set"><div style="min-width:0"><b>${esc(a.name)}</b><div class="xs mut">Perte définitive de ${eur(a.perte.m,2)} constatée en ${esc(a.perte.an)}</div></div><button class="btn sm sec" data-act="perte" data-id="${esc(a.id)}">Modifier</button></div>`).join('')}<p class="hint">${esc(rg.texte||'')}${rg.plafondAnnuel?' Limite retenue : '+eur(rg.plafondAnnuel)+' par an, report sur '+(rg.reportAns||5)+' ans.':''}${CERT(rg.certitude)}</p></section>`}
+  h+=`<section class="card"><h3>PFU ou barème progressif ?</h3><div class="g2 mt">${[['pfu','Prélèvement forfaitaire (PFU)'],['bareme','Barème progressif']].map(([k,l])=>`<div class="box"${C.meilleur===k?' style="border-color:var(--pt)"':''}><div class="sm mut">${l}</div><div class="big" style="font-size:22px">${eur(C[k].total)}</div><div class="xs mut">dont impôt ${eur(C[k].impot)}</div></div>`).join('')}</div><p class="mt sm"><b class="pos">${C.meilleur==='pfu'?'Le PFU':'Le barème progressif'}</b> est plus avantageux pour ${Y}, avec ${eur(C.ecart)} d’écart${C.meilleur==='bareme'?' : cochez la case '+esc((FCFG().cases.optionBareme||{}).case||'2OP')+' (l’option vaut pour tous vos revenus du capital de l’année)':''}.</p><p class="hint">Calcul sur ${eur(C.base)} de revenus du capital, tranche marginale de ${nf(C.tmi,0)} % (Réglages → Fiscalité), abattement de 40 % des dividendes et CSG déductible au barème. Simplifié : hors quotient familial, décote et autres revenus.</p><button class="btn sec blk mt" data-act="decltax">${ic('calc',18)}Ouvrir le simulateur d’impôt</button></section>`;
+  h+=`<section class="card span2"><h3>Aide à la déclaration</h3>${R.lignes.map(l=>`<div class="box mt"><div class="row"><b>${esc(l.titre)}</b><span class="badge" style="--c:var(--blue)">${/^\d+$/.test(l.cases)?'Formulaire':'Case'} ${esc(l.cases)}</span></div><div class="big" style="font-size:22px;margin-top:4px">${eur(l.montant,2)}${l.estime?' <span class="badge" style="--c:var(--mut)">estimation</span>':''}${CERT(l.certitude)}</div>${l.detail&&l.detail.length>1?`<details><summary class="sm">Détail (${l.detail.length})</summary>${l.detail.map(x=>kv(esc(x.nom)+(x.estime?' <span class="xs mut">estimé</span>':''),eur(x.m,2))).join('')}</details>`:''}${l.note?`<p class="hint">${esc(l.note)}</p>`:''}</div>`).join('')}`;
   if(R.rappels.length)h+=`<div class="lbl mt">À vérifier</div><ul class="sm" style="padding-left:18px;margin-top:6px">${R.rappels.map(r=>`<li style="margin:4px 0">${esc(r)}</li>`).join('')}</ul>`;
-  h+=`<button class="btn sec blk mt" data-act="declcopy">${ic('download',18)}Copier le récapitulatif</button>`;
-  return h+`<p class="hint">Aide indicative, règles simplifiées : les montants préremplis et les imprimés fiscaux uniques (IFU) envoyés au début de l’année par vos banques, courtiers et plateformes font foi. Intérêts : paiements confirmés dans les rappels, sinon estimés d’après le taux. Plus-values : ventes enregistrées dans l’application. En cas de doute : impots.gouv.fr ou un professionnel.</p></section>`;
+  h+=`<div class="g2 mt"><button class="btn sec" data-act="declcsv">${ic('download',18)}Exporter en CSV</button><button class="btn sec" data-act="declpdf">${ic('printer',18)}Exporter en PDF</button></div><button class="btn sec blk mt" data-act="declcopy">${ic('file',18)}Copier le récapitulatif</button>`;
+  return h+`<p class="hint">${esc(R.avertissement)} Cases et règles : fichier fiscal-config.js. Intérêts : versements confirmés dans les rappels, sinon estimés d’après le taux. Plus-values : ventes enregistrées dans l’application. En cas de doute : impots.gouv.fr ou un professionnel.</p></section>`;
+}
+/* Export du récapitulatif : CSV (formules neutralisées) ou PDF (impression) */
+const csvCell=x=>{const nb=typeof x==='number';x=String(x??'');if(!nb&&/^[=+\-@\t\r]/.test(x))x="'"+x;return /[;"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x};
+function declCSV(){
+  const Y=declAnnee(),R=declData(Y),n2=x=>Math.round(num(x)*100)/100,rows=[['Section','Libellé','Plateforme ou détail','Montant (€)','Case','Certitude','Estimation']];
+  R.lignes.forEach(l=>{rows.push(['Déclaration',l.titre,'',n2(l.montant),l.cases,l.certitude==='courante'?'courante':'à vérifier',l.estime?'oui':'non']);(l.detail||[]).forEach(x=>rows.push(['Détail',l.titre,x.nom,n2(x.m),l.cases,'',x.estime?'oui':'non']))});
+  R.plateformes.forEach(p=>rows.push(['Intérêts par plateforme','Brut',p.plat,n2(p.brut),'','',p.estime?'oui':'non'],['Intérêts par plateforme','Retenu à la source',p.plat,n2(p.ir+p.ps),'','',p.estime?'oui':'non']));
+  rows.push(['PFU ou barème','PFU (impôt + prélèvements)','',n2(R.comparaison.pfu.total),'','',''],['PFU ou barème','Barème (impôt + prélèvements)','',n2(R.comparaison.bareme.total),'','','']);
+  R.rappels.forEach(r=>rows.push(['À vérifier',r,'','','','','']));rows.push(['Avertissement',R.avertissement,'','','','','']);
+  dl('vue-fiscale-'+Y+'.csv','﻿'+rows.map(r=>r.map(csvCell).join(';')).join('\n')+'\n','text/csv');toast('Vue fiscale '+Y+' exportée en CSV');
+}
+function declPdfHTML(Y,R){
+  const e=x=>nf(x,2)+' €',row=(a,b,c)=>`<tr><td>${esc(a)}</td><td class="n">${b}</td>${c!==undefined?`<td>${esc(c)}</td>`:''}</tr>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Vue fiscale ${Y}</title><style>body{font:12px/1.5 -apple-system,system-ui,sans-serif;color:#111;margin:28px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}table{width:100%;border-collapse:collapse}td,th{padding:4px 6px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}.n{text-align:right;white-space:nowrap}.m{color:#666;font-size:11px}.w{color:#9a5b00}</style></head><body>
+  <h1>Vue fiscale ${Y}</h1><div class="m">Patrimoine AI · produit par QuenTools · édité le ${esc(fd(new Date()))} · aide indicative</div>
+  <h2>Récapitulatif</h2><table>${row('Intérêts bruts',e(R.totaux.interets))}${row('Dividendes',e(R.totaux.dividendes))}${row('Déjà prélevé à la source',e(R.totaux.retenuIR+R.totaux.retenuPS))}${row('Pertes en capital définitives',e(R.imputation.perteAnnee))}</table>
+  ${R.plateformes.length?`<h2>Intérêts par plateforme</h2><table><tr><th>Plateforme</th><th class="n">Brut</th><th class="n">Retenu</th><th class="n">Net</th></tr>${R.plateformes.map(p=>`<tr><td>${esc(p.plat)}${p.estime?' (estimé)':''}</td><td class="n">${e(p.brut)}</td><td class="n">${e(p.ir+p.ps)}</td><td class="n">${e(p.net)}</td></tr>`).join('')}</table>`:''}
+  <h2>À reporter</h2><table><tr><th>Ligne</th><th class="n">Montant</th><th>Case</th></tr>${R.lignes.map(l=>`<tr><td>${esc(l.titre)}${l.estime?' <span class="m">(estimation)</span>':''}${l.note?`<div class="m">${esc(l.note)}</div>`:''}</td><td class="n">${e(l.montant)}</td><td>${esc(l.cases)}${l.certitude==='courante'?'':' <span class="w">à vérifier</span>'}</td></tr>`).join('')}</table>
+  <h2>PFU ou barème progressif</h2><p>PFU : ${e(R.comparaison.pfu.total)} · barème (tranche de ${R.comparaison.tmi} %) : ${e(R.comparaison.bareme.total)}. ${R.comparaison.meilleur==='pfu'?'Le PFU':'Le barème progressif'} est plus avantageux (${e(R.comparaison.ecart)} d’écart d’impôt).</p>
+  ${R.rappels.length?`<h2>À vérifier</h2><ul>${R.rappels.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>`:''}<p class="m">${esc(R.avertissement)}</p></body></html>`;
+}
+/* PDF : application Mac (enregistrement direct) ou fenêtre d'impression du navigateur (« Enregistrer au format PDF ») */
+async function pdfDoc(html,name,okMsg){
+  if(MAC&&MAC.pdf){try{const r=await MAC.pdf(html,name);if(r&&r.ok)toast((okMsg||'Document enregistré')+' : '+r.nom);else if(r&&r.message)toast(r.message)}catch(e){toast('PDF impossible : '+e.message)}return}
+  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
+  f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Impression impossible')}setTimeout(()=>f.remove(),60000)},250)};
+  f.srcdoc=html;toast('Choisissez « Enregistrer au format PDF » dans la fenêtre d’impression.');
+}
+/* Perte définitive d'un projet (montant et année) : imputable sur les intérêts de même nature, selon fiscal-config.js */
+function openPerte(id){
+  const a=D.assets.find(x=>x.id===id);if(!a)return;CUR.perte=id;const p=a.perte||{},cy=new Date().getFullYear();
+  sheet('Perte définitive · '+a.name,`<p class="sm mut">À indiquer quand la perte est définitive (procédure terminée, attestation de la plateforme). Elle compte dans la vue fiscale de l’année choisie.</p><div class="g2"><div class="fld"><label for="pe-m">Montant perdu</label><div class="inp has"><input id="pe-m" type="number" inputmode="decimal" step="any" min="0" value="${p.m!=null?esc(p.m):Math.round(Math.max(0,num(a.amount)-(a.status==='rembourse'?num(a.value):0))*100)/100}"><span class="suf">€</span></div></div><div class="fld"><label for="pe-a">Année</label><input id="pe-a" type="number" inputmode="numeric" min="2000" max="${cy}" value="${esc(p.an||declAnnee())}"></div></div><div class="err" id="pe-e"></div><div class="g2 mt" style="margin-top:20px">${a.perte?'<button class="btn dng" data-act="perteoff">Retirer</button>':'<button class="btn sec" data-act="closeM">Annuler</button>'}<button class="btn" data-act="pertesave">Enregistrer</button></div>`);
+}
+function perteSave(off){
+  const a=D.assets.find(x=>x.id===CUR.perte);if(!a)return;
+  if(off){delete a.perte;save();closeM();render();toast('Perte retirée');return}
+  const m=num($('pe-m').value),y=Math.round(num($('pe-a').value));if(!(m>0)||!(y>=2000&&y<=new Date().getFullYear())){$('pe-e').textContent='Indiquez un montant et une année valides.';return}
+  a.perte={m:Math.round(m*100)/100,an:y};if(a.status!=='defaut'&&a.status!=='rembourse')a.status='defaut';save();closeM();render();toast('Perte définitive enregistrée pour '+y);
 }
 
 /* ===================== Formulaire d'ajout / modification ===================== */
@@ -2611,6 +2675,7 @@ function dossier(){
     paiements_a_confirmer:(()=>{const L=rapDus();return L.length?L.map(x=>x.r.nom+' (prévu le '+x.date+(x.statut==='alerte'?', en alerte : plus de 10 jours de retard':x.statut==='retard'?', en retard':'')+')'):undefined})(),
     rappels_versements:(()=>{const R=(D.rappels||[]).filter(r=>r.actif!==false);return R.length?R.map(r=>({plateforme:r.nom,jour_du_mois:r.jour,prochain:CL.prochaineEcheance(r,today())||undefined,montant_habituel:CL.montantHabituel(r)||undefined,derniers_recus:CL.historique(r).filter(h=>h.s==='recu').slice(0,3).map(h=>({mois:h.mois,montant:h.m,capital:num(h.c)||undefined}))})):undefined})(),
     echeanciers:(()=>{const L=owned().map(a=>[a,echOf(a)]).filter(x=>x[1]);return L.length?L.map(([a,e])=>({placement:a.name,mode:ECHM[e.mode],versement_mensuel_prevu:e.mensualite,capital_restant_prevu:e.mode==='loyer'?undefined:Math.round(e.capitalRestantPrevu),capital_restant_reel:e.mode==='loyer'?undefined:Math.round(e.capitalRestantReel)})):undefined})(),
+    vue_fiscale:(()=>{const Y=declAnnee(),R=declData(Y);if(!R.lignes.length)return undefined;return{annee:Y,lignes:R.lignes.map(l=>({libelle:l.titre,montant:Math.round(l.montant),case:l.cases,case_a_verifier:l.certitude!=='courante'||undefined,estimation:l.estime||undefined})),deja_preleve_a_la_source:Math.round(R.totaux.retenuIR+R.totaux.retenuPS),pertes_en_capital:R.imputation.perteAnnee||undefined,pfu_ou_bareme:{plus_avantageux:R.comparaison.meilleur,ecart_impot:Math.round(R.comparaison.ecart),tranche_marginale:R.comparaison.tmi},avertissement:'Cases et règles à vérifier sur la notice officielle de l’année ; ne jamais présenter une case comme certaine.'}})(),
     actualites_recentes:NW.items.length?{theme:newsLabel(),titres:NW.items.slice(0,8).map(n=>n.t+' ('+n.s+')')}:undefined,
     indice_fiabilite:pf?{score:pf.score,alertes:pf.notes}:null,points_de_vigilance:insights().filter(i=>i.lvl!=='good').map(i=>i.title)};
 }
@@ -2749,7 +2814,7 @@ const LAI=(()=>{
     abo:[['abonnement',4],['abonnements',4],['prelevements',3],['prelevement',3],['resilier',3],['depenses reelles',4],['j ai depense',4],['depense ce mois',4]],
     retraite:[['retraite',4],['independance financiere',5],['arreter de travailler',5],['rentier',4],['vivre de mes placements',5],['vivre de mes rentes',5]],
     bouge:[['pourquoi mon patrimoine',7],['a bouge',5],['a baisse',4],['a augmente',4],['a diminue',4],['variation',3],['pourquoi ca bouge',6],['explique la variation',6]],
-    decl:[['declaration',6],['declarer',6],['ifu',6],['quelle case',6],['case 2',5],['feuille d impot',5],['impots du printemps',5]],
+    decl:[['vue fiscale',7],['deja preleve',6],['preleve a la source',6],['prelevements a la source',6],['pertes en capital',6],['imputer',5],['pfu ou bareme',6],['bareme ou pfu',6],['declaration',6],['declarer',6],['ifu',6],['quelle case',6],['case 2',5],['feuille d impot',5],['impots du printemps',5]],
     frais:[['frais',4],['frais caches',7],['frais de gestion',7],['frais bancaires',7],['cotisation carte',6],['agios',6]],
     rappel:[['versement',4],['versements',4],['rappel',4],['rappels',4],['paiement recu',5],['paiements recus',5],['est arrive',3],['bricks',3],['bienpreter',3],['bien preter',3],['capital restant de',4],['echeancier',5],['en attente de paiement',5]],
     passif:[['revenus passifs',5],['revenu net',5],['revenus nets',5],['net d impot',4],['apres impot',3],['reel contre prevu',6],['recu contre prevu',6],['rendement net',5],['projection des revenus',6],['revenus a venir',5],['par plateforme',2],['revenu passif',5],['dividende',3],['dividendes',3],['combien me rapporte',3],['loyers',2]],
@@ -2955,10 +3020,14 @@ const LAI=(()=>{
       +(V.parCat.length?'\n\nPar type de placement : '+V.parCat.slice(0,4).map(c=>catN(c.cat).toLowerCase()+' '+sgn(c.m)).join(', ')+'.':'')+'\n\n'+bougePhrase(V).replace(/&amp;/g,'&')+' Le détail par période est dans **Analyse**.';
   }
   function aDecl(){
-    const R=declData(declAnnee());
-    if(!R.lignes.length&&!R.rappels.length)return `Je ne trouve rien à reporter pour ${R.annee} d’après vos placements. Le récapitulatif est dans **Simulateurs → Déclaration** dès que vous avez des projets, des titres, des livrets ou des biens loués.`;
-    return `#### Revenus ${R.annee} à déclarer (aide indicative)\n`+R.lignes.map(l=>`- ${l.titre} : **${E(l.montant)}**, case ${l.cases}${l.estime?' (estimation)':''}`).join('\n')+(R.rappels.length?'\n\n**À vérifier :**\n'+R.rappels.map(r=>'- '+r).join('\n'):'')
-      +'\n\nLes montants préremplis et les IFU envoyés par vos banques, courtiers et plateformes font foi. Le récapitulatif à copier est dans **Simulateurs → Déclaration**.';
+    const R=declData(declAnnee()),T=R.totaux,C=R.comparaison,I=R.imputation;
+    if(!R.lignes.length&&!R.rappels.length)return `Je ne trouve rien à reporter pour ${R.annee} d’après vos placements. Le récapitulatif est dans **Simulateurs → Vue fiscale** dès que vous avez des projets, des titres, des livrets ou des biens loués.`;
+    let s=`#### Revenus ${R.annee} à déclarer (aide indicative)\n`+R.lignes.map(l=>`- ${l.titre} : **${E(l.montant)}**, ${/^\d+$/.test(l.cases)?'formulaire':'case'} ${l.cases}${l.certitude==='courante'?'':' (case à vérifier)'}${l.estime?' (estimation)':''}`).join('\n');
+    if(T.retenuIR+T.retenuPS>0)s+=`\n\n**Déjà prélevé à la source** : ${E(T.retenuIR)} d’acompte d’impôt et ${E(T.retenuPS)} de prélèvements sociaux.`;
+    if(I.perteAnnee>0)s+=`\n\n**Pertes en capital** : ${E(I.perteAnnee)} constatées, dont ${E(I.impute)} imputables cette année sur vos intérêts de prêts participatifs (règle à vérifier).`;
+    s+=`\n\n**PFU ou barème** (tranche de ${C.tmi} %) : ${C.meilleur==='pfu'?'le PFU':'le barème progressif'} est plus avantageux, ${E(C.ecart)} d’écart d’impôt.`;
+    return s+(R.rappels.length?'\n\n**À vérifier :**\n'+R.rappels.map(r=>'- '+r).join('\n'):'')
+      +'\n\nLes montants préremplis et les IFU envoyés par vos banques, courtiers et plateformes font foi. Le détail, l’export CSV ou PDF et le récapitulatif à copier sont dans **Simulateurs → Vue fiscale**.';
   }
   function aFrais(){
     const A=owned().filter(a=>val(a)>0),fp=CL.fraisPlacements(A.map(a=>({id:a.id,nom:a.name,valeur:val(a),frais:a.fees}))),fb=D.ops.length?CL.fraisBancaires(D.ops):null;
@@ -3341,11 +3410,7 @@ footer{margin-top:26px;padding-top:10px;border-top:1px solid #d9dfdb;font-size:8
 }
 async function bilan(){
   if(!D.assets.length){toast('Ajoutez d’abord des placements.');return}
-  const html=bilanHTML(),name='Bilan-patrimoine-'+today()+'.pdf';
-  if(MAC&&MAC.pdf){try{const r=await MAC.pdf(html,name);if(r&&r.ok)toast('Bilan enregistré : '+r.nom);else if(r&&r.message)toast(r.message)}catch(e){toast('PDF impossible : '+e.message)}return}
-  const f=document.createElement('iframe');f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);
-  f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Impression impossible')}setTimeout(()=>f.remove(),60000)},250)};
-  f.srcdoc=html;toast('Choisissez « Enregistrer au format PDF » dans la fenêtre d’impression.');
+  return pdfDoc(bilanHTML(),'Bilan-patrimoine-'+today()+'.pdf','Bilan enregistré');
 }
 
 /* ===================== Recherche rapide (⌘K) ===================== */
@@ -3356,6 +3421,7 @@ function palItems(q){
   const V={rev:'Revenus passifs',news:'Actualités économiques',home:'Accueil',assets:'Mes placements',budget:'Mon budget',goals:'Mes objectifs',bank:'Mes banques',mk:'Marchés',analyse:'Analyse',ai:'Assistant',tools:'Simulateurs',set:'Réglages'};
   Object.keys(V).forEach(v=>add('Aller à',V[v],({rev:'coins',news:'news',home:'home',assets:'list',budget:'wallet',goals:'target',bank:'bank',mk:'trend',analyse:'shield',ai:'spark',tools:'calc',set:'sliders'})[v],()=>go(v),v==='bank'?'boursorama compte courant solde synchroniser rappels paiement':''));
   add('Actions','Nouveau rappel de paiement','bell',()=>openRap(''),'bricks bienpreter versement mensuel');
+  add('Aller à','Vue fiscale annuelle','file',()=>{UI.tool='decl';go('tools');renderTools(true)},'impots declaration ifu 2tr 2dc pfu bareme pertes');
   add('Actions','Ajouter un placement','plus',()=>openPick());
   add('Actions','Nouvel objectif','target',()=>openGoalForm(''),'projet épargne');
   add('Aller à','Budget : combien investir ce mois-ci','wallet',()=>go('budget'),'dépenses reste à vivre frais');
@@ -3493,8 +3559,10 @@ const ACT={
   goalclear:()=>{delete D.goal;save();closeM();render()},
   filter:d=>{UI.filter=d.c;UI.q='';renderAssets();go('assets')},
   range:d=>{UI.range=d.r;renderHome()},
-  tool:d=>{UI.tool=d.t;renderTools(true)},
-  declan:d=>{UI.declAn=+d.v;renderTools(true)},
+  tool:d=>{UI.tool=d.t;renderTools(true);if(d.go&&UI.view!==d.go)go(d.go)},
+  declan:d=>{UI.declAn=+d.v;renderTools(true)},declcsv:()=>declCSV(),declpdf:()=>{const Y=declAnnee();pdfDoc(declPdfHTML(Y,declData(Y)),'Vue-fiscale-'+Y+'.pdf','Vue fiscale enregistrée')},
+  decltax:()=>{const R=declData(declAnnee());UI.taxPre={i:Math.round(R.comparaison.base-R.totaux.dividendes),d:Math.round(R.totaux.dividendes)};UI.tool='tax';renderTools(true);$('content').scrollTop=0},
+  perte:d=>openPerte(d.id),pertesave:()=>perteSave(false),perteoff:()=>perteSave(true),
   declcopy:()=>{const t=declTexte(declData(declAnnee())),ok=()=>toast('Récapitulatif copié');if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,()=>fbCopy(t,'Récapitulatif copié'));else fbCopy(t,'Récapitulatif copié')},
   bouge:d=>{UI.bouge=d.v;renderAnalyse()},
   bougemp:()=>{UI.bouge='mp';go('analyse');renderAnalyse()},
@@ -3691,6 +3759,7 @@ document.addEventListener('change',e=>{
   else if(k==='restore')restoreFile(t);
   else if(k==='opsfile'){if(t.files&&t.files.length)opsLire([...t.files])}
   else if(k==='opcat')opCat(t.dataset.id,t.value);
+  else if(k==='fiscsrc'){D.fisc=Object.assign({},D.fisc,{src:Object.assign({},(D.fisc||{}).src,{[plKey(t.dataset.p)]:t.value})});save();REVC=null;renderTools(true);toast(t.value==='net'?'Versements nets : brut reconstitué':'Versements bruts')}
   else if(k==='docfile'){if(t.files&&t.files.length)docsAjouter([...t.files],t.dataset.aid,t.dataset.cat||($('doc-cat')?$('doc-cat').value:''))}
   else if(k==='csvfile'){const f=t.files[0];if(f){const r=new FileReader();r.onload=()=>{$('imp-c').value=r.result;csvCheck()};r.readAsText(f)}}
   else onIn(e);

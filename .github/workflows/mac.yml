@@ -6,7 +6,7 @@ name: Patrimoine AI — application Mac
 on:
   workflow_dispatch:
   push:
-    paths: ['index.html', 'config.js', 'marches.js', 'calculs.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'banque/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
+    paths: ['index.html', 'config.js', 'fiscal-config.js', 'marches.js', 'calculs.js', 'manifest.webmanifest', 'icon*', 'vendor/**', 'banque/**', 'mac/**', 'tests/**', '.github/workflows/mac.yml']
 
 concurrency:
   group: patrimoine-mac
@@ -96,7 +96,7 @@ jobs:
         working-directory: mac
         run: |
           npx --yes @electron/asar list "dist/mac-arm64/Patrimoine AI.app/Contents/Resources/app.asar" > contenu.txt
-          for f in main.js preload.js maj.js ia-locale.js ia-worker.js banque-locale.js app/index.html app/marches.js app/calculs.js app/config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
+          for f in main.js preload.js maj.js ia-locale.js ia-worker.js banque-locale.js app/index.html app/marches.js app/calculs.js app/config.js app/fiscal-config.js app/vendor/pdfjs/pdf.min.js; do grep -q "/$f$" contenu.txt || { echo "Fichier absent de l'application : $f"; exit 1; }; done
       - name: Contrôler que l'application tourne sur puce Apple
         working-directory: mac
         run: |

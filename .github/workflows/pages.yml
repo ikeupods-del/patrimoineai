@@ -33,7 +33,7 @@ jobs:
       - name: Préparer le site
         run: |
           mkdir -p _site
-          cp index.html connexion-mac.html conditions.html config.js marches.js calculs.js manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png _site/
+          cp index.html connexion-mac.html conditions.html config.js fiscal-config.js marches.js calculs.js manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png _site/
           cp -r vendor _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5

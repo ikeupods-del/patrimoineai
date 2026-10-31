@@ -4,7 +4,7 @@ name: Patrimoine AI — contrôles complets
 # les rappels de paiement et l'accessibilité (axe-core, thèmes clair et sombre). Lancé à chaque modification et sur les pull requests.
 on:
   push:
-    paths: ['index.html', 'calculs.js', 'marches.js', 'config.js', 'sw.js', 'banque/**', 'mac/banque-locale.js', 'tests/**', '.github/workflows/tests.yml']
+    paths: ['index.html', 'fiscal-config.js', 'calculs.js', 'marches.js', 'config.js', 'sw.js', 'banque/**', 'mac/banque-locale.js', 'tests/**', '.github/workflows/tests.yml']
   pull_request:
   workflow_dispatch:
 

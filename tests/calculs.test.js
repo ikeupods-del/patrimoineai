@@ -216,4 +216,25 @@ ok(C.rapprocher({ nom: 'Bricks', jour: 8, attendu: 42.1 }, '2026-10', [{ id: 'z'
   ok(Rd.lignes.length === 1 && Rd.lignes[0].tri > 0.03 && Rd.lignes[0].tri < 0.05 && Math.abs(Rd.lignes[0].triNet - Rd.lignes[0].tri * 0.686) < 1e-9 && Rd.global && Math.abs(Rd.global.tri - Rd.lignes[0].tri) < 1e-9, 'rendement annualisé brut et net par plateforme et global');
 }
 
+/* vue fiscale annuelle : brut reconstitué, PFU ou barème, imputation des pertes, lignes à reporter avec leur case */
+{
+  global.window = global.window || {}; require('../fiscal-config.js'); const CFG = global.window.FISCAL_CONFIG;
+  ok(CFG && CFG.cases.interets.case === '2TR' && /notice officielle/.test(CFG.avertissement) && CFG.regles.pertesPretsParticipatifs.certitude === 'a_verifier', 'fichier de configuration fiscale : cases, règles et avertissement');
+  const b = C.brutDe(68.6, true, {}); ok(b.brut === 100 && b.ir === 12.8 && b.ps === 18.6 && C.brutDe(50, false, {}).brut === 50 && C.brutDe(50, false, {}).ir === 0, 'intérêts nets des prélèvements : brut reconstitué');
+  const cp = C.comparerPfuBareme({ interets: 1000, dividendes: 1000 }, { tmi: 11 }, CFG.regles);
+  ok(cp.pfu.impot === 256 && cp.ps === 372 && cp.meilleur === 'bareme' && Math.abs(cp.bareme.impot - (1600 * 0.11 - 2000 * 0.068 * 0.11)) < 0.01, 'PFU ou barème : abattement de 40 % des dividendes, CSG déductible');
+  ok(C.comparerPfuBareme({ interets: 1000 }, { tmi: 41 }, CFG.regles).meilleur === 'pfu', 'tranche élevée : PFU plus avantageux');
+  const ip = C.imputationPertes({ 2024: 10000, 2025: 500 }, { 2024: 3000, 2025: 9000 }, 2025, { plafondAnnuel: 8000, reportAns: 5 });
+  ok(ip.perteAnnee === 500 && ip.disponible === 7500 && ip.impute === 7500 && ip.reste === 0, 'imputation des pertes : reports des années précédentes, limite annuelle');
+  const ip2 = C.imputationPertes({ 2018: 5000 }, { 2025: 9000 }, 2025, { plafondAnnuel: 8000, reportAns: 5 });
+  ok(ip2.impute === 0 && ip2.reste === 0, 'imputation des pertes : report au-delà de 5 ans perdu');
+  const vf = C.vueFiscale({ annee: 2025, interets: [{ nom: 'Prêt A', plat: 'BienPrêter', brut: 100, ir: 12.8, ps: 18.6, pret: true }, { nom: 'Prêt B', plat: 'BienPrêter', brut: 50, ir: 6.4, ps: 9.3, pret: true }, { nom: 'Livret bancaire', plat: 'Banque', brut: 30, estime: true }],
+    dividendes: [{ nom: 'TTE', m: 40 }], ventes: { n: 1, gains: 0, pertes: 80, net: -80 }, pertes: { 2025: 60 }, interetsPretsParAn: { 2025: 150 }, enDefaut: [{ nom: 'Projet X', m: 1000, pret: true }], etrangers: ['Trade Republic'] }, CFG, {});
+  const L = k => vf.lignes.find(x => x.cle === k);
+  ok(vf.plateformes[0].plat === 'BienPrêter' && vf.plateformes[0].brut === 150 && vf.plateformes[0].net === 102.9 && vf.totaux.retenuIR === 19.2 && vf.totaux.basePS === 150, 'vue fiscale : intérêts par plateforme, prélèvements retenus');
+  ok(L('interetsPrets').cases === '2TT' && L('interetsPrets').certitude === 'a_verifier' && L('interets').cases === '2TR' && L('acompte').cases === '2CK' && L('dejaSoumisPS').cases === '2BH' && L('ventes').cases === '3VH' && L('pertes').montant === 60 && /reportable/.test(L('pertes').note), 'vue fiscale : cases tirées du fichier de configuration, certitude affichée');
+  ok(vf.imputation.impute === 60 && vf.comparaison.base === 160 && vf.rappels.some(r => /3916/.test(r)) && vf.rappels.some(r => /Projet X/.test(r) && /définitive/.test(r)), 'vue fiscale : pertes imputées avant comparaison, rappels (étranger, défaut)');
+}
+
+ok(C.fraisBancaires([{ d: '2026-10-31', lib: 'COTISATION CARTE', m: -10, cat: 'autre' }], new Date('2026-10-31T00:30:00')).total === 10, 'frais bancaires : une opération du jour compte même avant midi');
 console.log('calculs :', n, 'contrôles réussis');

@@ -186,11 +186,25 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
     D.assets.push({ id: 'c9', cat: 'crowd', name: 'Projet test', plat: 'Bienprêter', amount: 1000, rate: 10, dur: 36, date: (Y - 1) + '-06-01', status: 'cours', paie: [{ d: Y + '-02-05', m: 30, c: 20 }, { d: Y + '-08-05', m: 40 }] },
       { id: 't9', cat: 'bourse', name: 'ETF chez Trade Republic', qty: 1, pru: 100, env: 'cto' }); save(); UI.tool = 'decl'; go('tools'); renderTools(true); });
   const dcl = (await pg.textContent('#v-tools')).replace(/[\u00a0\u202f]/g, ' ');
-  ok(/Aide à la déclaration des revenus/.test(dcl) && /Case 2TR ou 2TT/.test(dcl) && /50,00 €/.test(dcl) && /Case 3VG/.test(dcl) && /250,00 €/.test(dcl) && /Case 4BE/.test(dcl) && /8 400,00 €/.test(dcl) && /Case 2DC/.test(dcl), 'déclaration : intérêts reçus, plus-value, loyers, dividendes et leurs cases');
+  ok(/Vue fiscale \d{4}/.test(dcl) && /Aide à la déclaration/.test(dcl) && /Case 2TT/.test(dcl) && /à vérifier/.test(dcl) && /72,89 €/.test(dcl) && /Case 2CK/.test(dcl) && /Case 3VG/.test(dcl) && /250,00 €/.test(dcl) && /Case 4BE/.test(dcl) && /8 400,00 €/.test(dcl) && /Case 2DC/.test(dcl), 'vue fiscale : intérêts reçus nets → brut reconstitué, acompte retenu, plus-value, loyers, dividendes et leurs cases');
+  ok(/Intérêts par plateforme/.test(dcl) && /Prélèvements retenus à la source/.test(dcl) && /PFU ou barème progressif/.test(dcl) && /notice officielle/.test(dcl), 'vue fiscale : plateformes, prélèvements, comparaison PFU / barème, avertissement');
+  await pg.selectOption('#v-tools [data-ch=fiscsrc]', 'brut'); await pg.waitForTimeout(100);
+  ok(/50,00 €/.test((await pg.textContent('#v-tools')).replace(/[ \u202f]/g, ' ')) && await pg.evaluate(() => D.fisc.src.bienpreter === 'brut' && !srcNet('Bienprêter')), 'versements bruts : montant reçu déclaré tel quel');
+  /* perte définitive d'un projet en défaut : imputée sur les intérêts de prêts participatifs (règle à vérifier) */
+  await pg.evaluate(() => { const Y = new Date().getFullYear() - 1; D.assets.push({ id: 'c8', cat: 'crowd', name: 'Projet perdu', plat: 'Bienprêter', amount: 500, rate: 9, dur: 24, date: (Y - 2) + '-01-10', status: 'defaut' }); save(); renderTools(true); });
+  ok(/Projet perdu/.test(await pg.textContent('#v-tools')) && /Perte définitive/.test(await pg.textContent('#v-tools')), 'projet en défaut : perte possible signalée, pas encore imputée');
+  await pg.click('#v-tools [data-act=perte][data-id=c8]'); await pg.fill('#pe-m', '30'); await pg.click('[data-act=pertesave]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => { const R = declData(new Date().getFullYear() - 1); return R.imputation.perteAnnee === 30 && R.imputation.impute === 30 && R.lignes.some(l => l.cle === 'pertes' && l.certitude === 'a_verifier'); }), 'perte définitive : imputée sur les intérêts de l’année, case marquée à vérifier');
+  const [dcsv] = await Promise.all([pg.waitForEvent('download'), pg.click('#v-tools [data-act=declcsv]')]); const csvF = fs.readFileSync(await dcsv.path(), 'utf8');
+  ok(/^\ufeffSection;Libellé/.test(csvF) && /Déclaration;.*2TT/.test(csvF) && /PFU ou barème/.test(csvF) && /notice officielle/.test(csvF), 'export CSV de la vue fiscale');
+  ok(await pg.evaluate(() => { const h = declPdfHTML(2025, declData(2025)); return /<h1>Vue fiscale 2025<\/h1>/.test(h) && /À reporter/.test(h); }), 'export PDF : document imprimable');
+  await pg.click('#v-tools [data-act=decltax]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => UI.tool === 'tax' && num($('t-inc').value) > 0 && /plus avantageux/.test($('t-out').textContent)), 'comparateur : simulateur d’impôt prérempli avec les revenus de l’année');
+  await pg.evaluate(() => { D.assets = D.assets.filter(a => a.id !== 'c8'); D.fisc = {}; save(); UI.tool = 'decl'; renderTools(true); });
   ok(/3916/.test(dcl) && /Trade Republic/.test(dcl) && /livrets réglementés/.test(dcl) && /assurance-vie/.test(dcl), 'déclaration : compte à l’étranger, placements sans déclaration');
   await pg.click('[data-act=declan][data-v="' + new Date().getFullYear() + '"]'); await pg.waitForTimeout(100);
   ok(/Revenus \d{4} \(en cours\)/.test(await pg.textContent('#v-tools')) && await pg.evaluate(() => declAnnee() === new Date().getFullYear() && /Case 3VG/.test(declHTML())), 'déclaration : année en cours (vente du jour)');
-  ok(await pg.evaluate(() => /2TR ou 2TT/.test(declTexte(declData(new Date().getFullYear() - 1))) && /IFU/.test(declTexte(declData(2000)))), 'déclaration : récapitulatif à copier');
+  ok(await pg.evaluate(() => /case 2TT, à vérifier/.test(declTexte(declData(new Date().getFullYear() - 1))) && /IFU/.test(declTexte(declData(2000)))), 'déclaration : récapitulatif à copier');
   const rep67 = await pg.evaluate(() => ['pourquoi mon patrimoine a bougé ?', 'quelle case pour mes dividendes sur la déclaration ?', 'quels sont mes frais cachés ?'].map(q => LAI.answer(q).t));
   ok(/^#### Variation du/.test(rep67[0]) && /à déclarer/.test(rep67[1]) && /case 2DC/.test(rep67[1]) && /Vos frais/.test(rep67[2]) && /Frais bancaires/.test(rep67[2]), 'assistant local : variation, déclaration, frais (' + rep67.map(t => t.slice(0, 40)).join(' | ') + ')');
   await pg.click('[data-act=declcopy]'); ok(!errs.length, 'aucune erreur JavaScript (variation, frais, déclaration) : ' + errs.join(' | '));
