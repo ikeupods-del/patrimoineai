@@ -174,6 +174,10 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
   ok(await pg.evaluate(n => D.ops.filter(o => /^eb:/.test(o.fid)).length === n && D.assets.filter(a => a.bq).length === 1, nOps), 'nouvelle synchronisation : aucune opération ni compte en double');
 
   /* --- rapprochement avec la banque --- */
+  await pg.evaluate(() => go('bank')); await pg.waitForTimeout(100);
+  ok(await pg.locator('#v-bank [data-act=rapok][data-id=rbp]').count() >= 1 && /Versement BienPrêter de/.test(await pg.textContent('#v-bank')) && /Actualiser/.test(await pg.textContent('#v-bank')), 'opérations de la banque : versement attendu reconnu, validation en un clic ; bouton Actualiser');
+  const qb = await pg.evaluate(() => [LAI.answer('quel est le solde de mes comptes boursorama ?').t, dossier().banque]);
+  ok(/Total compté dans le patrimoine/.test(qb[0]) && /Versements reconnus sur le compte/.test(qb[0]) && qb[1] && qb[1].comptes.length === 2, 'assistant local et contexte de Gemini : soldes, accord, versements reconnus');
   await pg.evaluate(() => go('home')); await pg.waitForTimeout(100);
   const cur = moisDe(0), hc = await pg.textContent('#rap-card');
   if (SHOTS) { await pg.evaluate(() => document.getElementById('rap-card').scrollIntoView()); await pg.screenshot({ path: path.join(SHOTS, 'rapprochement.png') }); }
@@ -289,7 +293,9 @@ const moisDe = k => { const d = new Date(); d.setDate(15); d.setMonth(d.getMonth
 
   /* --- serveur non configuré --- */
   delete process.env.ENABLE_MOCK; await pg.evaluate(() => { BQ.vu = 0; return bqEtat(); });
-  ok(/configuration est incomplète/.test(await pg.textContent('#v-bank')) && /ENABLE_APP_ID/.test(await pg.textContent('#v-bank')), 'serveur sans clés : configuration manquante indiquée');
+  const gd = await pg.textContent('#v-bank');
+  ok(/configuration est incomplète/.test(gd) && /ENABLE_APP_ID/.test(gd), 'serveur sans clés : configuration manquante indiquée');
+  ok(/Environment variables/.test(gd) && /ENABLE_BANKING_PRIVATE_KEY \(manquante\)/.test(gd) && /ENABLE_ALLOWED_EMAILS/.test(gd) && /Authorized domains/.test(gd) && !/ENABLE_ALLOWED_EMAILS \(manquante\)/.test(gd), 'guide de configuration à la place d’une erreur, variables manquantes signalées');
 
   ok(!AXEV.length, 'accessibilité (axe-core) : ' + (AXEV.join(', ') || 'aucun problème'));
   ok(!errs.length, 'aucune erreur JavaScript : ' + errs.join(' | '));

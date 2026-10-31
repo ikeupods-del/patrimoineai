@@ -1,0 +1,8 @@
+{
+  "name": "patrimoine-ai",
+  "private": true,
+  "description": "Patrimoine AI (produit par QuenTools) : dépendance des seules fonctions bancaires hébergées sur Netlify. L'application elle-même n'a aucune dépendance.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

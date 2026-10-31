@@ -185,5 +185,25 @@ const F = f => import(path.join(__dirname, '..', 'banque', f));
   ok(all.some(o => /BRICKS/.test(o.lib) && o.m > 0) && all.some(o => /BIENPRETER/.test(o.lib)) && all.some(o => o.etat === 'PDNG') && i === 0 && all.length >= 12, 'démonstration : les deux pages lues en un seul appel (' + all.length + ' opérations)');
   r = await appel('deconnecter', { methode: 'DELETE' }); ok(!r.d.lie && EB.length === n0, 'démonstration : aucun appel à Enable Banking');
 
+  /* hébergement Netlify : noms de variables ENABLE_BANKING_*, sessions dans Netlify Blobs (une par compte, chiffrée), fonctions */
+  {
+    const { conf } = await F('commun.mjs'), avant = Object.assign({}, process.env);
+    ['ENABLE_APP_ID', 'ENABLE_PRIVATE_KEY', 'ENABLE_MOCK'].forEach(k => delete process.env[k]);
+    Object.assign(process.env, { ENABLE_BANKING_APP_ID: 'aaaaaaaa-1111-2222-3333-444444444444', ENABLE_BANKING_PRIVATE_KEY: Buffer.from(app.privateKey.export({ type: 'pkcs8', format: 'pem' })).toString('base64') });
+    const c = conf(); ok(c.appId === 'aaaaaaaa-1111-2222-3333-444444444444' && /BEGIN PRIVATE KEY/.test(c.cle), 'variables ENABLE_BANKING_APP_ID et ENABLE_BANKING_PRIVATE_KEY (clé en base64) acceptées');
+    const { stockageBlobs } = await F('stockage-blobs.mjs'), M = new Map(); let nomStore = '';
+    const S = stockageBlobs(async () => o => { nomStore = o.name + ':' + o.consistency; return { get: async k => M.get(k) ?? null, set: async (k, v) => { M.set(k, v); }, delete: async k => { M.delete(k); } }; });
+    const u1 = { uid: 'uid-1' }, u2 = { uid: 'uid/2' };
+    await S.ecrire(u1, c, { sid: 'session-secrete', valid: '2027-01-01' }); await S.ecrire(u2, c, { sid: 'autre' });
+    const brut = M.get('session/uid-1');
+    ok(nomStore === 'patrimoine-banque:strong' && M.has('session/uid_2') && !/session-secrete/.test(brut) && (await S.lire(u1, c)).sid === 'session-secrete' && (await S.lire(u2, c)).sid === 'autre', 'Netlify Blobs : une session par compte Google, chiffrée');
+    await S.effacer(u1, c); ok((await S.lire(u1, c)) === null && (await S.lire({ uid: 'inconnu' }, c)) === null, 'Netlify Blobs : déconnexion, compte sans session');
+    for (const f of ['etat', 'demarrer', 'retour', 'comptes', 'operations', 'deconnecter', 'diagnostic']) {
+      const src = require('fs').readFileSync(path.join(__dirname, '..', 'netlify', 'functions', 'banque-' + f + '.mjs'), 'utf8'), m = await import(path.join(__dirname, '..', 'netlify', 'functions', 'banque-' + f + '.mjs'));
+      ok(typeof m.default === 'function' && m.config.path === '/api/banque/' + f && new RegExp("export const config = \\{ path: '/api/banque/" + f + "' \\}").test(src), 'fonction Netlify ' + f + ' : point d’entrée et chemin déclarés dans le fichier');
+    }
+    for (const k of Object.keys(process.env)) if (!(k in avant)) delete process.env[k];
+    Object.assign(process.env, avant);
+  }
   console.log('banque :', n, 'contrôles réussis');
 })().catch(e => { console.error(e); process.exit(1); });

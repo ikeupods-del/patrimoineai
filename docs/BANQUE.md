@@ -48,8 +48,24 @@ Aucun Netlify ni autre hébergeur : seul GitHub sert (le site et l'application M
 5. **Lier ma banque** → identification sur le site de Boursorama → la page en ligne vous renvoie dans l'application → soldes et opérations importés. Tous les 90 jours : **Renouveler** (l'application prévient 14 jours avant ; « Rappel au calendrier » ajoute une alarme).
 6. Si la synchronisation échoue plus de 3 jours, « À surveiller » l'indique avec le dernier message. « Changer de clé » remplace le fichier .pem ; « Retirer la clé » arrête la liaison sur ce Mac (soldes et opérations déjà importés gardés).
 
-## Hébergement facultatif des fonctions
-Les routes de `banque/routes/` sont des fonctions web standard (`Request` → `Response`) : elles peuvent aussi tourner chez un hébergeur de fonctions, avec les variables `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY`, `ENABLE_REDIRECT_URL`, `ENABLE_ALLOWED_EMAILS`, `ENABLE_ALLOWED_ORIGINS`, `ENABLE_ASPSP_NAME` / `ENABLE_ASPSP_COUNTRY`, `ENABLE_STORE_KEY`, `ENABLE_MOCK`, `FIREBASE_PROJECT_ID` (compte Google vérifié, session dans Firestore) et `banqueApi` dans `config.js`. Ce n'est pas utilisé : le propriétaire a choisi de n'utiliser que GitHub.
+## Hébergement facultatif sur Netlify (liaison depuis le téléphone ou le navigateur, sans Mac)
+Par défaut, rien ne change : la liaison se fait dans l'application Mac. Pour la faire aussi depuis la version en ligne, le dépôt contient tout le nécessaire pour Netlify : `netlify.toml` (site + fonctions), `netlify/functions/banque-*.mjs` (une fonction par route, code commun dans `banque/routes/`), `banque/netlify.mjs` et `banque/stockage-blobs.mjs` (**sessions dans Netlify Blobs**, une par compte Google vérifié, chiffrée AES-256-GCM), `package.json` (seule dépendance : `@netlify/blobs`, pour ces fonctions).
+
+1. Netlify → **Add new site → Import an existing project** → ce dépôt (branche `main`). Les réglages de construction sont lus dans `netlify.toml`.
+2. Enable Banking : application de production (usage personnel), **adresse de retour = l'adresse du site Netlify** (par exemple `https://mon-patrimoine.netlify.app/`), compte Boursorama lié dans le Control Panel.
+3. Netlify → **Site configuration → Environment variables** :
+   - `ENABLE_BANKING_APP_ID` : identifiant de l'application (nom du fichier .pem sans « .pem ») ;
+   - `ENABLE_BANKING_PRIVATE_KEY` : contenu du fichier .pem (tel quel, ou encodé en base64) ;
+   - `ENABLE_REDIRECT_URL` : l'adresse du site, identique à celle déclarée chez Enable Banking ;
+   - `ENABLE_ALLOWED_EMAILS` : votre adresse Google (recommandé : seul ce compte peut utiliser la liaison) ;
+   - facultatives : `ENABLE_STORE_KEY` (phrase longue qui chiffre la session stockée ; à défaut, dérivée de la clé privée), `ENABLE_ASPSP_NAME` (nom exact de la banque si Boursorama n'est pas trouvée), `ENABLE_ALLOWED_ORIGINS` (autres sites autorisés à appeler les fonctions, par exemple la page GitHub si `banqueApi` y pointe vers Netlify).
+   Les anciens noms `ENABLE_APP_ID` et `ENABLE_PRIVATE_KEY` restent acceptés.
+4. Firebase → Authentication → Settings → **Authorized domains** : ajouter le domaine Netlify (connexion Google).
+5. Redéployer, puis Mes banques → **Tester la configuration**. Tant qu'une variable manque, l'écran affiche ce guide (variables manquantes en évidence) au lieu d'une erreur.
+
+Coût : l'offre gratuite de Netlify suffit pour un usage personnel (quelques appels par jour) ; vérifiez ses limites actuelles. La version GitHub Pages peut aussi utiliser ces fonctions : `banqueApi: 'https://mon-patrimoine.netlify.app'` dans `config.js` (et l'adresse GitHub dans `ENABLE_ALLOWED_ORIGINS`, présente par défaut).
+
+Les mêmes routes tournent chez n'importe quel hébergeur de fonctions web standard (`Request` → `Response`) ; sans Netlify Blobs, la session est gardée dans Firestore (`FIREBASE_PROJECT_ID`).
 
 ## Limites à connaître
 - Les noms des champs viennent de la documentation et des exemples officiels d'Enable Banking ; si Enable Banking change son API, un message clair s'affiche (« Enable Banking a refusé la demande… »).
@@ -58,7 +74,8 @@ Les routes de `banque/routes/` sont des fonctions web standard (`Request` → `R
 - Une modification à la main du solde d'un compte lié est remplacée à la synchronisation suivante.
 - Les sommes versées dans un « Portefeuille » de plateforme restent comptées jusqu'à ce que vous confirmiez le retrait (proposé automatiquement quand le virement arrive sur le compte lié ; à la main sinon, en modifiant le portefeuille).
 - Sans banque liée, ou si la plateforme utilise un libellé inattendu, le retrait n'est pas détecté : indiquez le mot du libellé dans le rappel.
-- Le rapprochement se fait sur le libellé : si la plateforme change de libellé, indiquez le nouveau mot dans le rappel.
+- Le rapprochement se fait sur le libellé : si la plateforme change de libellé, indiquez le nouveau mot dans le rappel. À défaut, seul un crédit du montant attendu exact est proposé.
+- Hébergement Netlify : le parcours a été vérifié avec la banque de démonstration et un stockage Netlify Blobs imité ; le premier essai réel se fait avec « Tester la configuration ».
 
 ## Contrôles
 - `node tests/banque.test.js` : fonctions (jeton JWT, state, chiffrement, cache, pagination, expiration, erreurs, diagnostic, démonstration).

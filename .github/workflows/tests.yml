@@ -4,7 +4,7 @@ name: Patrimoine AI — contrôles complets
 # les rappels de paiement et l'accessibilité (axe-core, thèmes clair et sombre). Lancé à chaque modification et sur les pull requests.
 on:
   push:
-    paths: ['index.html', 'fiscal-config.js', 'calculs.js', 'marches.js', 'config.js', 'sw.js', 'banque/**', 'mac/banque-locale.js', 'tests/**', '.github/workflows/tests.yml']
+    paths: ['index.html', 'fiscal-config.js', 'calculs.js', 'netlify/**', 'netlify.toml', 'marches.js', 'config.js', 'sw.js', 'banque/**', 'mac/banque-locale.js', 'tests/**', '.github/workflows/tests.yml']
   pull_request:
   workflow_dispatch:
 
@@ -24,6 +24,7 @@ jobs:
       - name: Les fonctions bancaires s'assemblent
         run: |
           for f in banque/routes/*.mjs; do npx --yes esbuild@0.24.0 "$f" --bundle --platform=node --target=node18 --format=esm --outfile="$RUNNER_TEMP/bundle/$(basename "$f")" --log-level=error; done
+          for f in netlify/functions/*.mjs; do npx --yes esbuild@0.24.0 "$f" --bundle --platform=node --target=node18 --format=esm --external:@netlify/blobs --outfile="$RUNNER_TEMP/bundle-netlify/$(basename "$f")" --log-level=error; done
       - name: Navigateur de test
         run: |
           mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw" && npm init -y >/dev/null

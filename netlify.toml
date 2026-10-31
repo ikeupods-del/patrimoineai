@@ -1,0 +1,17 @@
+# Hébergement facultatif sur Netlify : le site (mêmes fichiers que GitHub Pages) et les fonctions de la liaison bancaire
+# (netlify/functions → banque/routes, sessions dans Netlify Blobs). Mode d'emploi et variables : docs/BANQUE.md, « Netlify ».
+# Aucune clé dans ce fichier : elles se saisissent dans Netlify (Site configuration → Environment variables).
+[build]
+  publish = "_site"
+  command = "mkdir -p _site && cp index.html connexion-mac.html conditions.html config.js fiscal-config.js marches.js calculs.js manifest.webmanifest sw.js icon.svg icon-192.png icon-512.png _site/ && cp -r vendor _site/"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"

@@ -20,8 +20,9 @@ function pem(v) {
   if (t && !/-----BEGIN/.test(t)) { try { const d = Buffer.from(t, 'base64').toString('utf8'); if (/-----BEGIN/.test(d)) t = d.trim(); } catch (e) { /* laissé tel quel */ } }
   return t;
 }
+/* Noms acceptés : ENABLE_APP_ID / ENABLE_PRIVATE_KEY, ou ENABLE_BANKING_APP_ID / ENABLE_BANKING_PRIVATE_KEY (hébergement Netlify) */
 export function conf() {
-  const appId = env('ENABLE_APP_ID'), cle = pem(env('ENABLE_PRIVATE_KEY')), demande = env('ENABLE_MOCK') === '1';
+  const appId = env('ENABLE_APP_ID') || env('ENABLE_BANKING_APP_ID'), cle = pem(env('ENABLE_PRIVATE_KEY') || env('ENABLE_BANKING_PRIVATE_KEY')), demande = env('ENABLE_MOCK') === '1';
   return {
     appId, cle,
     /* une ou plusieurs adresses de retour (séparées par des virgules) : la première déclarée chez Enable Banking sert */
