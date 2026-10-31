@@ -1,11 +1,15 @@
 {
+  "id": "./",
   "name": "Patrimoine AI · QuenTools",
   "short_name": "Patrimoine",
-  "description": "Suivi de patrimoine, marchés et assistant IA — produit par QuenTools",
+  "description": "Suivi de patrimoine, revenus passifs, versements attendus, fiscalité et assistant IA — produit par QuenTools",
   "lang": "fr",
+  "dir": "ltr",
   "start_url": "./#home",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
+  "categories": ["finance", "productivity"],
   "background_color": "#151311",
   "theme_color": "#151311",
   "icons": [
@@ -13,5 +17,17 @@
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
-  ]
+  ],
+  "shortcuts": [
+    { "name": "Ajouter un placement", "short_name": "Ajouter", "url": "./?action=ajouter#assets", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Versements à confirmer", "short_name": "Versements", "url": "./#bank", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Revenus passifs", "short_name": "Revenus", "url": "./#rev", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Importer depuis Finary ou un tableur", "short_name": "Importer", "url": "./?action=importer#assets", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ],
+  "share_target": {
+    "action": "./partage",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": { "files": [{ "name": "fichier", "accept": ["text/csv", ".csv", "text/plain", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx", "image/png", "image/jpeg", "image/webp"] }] }
+  }
 }

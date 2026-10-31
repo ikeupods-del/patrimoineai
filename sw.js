@@ -3,9 +3,20 @@ const V = 'patrimoine-fb-v8';
 const ETAT = 'patrimoine-etat'; // dates des versements attendus, écrites par la page (aucun montant)
 const CORE = ['./', 'index.html', 'conditions.html', 'manifest.webmanifest','config.js', 'fiscal-config.js', 'marches.js', 'calculs.js', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(K => Promise.all(K.filter(k => k !== V && k !== ETAT).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(K => Promise.all(K.filter(k => k !== V && k !== ETAT && k !== PARTAGE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+/* Fichier partagé depuis une autre application (export Finary, tableur, capture d'écran) : gardé sur l'appareil le temps que la page
+   l'ouvre dans l'import (share_target du manifeste). Rien n'est envoyé ailleurs. */
+const PARTAGE = 'patrimoine-partage';
+async function recevoirPartage(r) {
+  try {
+    const f = (await r.formData()).get('fichier');
+    if (f && f.size && f.size < 15e6) { const c = await caches.open(PARTAGE); await c.put('fichier', new Response(f, { headers: { 'content-type': f.type || 'application/octet-stream', 'x-nom': encodeURIComponent(f.name || 'fichier') } })); }
+  } catch (e) { /* fichier illisible : l'import s'ouvre vide */ }
+  return Response.redirect(new URL('./?action=partage#assets', self.registration.scope).href, 303);
+}
 self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
+  if (r.method === 'POST' && u.origin === location.origin && u.pathname.endsWith('/partage')) { e.respondWith(recevoirPartage(r)); return; }
   if (r.method !== 'GET' || u.origin !== location.origin) return;
   if (r.mode === 'navigate' || u.pathname.endsWith('.html')) {
     // Réseau d'abord : la dernière version en ligne gagne ; le cache sert hors ligne.

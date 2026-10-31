@@ -7,6 +7,7 @@
 - **Vue fiscale annuelle** (Simulateurs → Vue fiscale) : choix de l’année, intérêts par plateforme, prélèvements déjà retenus à la source, pertes en capital, comparaison PFU ou barème, cases de la déclaration (chacune marquée « à vérifier » quand elle n’est pas certaine), export CSV et PDF.
 - **Import depuis Finary ou un tableur** : déposez un fichier CSV ou Excel (ou une capture d’écran), vérifiez les colonnes, puis chaque ligne (mettre à jour, créer ou ignorer). Les doublons sont repérés et l’import s’annule en un geste.
 - **Mes banques** : un versement attendu reconnu dans vos opérations se valide en un clic ; bouton « Actualiser ».
+- **Accueil** : nouvelle carte « Revenus du mois » (versements reçus sur ceux prévus, prochain versement attendu) ; boutons rapides plus courts.
 - L’assistant répond aussi sur vos versements, vos revenus nets, la vue fiscale, l’import et vos comptes.
 
 ## 6.7.0

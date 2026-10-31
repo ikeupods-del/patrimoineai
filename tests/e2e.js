@@ -166,8 +166,8 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const so = await pg.textContent('#v-tools'); ok(/Droits par enfant/.test(so) && /Droits de donation/.test(so) && /fortune immobilière/.test(so), 'succession, donation et IFI');
   /* résumé du mois */
   await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000 }, { d: pm + '-27', v: 101500 }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; go('home'); renderHome(); });
-  const rc = await pg.textContent('#v-home'); ok(/Votre bilan de/.test(rc) && /1\s500/.test(rc.replace(/ | /g, ' ')), 'résumé du mois écoulé sur l’accueil');
-  await pg.click('[data-act=recapok]'); ok(!/Votre bilan de/.test(await pg.textContent('#v-home')), 'résumé masqué après lecture');
+  const rc = await pg.textContent('#v-home'); ok(/Votre bilan (de|d’)/.test(rc) && /1\s500/.test(rc.replace(/ | /g, ' ')), 'résumé du mois écoulé sur l’accueil');
+  await pg.click('[data-act=recapok]'); ok(!/Votre bilan (de|d’)/.test(await pg.textContent('#v-home')), 'résumé masqué après lecture');
   /* pourquoi le patrimoine a bougé : versements, marché, crédits */
   await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000, i: 80000, k: 50000, g: { bourse: 1000 } }, { d: pm + '-27', v: 101500, i: 80500, k: 49700, g: { bourse: 1700 } }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; save(); go('home'); render(); });
   const rb = await pg.textContent('#v-home'); ok(/Surtout grâce à la hausse de vos placements \(\+700/.test(rb.replace(/[\u00a0\u202f]/g, ' ')) && /en particulier bourse/.test(rb) && /Voir le détail/.test(rb), 'résumé du mois : cause principale de la variation');
