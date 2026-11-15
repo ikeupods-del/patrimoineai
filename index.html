@@ -2,7 +2,7 @@
 <html lang="fr"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Patrimoine AI · QuenTools</title><meta name="author" content="QuenTools"><meta name="theme-color" content="#151311">
-<script src="config.js"></script><script src="fiscal-config.js"></script><script src="marches.js"></script><script src="calculs.js"></script><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-192.png"><meta name="mobile-web-app-capable" content="yes">
+<script src="config.js"></script><script src="fiscal-config.js"></script><script src="marches.js"></script><script src="calculs.js"></script><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" sizes="180x180" href="icon-180.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Patrimoine"><link rel="apple-touch-startup-image" media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" href="splash/iphone-750x1334.png"><link rel="apple-touch-startup-image" media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" href="splash/iphone-828x1792.png"><link rel="apple-touch-startup-image" media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1125x2436.png"><link rel="apple-touch-startup-image" media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1242x2688.png"><link rel="apple-touch-startup-image" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1170x2532.png"><link rel="apple-touch-startup-image" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1284x2778.png"><link rel="apple-touch-startup-image" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1179x2556.png"><link rel="apple-touch-startup-image" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1290x2796.png"><link rel="apple-touch-startup-image" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1206x2622.png"><link rel="apple-touch-startup-image" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1320x2868.png"><link rel="apple-touch-startup-image" media="(device-width:420px) and (device-height:912px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" href="splash/iphone-1260x2736.png">
 <style>
 :root{color-scheme:dark;--bg:#151311;--card:#211e1b;--card2:#2b2723;--line:rgba(255,255,255,.09);--tx:#f4f2ee;--mut:#a59f95;--p:#10b981;--pt:#34d399;--onp:#04231a;--ok:#34d399;--warn:#fbbf24;--red:#f87171;--onred:#2a0808;--blue:#60a5fa;--shadow:0 12px 32px rgba(0,0,0,.4);--num:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif}
 @media(prefers-color-scheme:light){:root:not([data-theme=dark]){color-scheme:light;--bg:#f3f4f1;--card:#fff;--card2:#eceee9;--line:rgba(20,30,25,.11);--tx:#16201b;--mut:#5b6961;--p:#047857;--pt:#047857;--onp:#fff;--ok:#047857;--warn:#a16207;--red:#dc2626;--onred:#fff;--blue:#1d4ed8;--shadow:0 12px 32px rgba(20,30,25,.14)}}
@@ -149,7 +149,7 @@ summary{cursor:pointer;font-weight:600;font-size:14px;min-height:36px;display:fl
 .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:600;color:var(--mut);min-height:50px}
 .tab.on{color:var(--pt)}
 .fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--p);color:var(--onp);box-shadow:var(--shadow);display:grid;place-items:center;z-index:25}
-body[data-view=ai] .fab,body[data-view=set] .fab{display:none}
+body:not([data-view=home]):not([data-view=assets]):not([data-view=goals]) .fab{display:none} /* le bouton + n'apparaît que là où il ajoute quelque chose */
 body[data-view=ai] .content{padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
 /* sheet */
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:50}
@@ -158,8 +158,8 @@ body[data-view=ai] .content{padding-bottom:calc(80px + env(safe-area-inset-botto
 .sh{position:sticky;top:0;background:var(--card);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0 10px;z-index:2}
 .sh h2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes sh{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
-#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--tx);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:600;display:flex;gap:14px;align-items:center;max-width:min(92vw,460px);opacity:0;pointer-events:none;transition:.2s;z-index:80;box-shadow:var(--shadow)}
-#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#toast{position:fixed;left:16px;right:16px;margin-inline:auto;width:fit-content;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateY(20px);background:var(--tx);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:14px;font-weight:600;display:flex;gap:14px;align-items:center;max-width:min(92vw,460px);opacity:0;pointer-events:none;transition:.2s;z-index:80;box-shadow:var(--shadow)}
+#toast.show{opacity:1;transform:none;pointer-events:auto}
 #toast button{color:var(--bg);text-decoration:underline;font-weight:700;flex:none;min-height:32px}
 @media(min-width:900px){
 .side{display:flex}.tabs,.fab{display:none!important}
@@ -353,6 +353,30 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 @media(min-width:900px){.chart{height:190px}.hero .chart{height:230px}}
 @media(min-width:1280px){.grid2.g3{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media print{body{height:auto;overflow:visible}.side,.tabs,.fab,header.top,#toast,#modal,#pal{display:none!important}}
+/* ===== iPhone et écrans tactiles ===== */
+/* application installée sur iPhone : l'écran va jusqu'en haut, une bande sombre garde l'heure et la batterie lisibles (thème clair compris) */
+html.iossa body::before{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#151311;z-index:200;pointer-events:none}
+@media(pointer:coarse){
+button,label.btn{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.btn:active,.chip:active,.tile:active,.fab:active,.qa button:active .qi{transform:scale(.96)}.tab:active{opacity:.55}
+.btn,.chip,.tile,.fab,.qa .qi{transition:transform .09s ease}
+}
+@media(pointer:coarse) and (max-width:899px){.sh{padding-top:20px}.sh::before{content:'';position:absolute;top:7px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:var(--mut);opacity:.4}}
+.tab{position:relative}.tab.on::before{content:'';position:absolute;top:-6px;left:50%;width:26px;height:3px;margin-left:-13px;border-radius:0 0 3px 3px;background:var(--pt)}
+.tab[data-n]::after,.qa button[data-n]::after{content:attr(data-n);position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:var(--onred);font-size:11px;font-weight:700;display:grid;place-items:center;line-height:1}
+@media(max-width:899px){#v-home .grid2>.hero{order:-2}#v-home .grid2>.qa{order:-1}} /* téléphone : le total du patrimoine puis les raccourcis d'abord, les cartes d'information ensuite */
+/* raccourcis de l'accueil (téléphone) : les écrans rangés dans « Plus » à un geste */
+.qa{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.qa button{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--mut);position:relative;min-height:44px;padding:2px 0}
+.qa .qi{width:52px;height:52px;border-radius:17px;display:grid;place-items:center;background:var(--card);border:1px solid var(--line);color:var(--pt)}
+.qa button[data-n]::after{top:-4px;left:calc(50% + 12px)}
+@media(min-width:900px){.qa{display:none}}
+@media(max-width:899px){body[data-view=home] #toast,body[data-view=assets] #toast,body[data-view=goals] #toast{right:84px}} /* le message ne recouvre pas le bouton + */
+/* tirer vers le bas pour actualiser */
+#ptr{position:fixed;top:calc(70px + env(safe-area-inset-top,0px));left:50%;margin-left:-21px;width:42px;height:42px;border-radius:50%;background:var(--card2);border:1px solid var(--line);color:var(--pt);display:grid;place-items:center;z-index:30;opacity:0;transform:translateY(-24px);pointer-events:none;box-shadow:var(--shadow)}
+#ptr.go svg{animation:rot .9s linear infinite}
+/* application passée en arrière-plan avec le verrouillage actif : les montants sont floutés dans le sélecteur d'applications */
+body.arr .app,body.arr #modal,body.arr .tabs{filter:blur(22px)}
 </style></head><body data-view="home">
 <div class="app">
 <aside class="side"><div class="brand"><span class="bi"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/></svg></span>Patrimoine AI</div><nav class="sidein" id="side" aria-label="Navigation"></nav></aside>
@@ -377,7 +401,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 <div id="modal" role="dialog" aria-modal="true"><div class="sheet" id="sheet"></div></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="pal" role="dialog" aria-modal="true" aria-label="Recherche rapide"><div class="palb"><input id="pal-q" type="search" placeholder="Chercher un placement, une valeur, une action…" autocomplete="off" aria-label="Recherche rapide" data-in="pal"><div class="pall" id="pal-l" role="listbox"></div></div></div>
-<div id="lock" aria-live="polite"></div><div id="ctip" aria-hidden="true"></div>
+<div id="ptr" aria-hidden="true"></div><div id="lock" aria-live="polite"></div><div id="ctip" aria-hidden="true"></div>
 <script>window.__erreurs=[];window.addEventListener('error',e=>{window.__erreurs.push(String(e.message||e))});</script>
 <script>
 'use strict';
@@ -385,7 +409,7 @@ body[data-view=budget] .fab,body[data-view=mk] .fab{display:none}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=x=>{const n=typeof x==='number'?x:parseFloat(String(x??'').replace(/\s/g,'').replace(',','.'));return isFinite(n)?n:0};
-const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.8';
+const K='pat_data',KK='pat_ai_key',KX='pat_xai_key',KXM='pat_xai_model',VER='6.9';
 const CGU='https://ikeupods-del.github.io/patrimoineai/conditions.html';
 const MAC=window.patrimoineMac||null; /* pont vers l'application Mac (absent dans le navigateur) */
 /* Application Mac : le patrimoine, la phrase secrète et les clés d'IA ne sont jamais écrits en clair sur le disque. Ces clés du
@@ -806,7 +830,7 @@ function show(v){
   if(v==='news'&&typeof newsLoad==='function')newsLoad();
   if(v==='bank')pushEtat();
 }
-function go(v){try{if(location.hash!=='#'+v)history.pushState(null,'','#'+v)}catch(e){}show(v)}
+function go(v){if(HIST.retour){HIST.suite=v;show(v);return}try{if(location.hash!=='#'+v)history.pushState(null,'','#'+v)}catch(e){}show(v)}
 function syncEye(){const b=$('eye');b.innerHTML=ic(HIDE?'eyeoff':'eye',22);b.setAttribute('aria-label',HIDE?'Afficher les montants':'Masquer les montants')}
 function applyTheme(){
   const t=D.set.theme,r=document.documentElement;
@@ -818,7 +842,7 @@ function applyTheme(){
    Évite une dizaine de recalculs complets à chaque modification. */
 const VUES={home:()=>renderHome(),assets:()=>renderAssets(),budget:()=>renderBudget(),goals:()=>renderGoals(),bank:()=>renderVersements(),rev:()=>renderRev(),mk:()=>mkRender(),news:()=>renderNews(),analyse:()=>renderAnalyse(),tools:()=>renderTools(),set:()=>renderSet()};
 const SALE=new Set();
-function render(){REVC=null;Object.keys(VUES).forEach(v=>{if(v===UI.view){SALE.delete(v);VUES[v]()}else SALE.add(v)});if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc();macBadge()}
+function render(){REVC=null;Object.keys(VUES).forEach(v=>{if(v===UI.view){SALE.delete(v);VUES[v]()}else SALE.add(v)});if(!AIBUSY)renderAI();syncEye();setTitle();sideAcc();macBadge();pastille()}
 
 /* ===================== Accueil ===================== */
 const actBtn=a=>`<button class="btn sm sec" data-act="${a.a}"${a.id?` data-id="${esc(a.id)}"`:''}${a.v?` data-v="${a.v}"`:''}${a.c?` data-c="${a.c}"`:''}>${esc(a.l)}</button>`;
@@ -852,7 +876,7 @@ function renderHome(){
     }else h+=`<p class="hint mt">Pas encore assez de points sur cette période.</p>`;
   }else h+=`<p class="hint mt">La courbe d’évolution apparaîtra au fil de vos visites : un point est enregistré chaque jour d’utilisation.</p>`;
   h+='</section>';
-  h+=`<section class="card span2" id="mkmini"></section><section class="card span2" id="nwmini" hidden></section>`;
+  h+=raccourcisHTML()+`<section class="card span2" id="mkmini"></section><section class="card span2" id="nwmini" hidden></section>`;
   h+=`<section class="card"><div class="ct"><h3>À surveiller</h3>${ins.length>3?`<button class="btn sm sec" data-act="go" data-v="analyse">Tout voir (${ins.length})</button>`:''}</div>${ins.slice(0,3).map(i=>insHTML(i)).join('')}</section>`;
   h+=`<section class="card"><div class="ct"><h3>Répartition</h3></div>`+(bc.length&&T.tv>0?`<div class="alloc"><div class="dw">${donut(bc,bc.reduce((s,x)=>s+x[1],0))}<div class="dc"><b>${A.length}</b><span>placement${A.length>1?'s':''}</span></div></div><div class="lg">${bc.map(([c,v])=>`<button class="lgi" data-act="filter" data-c="${c}"><i style="background:${CATS[c].c}"></i><span>${esc(CATS[c].n)}</span><b>${nf(v/T.tv*100,0)}\u00a0%</b><em>${eur(v)}</em></button>`).join('')}</div></div>`:'<p class="mut sm">Renseignez des montants pour voir la répartition.</p>')+'</section>';
   if((D.goals||[]).length){const S=D.goals.map(g=>[g,gState(g)]).sort((a,b)=>({late:0,ok:1,free:2,done:3})[a[1].k]-({late:0,ok:1,free:2,done:3})[b[1].k]).slice(0,3);
@@ -1512,7 +1536,7 @@ function rapLigne(x){
     +`<div class="acts2"><button class="btn sm" data-act="rapoui" ${q}>Oui</button><button class="btn sm sec" data-act="rapnon" ${q}>Non</button><button class="btn sm sec" data-act="rapautre" ${q}>Montant différent</button></div></div></div>`;
 }
 function rapHTML(){const L=rapDus();if(!L.length)return '';
-  return `<section class="card span2" id="rap-card" style="border-color:${L.some(x=>x.statut==='alerte')?'var(--red)':L.some(x=>x.statut==='retard')?'var(--warn)':'var(--pt)'}"><div class="ct"><h3>Versement${L.length>1?'s':''} à confirmer</h3><button class="btn sm sec" data-act="go" data-v="bank">Mes rappels</button></div>${L.map(rapLigne).join('')}</section>`}
+  return `<section class="card span2" id="rap-card" style="border-color:${L.some(x=>x.statut==='alerte')?'var(--red)':L.some(x=>x.statut==='retard')?'var(--warn)':'var(--pt)'}"><div class="ct"><h3>Versement${L.length>1?'s':''} à confirmer</h3><button class="btn sm sec" data-act="go" data-v="bank">Mes rappels</button></div>${(UI.rapTout?L:L.slice(0,3)).map(rapLigne).join('')}${L.length>3&&!UI.rapTout?`<button class="btn sm sec blk" style="margin-top:10px" data-act="raptout">Voir les ${L.length-3} autres versements à confirmer</button>`:''}</section>`}
 /* Où ajouter la somme reçue : le portefeuille de la plateforme (créé au besoin), un compte choisi, ou nulle part.
  */
 function rapDest(r){
@@ -1962,7 +1986,7 @@ const installee=()=>!!(window.matchMedia&&matchMedia('(display-mode: standalone)
 const iosWeb=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)&&!installee();
 function instHTML(carte){
   if(MAC||installee()||!HOSTED)return '';const ios=iosWeb();if(carte&&(!(INST.evt||ios)||D.set.instNon))return '';
-  const corps=INST.evt?`<button class="btn${carte?' sm':' blk mt'}" data-act="inst">${ic('download',18)}Installer Patrimoine AI</button>`:ios?`<p class="sm" style="margin-top:6px">Dans Safari : touchez <b>Partager</b> (le carré avec une flèche), puis <b>Sur l’écran d’accueil</b>.</p>`:'<p class="hint">Dans le menu du navigateur : « Installer l’application » ou « Ajouter à l’écran d’accueil ».</p>';
+  const corps=INST.evt?`<button class="btn${carte?' sm':' blk mt'}" data-act="inst">${ic('download',18)}Installer Patrimoine AI</button>`:ios?`<p class="sm" style="margin-top:6px">Dans Safari : touchez <b>Partager</b> (le carré avec une flèche, parfois rangé dans le menu <b>•••</b>), puis <b>Sur l’écran d’accueil</b>.</p>`:'<p class="hint">Dans le menu du navigateur : « Installer l’application » ou « Ajouter à l’écran d’accueil ».</p>';
   return carte?`<section class="card span2" style="border-color:var(--pt)"><div class="ct"><h3>Installer l’application</h3><button class="btn sm ghost" data-act="instnon" aria-label="Ne plus proposer">${ic('x',16)}</button></div><p class="sm mut">Une icône sur l’écran d’accueil, l’ouverture en plein écran, hors ligne, avec les raccourcis et les notifications.</p>${corps}</section>`
     :`<section class="card"><h3>Installer l’application</h3><p class="sm mut" style="margin-top:6px">Icône sur l’écran d’accueil, plein écran, fonctionne hors ligne, raccourcis, partage de fichiers et notifications.</p>${corps}</section>`;
 }
@@ -2012,9 +2036,9 @@ function toast(m,act){
 }
 function sheet(title,body){
   $('sheet').innerHTML=`<div class="sh"><h2>${esc(title)}</h2><button class="ibtn" data-act="closeM" aria-label="Fermer">${ic('x',22)}</button></div>${body}`;
-  $('modal').classList.add('open');$('sheet').scrollTop=0;
+  $('modal').classList.add('open');$('sheet').scrollTop=0;$('sheet').style.transform='';histFenetre();
 }
-function closeM(){$('modal').classList.remove('open');if(ASK){const r=ASK;ASK=null;r(false)}if(CUR.fc){const f=CUR.fc;CUR.fc=null;f('cancel')}CUR.mk=null;if(typeof liveSync==='function')liveSync()}
+function closeM(){$('modal').classList.remove('open');histFermer();if(ASK){const r=ASK;ASK=null;r(false)}if(CUR.fc){const f=CUR.fc;CUR.fc=null;f('cancel')}CUR.mk=null;if(typeof liveSync==='function')liveSync()}
 function ask(title,text,ok,danger){
   return new Promise(res=>{ASK=res;sheet(title,`<p style="margin-top:4px">${esc(text)}</p><div class="g2 mt"><button class="btn sec" data-act="askno">Annuler</button><button class="btn${danger?' dngf':''}" data-act="askok">${esc(ok)}</button></div>`)});
 }
@@ -3516,7 +3540,7 @@ function closePal(){$('pal').classList.remove('open')}
 function palRun(i){const x=PALI[i];closePal();if(x){if($('modal').classList.contains('open')&&!/openForm|openPick|openDetail|openImport|mkPick/.test(String(x.fn)))closeM();x.fn()}}
 
 /* ===================== Données : export, restauration, réinitialisation ===================== */
-function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
+function dl(name,text,type){if(partager(name,text,type))return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
 /* Sauvegarde exportée : chiffrée par défaut (AES-GCM 256, clé PBKDF2 de 600 000 tours tirée du mot de passe, sel propre au fichier).
    En clair seulement sur demande explicite : un fichier de sauvegarde finit souvent dans un e-mail ou un nuage. */
 async function sealExport(obj,pass){
@@ -3685,7 +3709,8 @@ const ACT={
   nth:d=>{D.set.nth=d.v;NW.q='';save();NW.items=[];renderNews();newsLoad();setTitle()},
   nrg:d=>{D.set.nrg=d.v;save();NW.items=[];renderNews();newsLoad();setTitle()},
   nre:()=>newsLoad(true),
-  more:()=>sheet('Plus',[['rev','Revenus passifs','coins','Reçus contre prévus, brut et net, 12 prochains mois'],['bank','Mes versements','bell','Rappels de paiement des plateformes, historique, notifications'],['news','Actualités','news','Économie, marchés, énergie, tech… par région'],['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Retraite, impôts, vente, succession, crédit'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
+  raptout:()=>{UI.rapTout=true;renderHome()},
+  more:()=>sheet('Plus',[['rev','Revenus passifs','coins','Reçus contre prévus, brut et net, 12 prochains mois'],['bank','Mes versements','bell','Rappels de paiement des plateformes, historique, notifications'],['news','Actualités','news','Économie, marchés, énergie, tech… par région'],['mk','Marchés','trend','Cours en direct, favoris, alertes'],['analyse','Analyse','shield','Indice de fiabilité, points d’attention, calendrier'],['tools','Simulateurs','calc','Retraite, impôts, vente, succession, crédit'],['set','Réglages','sliders','Compte, sauvegardes, assistant IA']].map(x=>`<button class="tile" data-act="go" data-v="${x[0]}"><span class="ico" style="--c:var(--pt)">${ic(x[2])}</span><div><b>${x[1]}${x[0]==='bank'&&rapDus().length?` <span class="badge" style="--c:var(--red)">${rapDus().length} à confirmer</span>`:''}</b><div class="sm mut">${x[3]}</div></div></button>`).join('')+`<button class="tile" data-act="pal"><span class="ico" style="--c:var(--pt)">${ic('search')}</span><div><b>Rechercher</b><div class="sm mut">Un placement, une valeur, une action</div></div></button>`),
   bstart:()=>{const B=D.budget;B.inc=BTPL.inc.map(x=>({id:newId(),n:x[0],v:''}));B.exp=BTPL.exp.filter(x=>!(x[2]==='logement'&&loanPay()>0)).map(x=>({id:newId(),n:x[0],k:x[1],c:x[2],v:''}));save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('#b-inc input[data-f=v]');if(i&&!typing($('v-budget')))i.focus()},50)},
   bblank:()=>{const B=D.budget;B.inc=[{id:newId(),n:'Salaire net',v:''}];B.exp=[{id:newId(),n:'',k:'fixe',v:''}];save();renderBudget(true)},
   badd:d=>{const l={id:newId(),n:'',v:''};if(d.t==='exp')l.k='fixe';D.budget[d.t].push(l);save();renderBudget(true);setTimeout(()=>{const i=document.querySelector('[data-id="'+l.id+'"][data-f=n]');if(i)i.focus()},40)},
@@ -3850,7 +3875,7 @@ document.addEventListener('keydown',e=>{
   const t=e.target;
   if(t.dataset&&t.dataset.kd==='ai'&&e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&window.matchMedia&&matchMedia('(min-width:900px)').matches){e.preventDefault();sendFromBox()}
 });
-window.addEventListener('popstate',()=>show(location.hash.slice(1)||'home'));
+window.addEventListener('popstate',()=>{if(HIST.retour){histSuite();return}if(HIST.fen){HIST.fen=false;if($('modal').classList.contains('open')){closeM();return}}show(location.hash.slice(1)||'home')});
 ['online','offline'].forEach(ev=>window.addEventListener(ev,()=>{if(!AIBUSY)renderAI();toast(ev==='offline'?'Hors ligne : l’IA locale prend le relais':'De nouveau en ligne')}));
 
 /* ===================== En ligne : compte Google, synchronisation, marchés ===================== */
@@ -4580,6 +4605,81 @@ function liveRepaint(set,pf){
 }
 setInterval(()=>{if(UI.view==='mk')mkStatus()},1000);
 
+/* ===================== iPhone et écrans tactiles ===================== */
+/* Rien ici ne touche aux données : gestes, partage des fichiers, pastille de l'icône, confort de saisie. Sans effet dans l'application Mac. */
+const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const TACT=!MAC&&!!(window.matchMedia&&matchMedia('(pointer:coarse)').matches);
+/* Fenêtre ouverte = une entrée dans l'historique (écrans tactiles) : le geste « retour » la ferme. Fermée autrement, l'entrée est
+   retirée (history.back) ; un changement d'écran demandé pendant ce retour est rejoué juste après (HIST.suite). */
+const HIST={fen:false,retour:false,suite:null,t:0};
+function histFenetre(){if(!TACT||HIST.fen||HIST.retour)return;try{history.pushState({fen:1},'',location.hash||'#'+UI.view);HIST.fen=true}catch(e){}}
+function histFermer(){if(!HIST.fen)return;HIST.fen=false;HIST.retour=true;clearTimeout(HIST.t);HIST.t=setTimeout(histSuite,500);try{history.back()}catch(e){histSuite()}}
+function histSuite(){
+  if(!HIST.retour)return;HIST.retour=false;clearTimeout(HIST.t);
+  const v=HIST.suite;HIST.suite=null;if(v){try{if(location.hash!=='#'+v)history.pushState(null,'','#'+v)}catch(e){}}
+  if($('modal').classList.contains('open'))histFenetre();
+}
+/* Fichier exporté (sauvegarde, CSV) : sur iPhone, la feuille de partage propose Fichiers, AirDrop ou Mail ; le téléchargement
+   classique reste utilisé ailleurs, pour le calendrier (.ics, ouvert par Calendrier) et si le partage est refusé. */
+function partager(name,text,type){
+  if(!IOS||MAC||/calendar/.test(type)||!navigator.canShare)return false;
+  let f;try{f=new File([text],name,{type});if(!navigator.canShare({files:[f]}))return false}catch(e){return false}
+  navigator.share({files:[f],title:name}).catch(e=>{if(e&&e.name==='AbortError')return;
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)});
+  return true;
+}
+/* Versements à confirmer : pastille sur l'icône de l'application installée, sur l'onglet « Plus » et sur le raccourci de l'accueil */
+function pastille(){
+  let n=0;try{n=rapDus().length}catch(e){}
+  const t=$('tmore');if(t){if(n)t.dataset.n=n;else delete t.dataset.n}
+  if(MAC)return;try{if(navigator.setAppBadge){if(n)navigator.setAppBadge(n).catch(()=>{});else navigator.clearAppBadge().catch(()=>{})}}catch(e){}
+}
+function raccourcisHTML(){
+  let n=0;try{n=rapDus().length}catch(e){}
+  return `<nav class="qa span2" aria-label="Raccourcis">${[['bank','Versements','bell'],['rev','Revenus','coins'],['mk','Marchés','trend'],['analyse','Analyse','shield'],['tools','Outils','calc']].map(x=>`<button data-act="go" data-v="${x[0]}"${x[0]==='bank'&&n?` data-n="${n}" aria-label="Versements, ${n} à confirmer"`:''}><span class="qi">${ic(x[2],22)}</span>${x[1]}</button>`).join('')}</nav>`;
+}
+/* Tout actualiser (geste « tirer vers le bas ») : cours des positions, marchés, taux de change, synchronisation */
+async function actualiserTout(){
+  const p=$('ptr');p.classList.add('go');p.style.opacity=1;p.style.transform='none';
+  try{if(navigator.onLine===false){toast('Hors ligne : rien à actualiser pour le moment');return}
+    if(typeof syncOn==='function'&&syncOn())syncNow();if(typeof fxRefresh==='function')fxRefresh();
+    if(HOSTED){mkRefresh();liveSync()}
+    await Promise.race([refresh(true),new Promise(r=>setTimeout(r,9000))]);rapNotifier();render();toast('Actualisé')}
+  catch(e){toast('Actualisation impossible pour le moment')}
+  finally{p.classList.remove('go');p.style.opacity=0;p.style.transform=''}
+}
+function tactInit(){
+  if(MAC)return;
+  if(IOS&&installee())document.documentElement.classList.add('iossa');
+  $('ptr').innerHTML=ic('refresh',20);
+  /* toucher le titre remonte en haut de l'écran (comme la barre d'état sur iPhone) */
+  const tw=document.querySelector('.ttlw');if(tw)tw.addEventListener('click',()=>{const c=$('content');try{c.scrollTo({top:0,behavior:'smooth'})}catch(e){c.scrollTop=0}});
+  /* clavier adapté : pavé numérique avec virgule pour les montants, touche « Rechercher » ou « Envoyer » */
+  document.addEventListener('focusin',e=>{const t=e.target;if(!t||!t.tagName)return;
+    if(t.tagName==='INPUT'&&t.type==='number'&&!t.getAttribute('inputmode'))t.setAttribute('inputmode','decimal');
+    if(!t.getAttribute('enterkeyhint')){if(t.type==='search'||(t.dataset&&/^(q|mkq|pal|nwq)$/.test(t.dataset.in||'')))t.setAttribute('enterkeyhint','search');else if(t.id==='ai-q')t.setAttribute('enterkeyhint','send')}
+    if(TACT&&t.closest&&t.closest('#sheet')&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))setTimeout(()=>{try{if(document.activeElement===t)t.scrollIntoView({block:'center',behavior:'smooth'})}catch(e){}},350)});
+  /* verrouillage actif : montants floutés quand l'application passe en arrière-plan */
+  const flou=()=>document.body.classList.toggle('arr',document.hidden&&!!VW.get());
+  document.addEventListener('visibilitychange',flou);window.addEventListener('pagehide',flou);window.addEventListener('pageshow',()=>document.body.classList.remove('arr'));
+  if(!TACT)return;
+  /* fenêtre : glisser l'en-tête vers le bas pour fermer */
+  const sh=$('sheet');let y0=null,dy=0;
+  sh.addEventListener('touchstart',e=>{y0=null;const t=e.target;if(e.touches.length!==1||!t.closest||!t.closest('.sh')||t.closest('button'))return;y0=e.touches[0].clientY;dy=0;sh.style.transition='none'},{passive:true});
+  sh.addEventListener('touchmove',e=>{if(y0==null)return;dy=Math.max(0,e.touches[0].clientY-y0);sh.style.transform=dy?`translateY(${dy}px)`:''},{passive:true});
+  const fin=()=>{if(y0==null)return;y0=null;sh.style.transition='transform .2s ease';
+    if(dy>110){sh.style.transform='translateY(100%)';setTimeout(()=>{sh.style.transition='';sh.style.transform='';closeM()},180)}
+    else{sh.style.transform='';setTimeout(()=>{sh.style.transition=''},220)}};
+  sh.addEventListener('touchend',fin);sh.addEventListener('touchcancel',fin);
+  /* accueil, placements et marchés : tirer vers le bas, en haut de l'écran, actualise tout */
+  const c=$('content'),p=$('ptr');let py=null,pd=0,pb=false;
+  c.addEventListener('touchstart',e=>{py=null;if(pb||e.touches.length!==1||c.scrollTop>0||!/^(home|assets|mk)$/.test(UI.view)||document.body.classList.contains('locked'))return;py=e.touches[0].clientY;pd=0},{passive:true});
+  c.addEventListener('touchmove',e=>{if(py==null)return;if(c.scrollTop>0){py=null;p.style.opacity=0;p.style.transform='';return}
+    pd=e.touches[0].clientY-py;if(pd<12){p.style.opacity=0;return}const k=Math.min(1,(pd-12)/90);p.style.opacity=k;p.style.transform=`translateY(${Math.round(-24+k*24)}px) rotate(${Math.round(k*270)}deg)`},{passive:true});
+  const pf=()=>{if(py==null)return;py=null;if(pd>=102&&!pb){pb=true;actualiserTout().finally(()=>{pb=false})}else{p.style.opacity=0;p.style.transform=''}};
+  c.addEventListener('touchend',pf);c.addEventListener('touchcancel',pf);
+}
+
 /* ===================== Démarrage ===================== */
 /* Raccourcis de l'application installée (?action=ajouter, importer) et fichier partagé depuis une autre application (?action=partage) */
 async function actionDemarrage(){
@@ -4595,7 +4695,7 @@ function init(){
   if(D.assets.length)save();
   if(D.set.auto!==false&&navigator.onLine!==false&&D.assets.some(a=>a.cat==='bourse'&&a.tick&&(!a.pxts||Date.now()-a.pxts>6*36e5)))refresh(true);
   setTimeout(autoTickers,4000);
-  SNAP=snapOf();syncUI();idLoad();macInit();setTimeout(dueNotify,6000);setTimeout(fxRefresh,3000);
+  SNAP=snapOf();syncUI();idLoad();macInit();tactInit();setTimeout(dueNotify,6000);setTimeout(fxRefresh,3000);
   if(VW.get())vwVerrouiller();
   document.addEventListener('visibilitychange',()=>{const v=VW.get();if(!v||MAC)return;if(document.hidden)VW.cache=Date.now();else if(Date.now()-VW.cache>=v.min*60e3)vwVerrouiller()});
   setTimeout(actionDemarrage,300);setTimeout(rapNotifier,7000);setInterval(rapNotifier,3600e3);setTimeout(rapPeriodique,9000);
