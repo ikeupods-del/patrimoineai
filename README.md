@@ -31,6 +31,14 @@ Deux versions, un seul code : l'application web installable (téléphone, naviga
 - **Bilan patrimonial en PDF**, **recherche rapide** (⌘K / Ctrl K), import de contrats (lecteur PDF hébergé dans `vendor/pdfjs/`) et CSV.
 - **Assistant** : IA locale (calculs, sans Internet), **IA du Mac** (application Mac : vrai modèle de langage sur la puce, sans Internet, chaque chiffre cité est vérifié dans les données, sinon la réponse calculée est affichée), Gemini ou Grok avec votre clé.
 
+## Utiliser Patrimoine AI sans Mac (version web)
+- **Adresse** : https://ikeupods-del.github.io/patrimoineai/ (téléphone, tablette, n'importe quel ordinateur).
+- **Retrouver ses données** : Réglages → « Continuer avec Google », avec le même compte et la même phrase secrète que sur le Mac ; ou « Restaurer un fichier » (sauvegarde JSON). Proposé dès l'accueil sur un nouvel appareil.
+- **Installer** : bouton « Installer Patrimoine AI » (Android, Chrome, Edge) ou, sur iPhone, Safari → Partager → Sur l'écran d'accueil. Icône, plein écran, hors ligne, raccourcis, partage de fichiers.
+- **Verrouillage** (Réglages → Verrouillage) : Face ID, empreinte ou code de l'appareil (clé d'accès WebAuthn créée sur l'appareil, sans serveur), délai réglable, secours par la phrase secrète ou un code de secours. Écran de confidentialité comme le Touch ID du Mac, pas un chiffrement.
+- **Banque** : sans le Mac, les soldes synchronisés par lui se figent ; Mes banques le signale et propose le **suivi manuel** (comptes gardés avec leur dernier solde) ou la liaison hébergée sur Netlify (docs/BANQUE.md).
+- **Sauvegardes** : avec la connexion Google, une copie chiffrée par jour est gardée 30 jours (Réglages → Sauvegardes) ; sinon, exportez régulièrement.
+
 ## Application Mac (`mac/`)
 - Electron ; l'application web est copiée dans `mac/app` à la construction (`scripts/copier-app.js`) : **aucune copie à maintenir à la main**.
 - **Sécurité** : données, phrase secrète, clés d'IA, sauvegardes, clé et session bancaires chiffrées par le trousseau (rien en clair sur le disque) ; Touch ID exigé par l'application pour la banque et la restauration ; verrous Electron (pas de débogueur, pas de `NODE_OPTIONS`, code seulement depuis l'archive), politique de sécurité (CSP) limitant les services joignables, fichiers bancaires vérifiés par empreinte. Détails : `docs/BANQUE.md`, « Comment c'est protégé ».

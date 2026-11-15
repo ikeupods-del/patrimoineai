@@ -15,5 +15,5 @@ window.PATRIMOINE_CONFIG = {
   // Liaison bancaire (écran « Mes banques ») : elle tourne dans l'application Mac, sans serveur (voir docs/BANQUE.md).
   // Facultatif : adresse d'un serveur qui hébergerait les fonctions de banque/routes pour la version en ligne. Vide = aucun serveur
   // (la version en ligne reçoit soldes et opérations par la synchronisation).
-  banqueApi: '',
+  banqueApi: '', // 'aucun' : jamais de serveur, même sur un domaine personnel
 };

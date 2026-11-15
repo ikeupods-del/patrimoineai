@@ -263,7 +263,7 @@ header.top h1{white-space:nowrap;min-width:0}
 .pali.on,.pali:hover{background:var(--card2)}.pali .xs{margin-left:auto;color:var(--mut)}
 .palh{font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;padding:10px 12px 4px}
 #lock{position:fixed;inset:0;z-index:90;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);text-align:center;padding:24px}
-body.locked #lock{display:flex}body.locked .app,body.locked .tabs,body.locked .fab{visibility:hidden}
+body.locked #lock{display:flex}body.locked .app,body.locked .tabs,body.locked .fab,body.locked #toast,body.locked #modal,body.locked #pal{visibility:hidden}
 #lock .ico{width:64px;height:64px;border-radius:18px}
 body.mac .side{padding-top:44px;-webkit-app-region:drag}body.mac .side button,body.mac .side a{-webkit-app-region:no-drag}
 body.mac header.top{-webkit-app-region:drag}body.mac header.top button{-webkit-app-region:no-drag}
@@ -627,6 +627,7 @@ function insights(){
   if(A.length>=3&&!A.some(a=>a.cat==='cash'))add('info','Aucune liquidité renseignée','Ajoutez vos livrets et comptes pour voir la part de votre patrimoine disponible immédiatement.',{l:'Ajouter un livret',a:'add',c:'cash'});
   rapDus().filter(x=>x.statut==='alerte').forEach(x=>add('bad','Versement manquant : '+x.r.nom,'Prévu le '+rapDate(x.date)+', toujours pas confirmé au bout de '+x.jours+' jours. Vérifiez sur la plateforme si le projet a pris du retard, puis confirmez ou annulez.',{l:'Confirmer',a:'go',v:'home'}));
   rapDus().filter(x=>x.statut==='retard').forEach(x=>add('warn','Paiement à confirmer : '+x.r.nom,'Prévu le '+rapDate(x.date)+', toujours pas confirmé au bout de '+x.jours+' jours. Vérifiez sur la plateforme, puis confirmez-le depuis l’accueil.',{l:'Mes rappels',a:'go',v:'bank'}));
+  if(bqFige()&&Date.now()-D.bank.sync>7*864e5)add('warn','Soldes bancaires figés depuis '+Math.floor((Date.now()-D.bank.sync)/864e5)+' jours','Ils étaient mis à jour par l’application Mac. Passez en suivi manuel ou reliez la banque depuis le web.',{l:'Voir Mes banques',a:'go',v:'bank'});
   if(bqLie()&&D.bank.errAt&&Date.now()-D.bank.errAt>3*864e5&&!bqExpire())add('warn','Synchronisation bancaire en échec depuis '+Math.floor((Date.now()-D.bank.errAt)/864e5)+' jours','Dernier message : '+String(D.bank.err||'erreur inconnue').slice(0,160)+' Ouvrez Mes banques et lancez « Tester la configuration ».',{l:'Mes banques',a:'go',v:'bank'});
   if(bqLie()){const j=bqJours(),nm=D.bank.banque||'votre banque';if(D.bank.statut==='expire'||(j!=null&&j<0))add('warn','Accès à '+nm+' expiré','Les soldes ne sont plus mis à jour. Renouvelez l’accord en vous identifiant de nouveau sur le site de la banque.',{l:'Renouveler',a:'go',v:'bank'});else if(j!=null&&j<=14)add('info','Accès à '+nm+' : plus que '+j+' jour'+(j>1?'s':''),'Renouvelez l’accord pour que vos soldes restent à jour.',{l:'Renouveler',a:'go',v:'bank'})}
   if(A.length>=3&&!MAC&&!syncOn()&&!A.every(a=>a.demo)&&(!D.lastBackup||Date.now()-D.lastBackup>30*864e5))add('info','Pensez à sauvegarder','Vos données ne sont que sur cet appareil. Un export régulier évite de tout perdre en cas de changement de téléphone ou d’effacement du navigateur.',{l:'Exporter maintenant',a:'exp'});
@@ -831,6 +832,7 @@ function insHTML(i,full){
 }
 function onboarding(){
   return `<section class="card"><h2>Bienvenue dans Patrimoine AI</h2><p class="mut mt" style="margin-top:6px">Suivez tout votre patrimoine au même endroit${MAC?', sur votre Mac':''}. Vos données restent sur cet appareil.</p>
+${!MAC&&HOSTED&&!(typeof ID!=='undefined'&&ID.user)?`<div class="box mt" style="border-color:var(--pt)"><b>Vous utilisiez Patrimoine AI sur un autre appareil (Mac, ordinateur, téléphone) ?</b><div class="sm mut">Connectez-vous avec le même compte Google et la même phrase secrète : vos placements, rappels et réglages reviennent. Ou restaurez un fichier de sauvegarde.</div><div class="g2 mt"><button class="btn sm" data-act="go" data-v="set">${ic('cloud',16)}Retrouver mes données</button><label class="btn sm sec" style="cursor:pointer">${ic('upload',16)}Restaurer un fichier<input type="file" accept=".json,application/json" data-ch="restore" hidden></label></div></div>`:''}
 <ol class="steps"><li><div><b>Ajoutez un premier placement</b><div class="sm mut">Bourse, crowdlending, livrets, mais aussi votre logement et vos crédits : choisissez le type et remplissez quelques champs.</div></div></li>
 <li><div><b>Suivez l’essentiel automatiquement</b><div class="sm mut">Répartition, évolution, échéances, alertes et indice de fiabilité se calculent tout seuls.</div></div></li>
 <li><div><b>Remplissez votre budget et vos objectifs</b><div class="sm mut">Revenus et dépenses du mois : l’application calcule votre reste à vivre et combien investir chaque mois pour vos projets.</div></div></li>
@@ -841,7 +843,7 @@ function renderHome(){
   const A=D.assets,el=$('v-home');
   if(!A.length){el.innerHTML=onboarding()+'<section class="card" id="mkmini" style="margin-top:14px"></section>';mkMini();return}
   const T=totals(),bc=byCat(),ins=insights(),dem=A.some(a=>a.demo),pts=histPts(UI.range);
-  let h='<div class="grid2">'+recapHTML()+rapHTML()+rapRetraitHTML();
+  let h='<div class="grid2">'+recapHTML()+rapHTML()+rapRetraitHTML()+instHTML(true);
   if(dem)h+=`<section class="card span2" style="border-color:var(--warn)"><b>Vous regardez des données d’exemple</b><div class="sm mut">Supprimez-les quand vous voulez pour commencer avec vos vrais placements.</div><div class="g2 mt"><button class="btn sec sm" data-act="democlear">Supprimer les exemples</button><button class="btn sm" data-act="add">Ajouter mon placement</button></div></section>`;
   h+=`<section class="card hero span2"><div class="lab" id="h-lab">${T.debt>0?'Patrimoine net':'Patrimoine total'}</div><div class="tot" id="h-tot">${eur(T.net)}</div>`;
   if(T.ti>0)h+=`<div class="delta ${T.gain>=0?'pos':'neg'}" id="h-gain">${gainHTML(T)}</div>`;
@@ -1440,7 +1442,7 @@ const BQ={busy:false,err:'',code:'',conf:null,sim:false,mock:false,vu:0,manque:[
 const BQTYPE={CACC:'Compte courant',SVGS:'Compte d’épargne',CARD:'Carte',LOAN:'Crédit',CASH:'Compte espèces',TRAN:'Compte de transactions',OTHR:'Autre compte'};
 /* Adresse des fonctions bancaires : l'application Mac elle-même (app://patrimoine, mac/banque-locale.js) ; sinon config.js (banqueApi)
    ou le site s'il héberge les fonctions. La version en ligne (GitHub Pages) n'en a pas : elle reçoit soldes et opérations par la synchronisation. */
-const bqBase=()=>{if(MAC)return location.origin;const c=(window.PATRIMOINE_CONFIG||{}).banqueApi;if(c)return String(c).replace(/\/+$/,'');return !MAC&&/^https?:$/.test(location.protocol)&&!/\.github\.io$/.test(location.hostname)?location.origin:''};
+const bqBase=()=>{if(MAC)return location.origin;const c=(window.PATRIMOINE_CONFIG||{}).banqueApi;if(c==='aucun')return '';if(c)return String(c).replace(/\/+$/,'');return !MAC&&/^https?:$/.test(location.protocol)&&!/\.github\.io$/.test(location.hostname)?location.origin:''};
 const bqLie=()=>!!(D.bank&&D.bank.liee);
 const bqJours=()=>D.bank&&D.bank.valid?Math.floor((Date.parse(D.bank.valid)-Date.now())/864e5):null;
 const bqExpire=()=>bqLie()&&(D.bank.statut==='expire'||(bqJours()!=null&&bqJours()<0));
@@ -1470,6 +1472,12 @@ function bqActifs(){
     const a=i>=0?D.assets[i]:{id,cat:'cash'};if(i<0){D.assets.push(a);if(D.del)delete D.del[id]}
     Object.assign(a,{name:(B.banque||'Banque')+' · '+k.nom,plat:B.banque||'',amount:k.solde,bq:k.ref,bqAt:k.soldeAt});
     if(k.soldeDev&&k.soldeDev!=='EUR'&&DEVISES[k.soldeDev])a.dev=k.soldeDev;else delete a.dev;delete a.demo});
+}
+/* Version web sans serveur bancaire : les soldes venaient de l'application Mac et ne bougent plus depuis 3 jours */
+const bqFige=()=>!MAC&&bqLie()&&!bqBase()&&D.bank.sync&&Date.now()-D.bank.sync>3*864e5;
+async function bqManuel(){
+  if(!await ask('Passer en suivi manuel ?','Vos comptes restent dans le patrimoine avec leur dernier solde, que vous pourrez modifier à la main ou mettre à jour par un relevé. La liaison automatique pourra être refaite plus tard.','Passer en suivi manuel'))return;
+  bqOublier();save();render();toast('Comptes en suivi manuel : touchez un compte pour modifier son solde');
 }
 function bqOublier(){D.assets.forEach(a=>{if(a.bq){delete a.bq;delete a.bqAt}});D.bank=null}
 function bqInclus(ref){const k=D.bank&&(D.bank.comptes||[]).find(x=>x.ref===ref);if(!k)return;k.inclus=!k.inclus;bqActifs();save();render();toast(k.inclus?'Compte compté dans le patrimoine':'Compte retiré du patrimoine')}
@@ -1618,6 +1626,7 @@ function renderBank(){
   const B=D.bank,lie=bqLie(),j=bqJours(),base=bqBase(),cnx=!!MAC||(typeof ID!=='undefined'&&!!ID.user);
   let h=`<div class="grid2"><section class="card span2"><div class="ct"><h3 style="display:flex;align-items:center;gap:8px">${ic('bank',18)}Ma banque</h3>${BQ.sim?'<span class="badge" style="--c:var(--blue)">Démonstration</span>':''}</div>`;
   if(!HOSTED)h+='<p class="sm mut">La liaison bancaire fonctionne quand l’application est ouverte en ligne.</p>';
+  else if(!base&&lie&&bqFige())h+=`<div class="box" style="border-color:var(--warn)"><b>Soldes figés depuis le ${esc(fd(new Date(D.bank.sync)))}</b><div class="sm mut">La banque était synchronisée par l’application Mac. Sans elle, les soldes et les opérations ne se mettent plus à jour ici.</div></div><div class="g2 mt"><button class="btn sec" data-act="bqmanuel">${ic('edit',18)}Passer en suivi manuel</button><button class="btn sec" data-act="go" data-v="budget">${ic('upload',18)}Importer un relevé</button></div><p class="hint">Suivi manuel : vos comptes restent dans le patrimoine avec leur dernier solde, modifiable à la main. Pour retrouver la mise à jour automatique sans Mac, hébergez la liaison sur Netlify :</p><details class="mt"><summary class="sm">Relier la banque sans Mac (Netlify)</summary>${bqGuideNetlify([])}</details>`;
   else if(!base)h+=`<p class="sm mut">${lie?'Votre banque est liée depuis l’application Mac : ses soldes et ses opérations arrivent ici par la synchronisation.':'La liaison bancaire se fait depuis l’application Mac de Patrimoine AI (la clé d’accès reste sur votre Mac). Les soldes et les opérations arrivent ensuite ici par la synchronisation.'}</p>${lie?'':`<details class="mt"><summary class="sm">Sans Mac : héberger la liaison sur Netlify</summary>${bqGuideNetlify([])}</details>`}`;
   else if(!cnx)h+=`<p class="sm mut">La liaison bancaire est rattachée à votre compte Google : connectez-vous d’abord dans les réglages.</p><button class="btn blk mt" data-act="go" data-v="set">${ic('cloud',18)}Se connecter</button>`;
   else if(BQ.conf===false&&MAC)h+=bqMiseEnRoute();
@@ -2047,7 +2056,7 @@ function renderSet(){
 <div class="set"><div><b>Masquer les montants</b><div class="hint">Remplace les sommes par des points, utile en public.</div></div>${sw('hide',HIDE,'Masquer les montants')}</div>
 <div class="set"><div><b>Actualiser les cours à l’ouverture</b><div class="hint">Récupère les cours Yahoo des positions avec ticker, au plus toutes les 6 heures.</div></div>${sw('auto',D.set.auto!==false,'Actualiser les cours à l’ouverture')}</div></section>
 <section class="card"><h3>Marchés en direct</h3><p class="sm mut" style="margin-top:6px">Les cours de vos placements et de l’écran Marchés se mettent à jour en continu. Seuls les symboles suivis (par exemple CW8.PA ou BTC-EUR) sont transmis à Yahoo Finance et à Binance, jamais vos montants. Désactivez pour économiser la batterie et les données.</p><div class="set" style="margin-top:6px"><div><b>Cours en direct</b><div class="hint">Flux continu tant que l’application est ouverte.</div></div>${sw('live',D.set.live!==false,'Cours en direct')}</div></section>
-${macSetHTML()}<section class="card"><h3>Assistant IA</h3><p class="sm mut" style="margin-top:6px">${MAC&&MAC.ia?'L’IA du Mac rédige librement sans Internet ; l’IA locale répond instantanément par des calculs.':'L’IA locale fonctionne sans Internet ni clé, et vos données restent sur l’appareil.'} Gemini et Grok rédigent plus librement, mais reçoivent vos placements. L’enquête web et la lecture de photos passent par Gemini.</p><div class="mt">${provChips()}</div>${aiSetBlock()}<div class="set" style="margin-top:6px"><div><b>Relais par l’IA locale</b><div class="hint">Si Gemini ou Grok ne répond pas, l’IA locale répond à sa place au lieu d’afficher une erreur.</div></div>${sw('fb',D.set.fb!==false,'Relais par l’IA locale')}</div></section>
+${macSetHTML()}${vwHTML()}${instHTML()}<section class="card"><h3>Assistant IA</h3><p class="sm mut" style="margin-top:6px">${MAC&&MAC.ia?'L’IA du Mac rédige librement sans Internet ; l’IA locale répond instantanément par des calculs.':'L’IA locale fonctionne sans Internet ni clé, et vos données restent sur l’appareil.'} Gemini et Grok rédigent plus librement, mais reçoivent vos placements. L’enquête web et la lecture de photos passent par Gemini.</p><div class="mt">${provChips()}</div>${aiSetBlock()}<div class="set" style="margin-top:6px"><div><b>Relais par l’IA locale</b><div class="hint">Si Gemini ou Grok ne répond pas, l’IA locale répond à sa place au lieu d’afficher une erreur.</div></div>${sw('fb',D.set.fb!==false,'Relais par l’IA locale')}</div></section>
 <section class="card"><h3>Fiscalité</h3><p class="sm mut" style="margin-top:6px">PFU ${nf(fiscD().ir,1)} % + prélèvements sociaux ${nf(fiscD().ps,1)} %, tranche marginale ${nf(fiscD().tmi,0)} %. Taux utilisés pour les revenus nets, la vue fiscale et les simulateurs.</p><button class="btn sec blk mt" data-act="fisc">${ic('sliders',18)}Modifier les taux</button></section>
 <section class="card span2"><h3>Mes données</h3><p class="sm mut" style="margin-top:6px">${syncOn()?'Enregistré sur cet appareil et synchronisé avec votre compte sur tous vos appareils.':'Tout est enregistré dans ce navigateur, sur cet appareil uniquement.'}</p><div class="kv" style="margin-top:8px"><span>Dernière sauvegarde</span><b>${D.lastBackup?esc(fd(new Date(D.lastBackup))):'Jamais'}</b></div><div class="g2 mt"><button class="btn sec" data-act="exp">${ic('download',18)}Exporter (JSON)</button><button class="btn sec" data-act="expcsv">${ic('download',18)}Exporter (CSV)</button></div><button class="btn sec blk mt" data-act="bilan">${ic('printer',18)}Bilan patrimonial en PDF</button><button class="btn sec blk mt" data-act="docs">${ic('folder',18)}Coffre à documents${D.docs.length?' ('+D.docs.length+')':''}</button><div class="fld"><label for="rest">Restaurer une sauvegarde</label><input id="rest" type="file" accept=".json,application/json" data-ch="restore"></div><button class="btn dng blk mt" data-act="reset">Réinitialiser mes données</button></section>
 <section class="card span2"><h3>À propos</h3><p class="sm mut" style="margin-top:6px"><b>Patrimoine AI ${VER}</b> · produit par <b>QuenTools</b>. Les données sont chiffrées sur l’appareil avant toute sauvegarde dans le cloud (Firebase, lié à votre compte Google) ; ni Google ni QuenTools ne peuvent les lire. Avec l’IA locale, rien ne sort de votre appareil hormis la liste des symboles suivis, envoyée à Yahoo Finance et à Binance pour les cours en direct. Si vous activez Gemini ou Grok, vos questions et un résumé de vos placements et de votre budget leur sont envoyés. Le coffre à documents reste toujours sur l’appareil. Les scores, estimations et simulations sont indicatifs et ne constituent pas un conseil en investissement.</p><a class="btn sec mt" style="text-decoration:none" href="${CGU}" target="_blank" rel="noopener">Conditions d’utilisation et confidentialité</a></section></div>`;
@@ -2095,8 +2104,63 @@ async function sauvRest(f){
 let LOCKT=0;
 const lockMin=()=>[1,5,15,30].includes(+D.set.lockMin)?+D.set.lockMin:5;
 function lockNow(force){if(!MAC||!D.set.lock||(!MACST.touch&&!force))return;closePal();document.body.classList.add('locked');macBar();$('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller avec Touch ID</button>`;setTimeout(()=>{const b=$('unl');if(b)b.focus()},50)}
-async function unlock(){try{const ok=await MAC.touchID('déverrouiller Patrimoine AI');if(ok){document.body.classList.remove('locked');lockArm();macBar()}}catch(e){toast('Touch ID : '+e.message)}}
-function lockArm(){clearTimeout(LOCKT);if(MAC&&D.set.lock&&MACST.touch)LOCKT=setTimeout(lockNow,lockMin()*60e3)}
+async function unlock(){if(!MAC)return vwOuvrir();try{const ok=await MAC.touchID('déverrouiller Patrimoine AI');if(ok){document.body.classList.remove('locked');lockArm();macBar()}}catch(e){toast('Touch ID : '+e.message)}}
+function lockArm(){clearTimeout(LOCKT);if(MAC&&D.set.lock&&MACST.touch)LOCKT=setTimeout(lockNow,lockMin()*60e3);else if(!MAC){const v=VW.get();if(v&&v.min>0)LOCKT=setTimeout(vwVerrouiller,v.min*60e3)}}
+/* ===================== Verrouillage de la version web : Face ID, empreinte ou code de l'appareil =====================
+   Clé d'accès (WebAuthn) créée sur cet appareil, sans serveur : comme le Touch ID du Mac, c'est un écran de confidentialité qui masque les
+   montants, pas un chiffrement des données. Secours : la phrase secrète de synchronisation, sinon un code de secours choisi à l'activation
+   (gardé sous forme d'empreinte PBKDF2). Réglage propre à l'appareil (localStorage pat_verrou), jamais synchronisé. */
+const VW={get(){try{const v=JSON.parse(localStorage.getItem('pat_verrou')||'null');return v&&v.id?v:null}catch(e){return null}},set(o){try{if(o)localStorage.setItem('pat_verrou',JSON.stringify(o));else localStorage.removeItem('pat_verrou')}catch(e){}},cache:0};
+const vwOk=()=>!MAC&&!!window.PublicKeyCredential&&!!navigator.credentials&&window.isSecureContext;
+const b64uE=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+async function vwEmpreinte(code,sel){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(code),'PBKDF2',false,['deriveBits']);return b64uE(await crypto.subtle.deriveBits({name:'PBKDF2',salt:u8(sel),iterations:200000,hash:'SHA-256'},k,256))}
+function vwDemander(){
+  const phrase=!!lsGet(KPW);
+  sheet('Verrouiller l’application',`<p class="sm mut">À l’ouverture et après un moment sans utilisation, Patrimoine AI masque vos montants jusqu’à ce que vous vous identifiiez avec <b>Face ID, votre empreinte ou le code de cet appareil</b>. Rien ne quitte l’appareil.</p>${phrase?'<p class="hint">En secours (capteur indisponible), votre phrase secrète de synchronisation déverrouille aussi.</p>':`<div class="fld mt"><label for="vw-c">Code de secours</label><div class="inp"><input id="vw-c" type="password" autocomplete="new-password" placeholder="6 caractères au moins"></div><div class="hint">Il déverrouille si le capteur ne répond pas. Notez-le.</div></div>`}<div class="err" id="vw-e"></div><div class="g2 mt" style="margin-top:20px"><button class="btn sec" data-act="closeM">Annuler</button><button class="btn" data-act="vwgo">${ic('lock',18)}Activer</button></div>`);
+}
+async function vwActiver(){
+  const c=$('vw-c'),code=c?c.value:'';if(c&&code.length<6){$('vw-e').textContent='Choisissez un code de secours de 6 caractères au moins.';return}
+  try{
+    const cr=await navigator.credentials.create({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),rp:{name:'Patrimoine AI'},user:{id:crypto.getRandomValues(new Uint8Array(16)),name:'patrimoine-ai',displayName:'Patrimoine AI'},pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},timeout:60000}});
+    const v={id:b64uE(cr.rawId),min:5};if(code){v.sel=b64uE(crypto.getRandomValues(new Uint8Array(16)));v.h=await vwEmpreinte(code,v.sel)}
+    VW.set(v);closeM();renderSet();lockArm();toast('Verrouillage activé : Face ID, empreinte ou code de l’appareil');
+  }catch(e){$('vw-e').textContent=e&&e.name==='NotAllowedError'?'Identification annulée ou refusée par l’appareil.':'Cet appareil ne propose pas Face ID, empreinte ou code pour ce site ('+(e&&e.message||e)+').'}
+}
+function vwVerrouiller(){
+  if(MAC||!VW.get()||document.body.classList.contains('locked'))return;closePal();closeM();document.body.classList.add('locked');
+  $('lock').innerHTML=`<span class="ico" style="--c:var(--pt)">${ic('lock',30)}</span><h2>Patrimoine AI est verrouillé</h2><p class="mut sm">Vos montants sont masqués.</p><button class="btn" data-act="unlock" id="unl">${ic('lock',18)}Déverrouiller</button><button class="lnk" data-act="vwsec">Utiliser ${lsGet(KPW)?'ma phrase secrète':'mon code de secours'}</button><div id="vw-s" style="width:min(320px,100%)"></div>`;
+  setTimeout(()=>{const b=$('unl');if(b)b.focus()},50);
+}
+async function vwOuvrir(){
+  const v=VW.get();if(!v){document.body.classList.remove('locked');return}
+  try{await navigator.credentials.get({publicKey:{challenge:crypto.getRandomValues(new Uint8Array(32)),allowCredentials:[{type:'public-key',id:u8(v.id)}],userVerification:'required',timeout:60000}});vwLibre()}
+  catch(e){toast(e&&e.name==='NotAllowedError'?'Identification annulée':'Identification impossible : utilisez le secours')}
+}
+function vwLibre(){document.body.classList.remove('locked');VW.cache=Date.now();lockArm()}
+function vwSecours(){const e=$('vw-s');if(e){e.innerHTML=`<div class="inp mt"><input id="vw-p" type="password" autocomplete="current-password" aria-label="${lsGet(KPW)?'Phrase secrète':'Code de secours'}" placeholder="${lsGet(KPW)?'Phrase secrète':'Code de secours'}"></div><button class="btn sec blk mt" data-act="vwsecok">Déverrouiller</button><div class="err" id="vw-pe"></div>`;setTimeout(()=>$('vw-p').focus(),30)}}
+async function vwSecoursOk(){
+  const v=VW.get(),p=$('vw-p').value,ph=lsGet(KPW);
+  if((ph&&p===ph)||(v&&v.h&&await vwEmpreinte(p,v.sel)===v.h)){vwLibre();return}
+  $('vw-pe').textContent='Ce n’est pas le bon '+(ph?'mot de passe.':'code.');
+}
+/* Installation de l'application web (écran d'accueil, plein écran, hors ligne) : invite du navigateur sur Android et ordinateur,
+   marche à suivre sur iPhone (Safari ne propose pas d'invite) */
+const INST={evt:null};
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();INST.evt=e;if(typeof UI!=='undefined'&&(UI.view==='set'||UI.view==='home'))render()});
+window.addEventListener('appinstalled',()=>{INST.evt=null;toast('Patrimoine AI est installé sur cet appareil');render()});
+const installee=()=>!!(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+const iosWeb=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)&&!installee();
+function instHTML(carte){
+  if(MAC||installee()||!HOSTED)return '';const ios=iosWeb();if(carte&&(!(INST.evt||ios)||D.set.instNon))return '';
+  const corps=INST.evt?`<button class="btn${carte?' sm':' blk mt'}" data-act="inst">${ic('download',18)}Installer Patrimoine AI</button>`:ios?`<p class="sm" style="margin-top:6px">Dans Safari : touchez <b>Partager</b> (le carré avec une flèche), puis <b>Sur l’écran d’accueil</b>.</p>`:'<p class="hint">Dans le menu du navigateur : « Installer l’application » ou « Ajouter à l’écran d’accueil ».</p>';
+  return carte?`<section class="card span2" style="border-color:var(--pt)"><div class="ct"><h3>Installer l’application</h3><button class="btn sm ghost" data-act="instnon" aria-label="Ne plus proposer">${ic('x',16)}</button></div><p class="sm mut">Une icône sur l’écran d’accueil, l’ouverture en plein écran, hors ligne, avec les raccourcis et les notifications.</p>${corps}</section>`
+    :`<section class="card"><h3>Installer l’application</h3><p class="sm mut" style="margin-top:6px">Icône sur l’écran d’accueil, plein écran, fonctionne hors ligne, raccourcis, partage de fichiers et notifications.</p>${corps}</section>`;
+}
+function vwHTML(){
+  if(MAC)return '';const v=VW.get();
+  if(!vwOk())return `<section class="card"><h3>Verrouillage</h3><p class="sm mut" style="margin-top:6px">Ce navigateur ne propose pas Face ID, empreinte ou code d’appareil pour les sites web.${window.isSecureContext?'':' Il faut ouvrir l’application depuis son adresse https.'}</p></section>`;
+  return `<section class="card"><h3>Verrouillage</h3><div class="set" style="margin-top:6px"><div><b>Face ID, empreinte ou code</b><div class="hint">Masque vos montants à l’ouverture et après un moment sans utilisation. Propre à cet appareil.</div></div>${sw('verrou',!!v,'Verrouiller avec Face ID, empreinte ou code')}</div>${v?`<div class="lbl mt">Verrouiller après</div><div class="chips">${[[0,'Dès la fermeture'],[1,'1 min'],[5,'5 min'],[15,'15 min']].map(([m,l])=>`<button class="chip${v.min===m?' on':''}" data-act="vwmin" data-v="${m}" aria-pressed="${v.min===m}">${l}</button>`).join('')}</div><button class="btn sec blk mt" data-act="vwnow">${ic('lock',18)}Verrouiller maintenant</button>`:''}</section>`;
+}
 ['pointerdown','keydown','wheel'].forEach(ev=>document.addEventListener(ev,()=>{if(!document.body.classList.contains('locked'))lockArm()},{passive:true}));
 /* Barre des menus */
 function macBar(){
@@ -3779,8 +3843,10 @@ const ACT={
   bougemp:()=>{UI.bouge='mp';go('analyse');renderAnalyse()},
   opendecl:()=>{UI.tool='decl';go('tools');renderTools(true)},
   theme:d=>{D.set.theme=d.v;save();applyTheme();renderSet()},
-  tog:d=>{if(d.k==='push'){pushActiver(!D.set.push);return}if(d.k==='capt'){MAC.captures(MACST.protegee).then(r=>{MACST.protegee=!!r.protegee;renderSet();toast(r.protegee?'Fenêtre de nouveau invisible aux captures':'Captures d’écran autorisées')}).catch(()=>{});return}if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
-  unlock:()=>unlock(),majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
+  tog:d=>{if(d.k==='push'){pushActiver(!D.set.push);return}if(d.k==='verrou'){if(VW.get()){VW.set(null);clearTimeout(LOCKT);renderSet();toast('Verrouillage désactivé')}else vwDemander();return}if(d.k==='capt'){MAC.captures(MACST.protegee).then(r=>{MACST.protegee=!!r.protegee;renderSet();toast(r.protegee?'Fenêtre de nouveau invisible aux captures':'Captures d’écran autorisées')}).catch(()=>{});return}if(d.k==='login'){if(MAC&&MAC.demarrage)MAC.demarrage(!MACST.login).then(v=>{MACST.login=!!v;renderSet()}).catch(e=>toast('Ouverture automatique : '+e.message));return}if(/^bqo:/.test(d.k)){bqOpsCompte(d.k.slice(4));return}if(/^bq:/.test(d.k)){bqInclus(d.k.slice(3));return}if(d.k==='hide'){HIDE=!HIDE;D.set.hide=HIDE}else if(d.k==='lock'||d.k==='bar')D.set[d.k]=!D.set[d.k];else if(d.k==='bloans')D.budget.loans=!D.budget.loans;else D.set[d.k]=!(D.set[d.k]!==false);save();render();if(d.k==='live')liveSync();if(d.k==='bar')macBar();if(d.k==='lock'){lockArm();toast(D.set.lock?'Verrouillage Touch ID activé':'Verrouillage désactivé')}},
+  inst:async()=>{const e=INST.evt;if(!e)return;e.prompt();try{await e.userChoice}catch(x){}INST.evt=null;render()},instnon:()=>{D.set.instNon=true;save();render()},
+  unlock:()=>unlock(),vwgo:()=>vwActiver(),vwsec:()=>vwSecours(),vwsecok:()=>vwSecoursOk(),vwnow:()=>vwVerrouiller(),
+  vwmin:d=>{const v=VW.get();if(!v)return;v.min=+d.v;VW.set(v);renderSet();lockArm()},majchk:()=>{if(MAC&&MAC.maj)MAC.maj.verifier().then(e=>{MACST.maj=e;renderSet()});MACST.maj=Object.assign({},MACST.maj,{etat:'recherche'});renderSet()},majgo:()=>{if(MAC&&MAC.maj)MAC.maj.installer()},
   sauvlist:()=>openSauv(),sauvdir:()=>MAC&&MAC.ouvrirSauvegardes(),sauvrest:d=>sauvRest(d.f),
   hide:()=>{HIDE=!HIDE;D.set.hide=HIDE;save();render()},
   refresh:()=>refresh(false),
@@ -3847,7 +3913,7 @@ const ACT={
   barm:d=>{D.set.barMode=d.v;save();renderSet();macBar()},
   lockm:d=>{D.set.lockMin=+d.v;save();renderSet();lockArm()},
   bqdiag:()=>bqDiag(),bqcal:()=>bqCalendrier(),rapics:()=>{dl('paiements-attendus.ics',CL.ics(D.rappels,today()),'text/calendar');toast('Ajoutez le fichier à votre calendrier (Google Agenda, Apple Calendrier…) : il sonnera chaque mois, même application fermée')},
-  bqlier:()=>bqLier(),
+  bqlier:()=>bqLier(),bqmanuel:()=>bqManuel(),
   bqcle:async()=>{try{const r=await MAC.banque.choisirCle();if(r.annule)return;BQ.mac=r;toast(r.corbeille?'Clé enregistrée dans le trousseau, fichier mis à la corbeille':'Clé enregistrée dans le trousseau du Mac');BQ.vu=0;await bqEtat();bqDiag()}catch(e){toast(String(e.message||e).replace(/^Error invoking remote method '[^']+': (Error: )?/,''))}},
   bqdemo:async()=>{BQ.mac=await MAC.banque.demo(true);BQ.vu=0;await bqEtat();toast('Banque de démonstration : touchez « Lier ma banque »')},
   bqoubli:async()=>{if(!await ask(BQ.mac&&BQ.mac.cle?'Retirer la clé de ce Mac ?':'Quitter la démonstration ?','La liaison bancaire est arrêtée sur ce Mac. Les soldes déjà importés restent dans vos placements et vos opérations dans le budget.',BQ.mac&&BQ.mac.cle?'Retirer':'Quitter',true))return;BQ.mac=await MAC.banque.oublier();bqOublier();save();BQ.vu=0;await bqEtat();render()},
@@ -4744,6 +4810,8 @@ function init(){
   if(D.set.auto!==false&&navigator.onLine!==false&&D.assets.some(a=>a.cat==='bourse'&&a.tick&&(!a.pxts||Date.now()-a.pxts>6*36e5)))refresh(true);
   setTimeout(autoTickers,4000);
   SNAP=snapOf();syncUI();idLoad();macInit();setTimeout(dueNotify,6000);setTimeout(fxRefresh,3000);
+  if(VW.get())vwVerrouiller();
+  document.addEventListener('visibilitychange',()=>{const v=VW.get();if(!v||MAC)return;if(document.hidden)VW.cache=Date.now();else if(Date.now()-VW.cache>=v.min*60e3)vwVerrouiller()});
   bqFinir();setTimeout(actionDemarrage,300);setTimeout(rapNotifier,7000);setInterval(rapNotifier,3600e3);setTimeout(rapPeriodique,9000);
   if(HOSTED){try{const o=JSON.parse(localStorage.getItem('pat_news')||'null');if(o&&Array.isArray(o.items)){NW.items=o.items;NW.at=0;newsMini()}}catch(e){}setTimeout(()=>newsLoad(),2500)}
   if(HOSTED){mkLoad('idx',true);mkLoad(MK.tab,true);setInterval(mkRefresh,10*60e3);liveSync();mkStatus();

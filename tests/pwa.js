@@ -8,9 +8,9 @@ const srv = http.createServer((q, r) => { const f = path.join(ROOT, q.url.split(
 (async () => {
   const M = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
   ok(M.shortcuts.length === 4 && M.shortcuts.every(s => s.name && s.url.startsWith('./')) && M.share_target.method === 'POST' && M.share_target.params.files[0].name === 'fichier' && M.id === './', 'manifeste : raccourcis, partage de fichiers, identifiant');
-  await new Promise(r => srv.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + srv.address().port + '/';
+  await new Promise(r => srv.listen(0, '127.0.0.1', r)); const base = 'http://localhost:' + srv.address().port + '/'; /* « localhost » : nom de site accepté par WebAuthn (pas une adresse IP) */
   const b = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: ['--no-sandbox'] });
-  const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => r.abort());
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await ctx.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, r => r.abort());
   const pg = await ctx.newPage(), errs = []; pg.on('pageerror', e => errs.push(e.message));
   await pg.goto(base); await pg.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 15000 }).catch(() => pg.reload());
   await pg.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 15000 });
@@ -27,6 +27,33 @@ const srv = http.createServer((q, r) => { const f = path.join(ROOT, q.url.split(
     D.assets = [{ id: 'p1', cat: 'crowd', name: 'Prêt Lyon', plat: 'Bienprêter', amount: 3000, value: 3000, rate: 8, dur: 36, date: iso(6), status: 'cours' }, { id: 'l1', cat: 'cash', name: 'Livret A', amount: 5000, rate: 2.4 }];
     D.rappels = [{ id: 'r1', nom: 'BienPrêter', jour: 5, aid: 'p1', dest: 'aucun', hist: {}, cree: '2000-01-01' }]; const m = moisCourant(), l = CL.ligneDuMois(echOf(D.assets[0]), m); rapValider('r1', m, l.total, { d: m + '-05' }); go('home'); render(); return $('v-home').textContent.replace(/[  ]/g, ' '); });
   ok(/Revenus (de |d’)/.test(carte) && /reçus sur .* de versements prévus/.test(carte) && /Prochain versement : BienPrêter/.test(carte), 'accueil : revenus du mois, part reçue, prochain versement');
+  /* verrouillage web : Face ID / empreinte (capteur simulé), secours par code, réglage du délai */
+  const cdp = await ctx.newCDPSession(pg); await cdp.send('WebAuthn.enable');
+  await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  await pg.evaluate(() => { localStorage.removeItem('pat_pass'); go('set'); }); await pg.click('[data-act=tog][data-k=verrou]');
+  ok(await pg.locator('#vw-c').count() === 1, 'activation : code de secours demandé (pas de phrase secrète)');
+  await pg.fill('#vw-c', 'abc'); await pg.click('[data-act=vwgo]'); ok(/6 caractères/.test(await pg.textContent('#vw-e')), 'code de secours trop court refusé');
+  await pg.fill('#vw-c', 'secours-123'); await pg.click('[data-act=vwgo]'); await pg.waitForFunction(() => !!VW.get(), null, { timeout: 8000 });
+  ok(await pg.evaluate(() => { const v = VW.get(); return v.id.length > 10 && v.min === 5 && v.h && !/secours/.test(JSON.stringify(v)); }), 'clé d’accès créée sur l’appareil, code de secours gardé sous forme d’empreinte');
+  await pg.click('[data-act=vwnow]'); ok(await pg.evaluate(() => document.body.classList.contains('locked') && getComputedStyle(document.querySelector('.app')).visibility === 'hidden'), 'verrouillé : contenu masqué');
+  await pg.click('#unl'); await pg.waitForFunction(() => !document.body.classList.contains('locked'), null, { timeout: 8000 }); ok(true, 'déverrouillé par Face ID / empreinte');
+  await pg.evaluate(() => vwVerrouiller()); await pg.click('[data-act=vwsec]'); await pg.fill('#vw-p', 'mauvais'); await pg.click('[data-act=vwsecok]'); await pg.waitForTimeout(400);
+  ok(await pg.evaluate(() => document.body.classList.contains('locked')) && /pas le bon code/.test(await pg.textContent('#vw-pe')), 'secours : mauvais code refusé');
+  await pg.fill('#vw-p', 'secours-123'); await pg.click('[data-act=vwsecok]'); await pg.waitForFunction(() => !document.body.classList.contains('locked'), null, { timeout: 8000 }); ok(true, 'secours : bon code accepté');
+  await pg.evaluate(() => go('set')); await pg.click('[data-act=vwmin][data-v="1"]'); ok(await pg.evaluate(() => VW.get().min === 1), 'délai de verrouillage réglable');
+  await pg.reload(); await pg.waitForFunction(() => typeof D !== 'undefined'); ok(await pg.evaluate(() => document.body.classList.contains('locked')), 'verrouillé à l’ouverture');
+  await pg.evaluate(() => { vwLibre(); VW.set(null); });
+  /* installation proposée (invite du navigateur simulée), refus mémorisé */
+  const ins = await pg.evaluate(() => { const e = new Event('beforeinstallprompt'); e.prompt = () => { window.__p = 1; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); window.dispatchEvent(e); go('home'); render(); return { home: !!document.querySelector('#v-home [data-act=inst]'), set: (go('set'), !!document.querySelector('#v-set [data-act=inst]')) }; });
+  ok(ins.home && ins.set, 'installation proposée sur l’accueil et dans les réglages');
+  await pg.click('#v-set [data-act=inst]'); await pg.waitForTimeout(200); ok(await pg.evaluate(() => window.__p === 1 && !INST.evt), 'invite d’installation ouverte');
+  /* banque liée par le Mac, plus synchronisée : alerte et passage en suivi manuel */
+  const bq = await pg.evaluate(() => { window.PATRIMOINE_CONFIG.banqueApi = 'aucun'; D.bank = { liee: Date.now() - 40 * 864e5, sync: Date.now() - 10 * 864e5, banque: 'Boursorama', comptes: [{ ref: 'c1', nom: 'Compte courant', solde: 1200, inclus: true }] }; D.assets.push({ id: 'bqa', cat: 'cash', name: 'Compte courant', amount: 1200, value: 1200, bq: 'c1' }); save(); go('bank'); render(); return { t: $('v-bank').textContent, i: insights().some(i => /Soldes bancaires figés/.test(i.title)) }; });
+  ok(/Soldes figés depuis/.test(bq.t) && /Passer en suivi manuel/.test(bq.t) && bq.i, 'banque figée depuis la perte du Mac : alerte et choix proposés');
+  await pg.click('[data-act=bqmanuel]'); await pg.click('[data-act=askok]'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => !D.bank && D.assets.find(a => a.id === 'bqa').value === 1200 && !D.assets.find(a => a.id === 'bqa').bq), 'suivi manuel : compte gardé avec son dernier solde, modifiable');
+  /* premier lancement sur un nouvel appareil : retrouver ses données */
+  ok(await pg.evaluate(() => { const A = D.assets; D.assets = []; renderHome(); const t = $('v-home').textContent; D.assets = A; return /Vous utilisiez Patrimoine AI sur un autre appareil/.test(t) && /Retrouver mes données/.test(t); }), 'nouvel appareil : « Retrouver mes données » proposé');
   ok(!errs.length, 'aucune erreur JavaScript : ' + errs.join(' | '));
   console.log('application installable :', n, 'contrôles réussis'); await b.close(); srv.close();
 })().catch(e => { console.error('ÉCHEC :', e.message); process.exit(1); });
