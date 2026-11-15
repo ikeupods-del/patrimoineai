@@ -33,4 +33,4 @@ jobs:
         env:
           PW: ${{ runner.temp }}/pw/node_modules/playwright
           AXE: ${{ runner.temp }}/pw/node_modules/axe-core/axe.min.js
-        run: node tests/e2e.js && node tests/rappels-e2e.js && node tests/pwa.js
+        run: node tests/e2e.js && node tests/rappels-e2e.js && node tests/pwa.js && node tests/iphone.js
