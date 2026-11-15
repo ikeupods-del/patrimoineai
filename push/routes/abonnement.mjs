@@ -1,6 +1,6 @@
 // POST /api/push/abonnement : enregistre l'adresse d'envoi du navigateur, les jours des rappels et les dates à confirmer (rien d'autre).
 // DELETE : désabonne. Compte Google vérifié par commun.mjs ; données rangées sous l'uid, chiffrées.
-import { fonction, corps, Erreur } from '../../banque/commun.mjs';
+import { fonction, corps, Erreur } from '../../serveur/commun.mjs';
 import { confPush, stock } from '../push.mjs';
 
 const date = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s)) ? String(s) : null;

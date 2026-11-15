@@ -1,5 +1,5 @@
-# Hébergement facultatif sur Netlify : le site (mêmes fichiers que GitHub Pages) et les fonctions de la liaison bancaire
-# (netlify/functions → banque/routes, sessions dans Netlify Blobs). Mode d'emploi et variables : docs/BANQUE.md, « Netlify ».
+# Hébergement facultatif sur Netlify : le site (mêmes fichiers que GitHub Pages) et les fonctions des notifications push des rappels
+# (netlify/functions → push/, abonnements dans Netlify Blobs). Mode d'emploi et variables : docs/PUSH.md.
 # Aucune clé dans ce fichier : elles se saisissent dans Netlify (Site configuration → Environment variables).
 [build]
   publish = "_site"

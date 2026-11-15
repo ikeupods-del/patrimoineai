@@ -1,7 +1,7 @@
 /* Patrimoine AI — calculs sans affichage (produit par QuenTools).
    Relevés bancaires (CSV, OFX, QIF), catégories des dépenses, abonnements, budget réel, rendement réel (TRI),
    simulation de l'indépendance financière, fiscalité (vente, plus-value immobilière, succession, donation, IFI),
-   revenus passifs, rappels de paiement et rapprochement avec les opérations de la banque. Fonctions pures, testées par tests/calculs.test.js ; l'interface est dans index.html. */
+   revenus passifs et rappels de paiement. Fonctions pures, testées par tests/calculs.test.js ; l'interface est dans index.html. */
 (function (root) {
   'use strict';
   const num = x => { const n = typeof x === 'number' ? x : parseFloat(String(x ?? '').replace(/\s/g, '').replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -590,41 +590,9 @@
     if (Math.abs(R - ligne.total) <= Math.max(0.5, ligne.total * 0.05)) return r2(Math.min(R, ligne.capital));
     return r2(Math.max(0, Math.min(R, R - ligne.interets)));
   }
-  /* Rapprochement : un crédit sur le compte entre 3 jours avant et 10 jours après l'échéance, dont le libellé contient
-     un des mots du rappel (séparés par |, sinon son nom). Un montant habituel proche départage ; une opération déjà
-     utilisée pour un autre paiement est écartée. */
-  function rapprocher(r, m, ops, utilises) {
-    const e = echeanceR(r, m), deb = ajoutJours(e, -3), fin = ajoutJours(e, 10), att = montantHabituel(r);
-    const mots = String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
-    const attendu = att > 0 ? att : num(r.prevu); /* sans historique : montant prévu par l'échéancier */
-    if (!mots.length && !(attendu > 0)) return null;
-    let best = null, bs = -Infinity;
-    for (const o of ops || []) {
-      if (!o || !(o.m > 0) || !o.d || o.d < deb || o.d > fin || (utilises && utilises.has(o.id))) continue;
-      const lib = norm(o.lib).replace(/[^a-z0-9]/g, ''), libOk = mots.some(w => lib.includes(w));
-      const proche = attendu > 0 && Math.abs(o.m - attendu) <= Math.max(1, attendu * 0.05), exact = attendu > 0 && Math.abs(o.m - attendu) <= Math.max(0.5, attendu * 0.02);
-      /* libellé reconnu ; à défaut, un montant presque identique au montant attendu (libellé inattendu de la plateforme) */
-      if (!libOk && !(exact && ecartJours(e, o.d) >= -1 && ecartJours(e, o.d) <= 5 && !PAS_PLATEFORME.test(norm(o.lib)))) continue;
-      const s = (libOk ? 20 : 0) + (proche ? 10 : 0) - Math.abs(ecartJours(e, o.d)) / 10;
-      if (s > bs) { bs = s; best = Object.assign({}, o, { parMontant: !libOk }); }
-    }
-    return best;
-  }
-  const PAS_PLATEFORME = /\b(salaire|paie|traitement|pension|retraite|caf|cpam|ameli|mutuelle|pole emploi|france travail|impots?|dgfip|tresor public|loyer recu|remboursement)\b/;
-  /* Mots du libellé d'un rappel (séparés par |, sinon son nom) */
-  const motsDe = r => String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
-  /* Retraits probables vers la compte bancaire : crédits dont le libellé évoque la plateforme, reçus après la création du
-     portefeuille, qui ne sont ni un paiement déjà validé ni une opération déjà traitée. La somme est plafonnée au solde du
-     portefeuille. « ignorer » = opérations déjà refusées par l'utilisateur. */
-  function retraitsPossibles(r, ops, utilises, solde, depuis) {
-    const mots = motsDe(r), vu = new Set([...(utilises || []), ...((r.ret || []).map(x => x.tx))]);
-    if (!mots.length || !(num(solde) > 0)) return [];
-    return (ops || []).filter(o => o && o.m > 0 && o.d >= (depuis || '0000') && !vu.has(o.id) && mots.some(w => norm(o.lib).replace(/[^a-z0-9]/g, '').includes(w)))
-      .sort((a, b) => a.d.localeCompare(b.d)).map(o => ({ op: o, somme: r2(Math.min(o.m, num(solde))) }));
-  }
   /* Écarte les opérations nouvelles qui existent déjà dans « existantes » : même montant, à 2 jours près, une seule fois chacune
      (deux achats identiques le même jour restent deux opérations). Sert à ne pas compter deux fois une même opération reçue
-     par la banque et par un relevé importé. */
+     par deux relevés importés. */
   function ecarterDoublons(nouvelles, existantes, tol = 2) {
     const libres = (existantes || []).map(o => ({ o, pris: false }));
     return (nouvelles || []).filter(n => {
@@ -637,17 +605,6 @@
       return true;
     });
   }
-  /* Opérations reçues de la banque (application Mac) → opérations du budget réel. Les opérations en attente et en
-     devise sont ignorées ; une opération déjà importée par un relevé (même montant, à 2 jours près) n'est pas reprise. */
-  function opsBanque(L, ref, existantes) {
-    const ops = (L || []).filter(t => t && t.id && t.etat !== 'PDNG' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && isFinite(t.m) && t.m !== 0 && (!t.dev || t.dev === 'EUR'))
-      .map(t => ({ d: t.d, lib: String(t.lib || 'Opération').slice(0, 140), m: r2(t.m), fid: 'eb:' + ref + ':' + t.id }));
-    return ecarterDoublons(ops, (existantes || []).filter(o => !/^eb:/.test(o.fid || '')));
-  }
-  /* Opérations d'un compte d'épargne : ni dépenses ni revenus (le virement est déjà compté « mis de côté » sur le compte
-     courant), sauf les intérêts, qui sont un revenu. */
-  const pourEpargne = o => Object.assign({}, o, { cat: /\binterets?\b/.test(norm(o.lib)) && o.m > 0 ? 'revenu' : 'virement' });
-
   /* ===================== Calendrier (.ics) : rappels qui sonnent même application fermée ===================== */
   const icsT = s => String(s || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
   const icsD = s => s.replace(/-/g, '');
@@ -663,12 +620,6 @@
     }
     return L.concat('END:VCALENDAR').join('\r\n') + '\r\n';
   }
-  /* Un seul événement daté (renouvellement de l'accord bancaire, quelques jours avant son expiration) */
-  function icsUnique(uid, titre, description, date, auj) {
-    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Patrimoine AI//Banque//FR', 'METHOD:PUBLISH', 'BEGIN:VEVENT', 'UID:' + uid + '@patrimoine-ai', 'DTSTAMP:' + icsD(auj) + 'T080000Z', 'DTSTART;VALUE=DATE:' + icsD(date),
-      'SUMMARY:' + icsT(titre), 'DESCRIPTION:' + icsT(description), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsT(titre), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
-  }
-
   /* Ticker à suivre pour un placement en bourse : ISIN lu dans le nom ou les notes, sinon le nom ; parmi les résultats de la
      recherche Yahoo, actions, ETF et fonds seulement, places européennes en euros d'abord (Paris, puis Amsterdam, Francfort…) */
   const RE_ISIN = /\b([A-Z]{2}[A-Z0-9]{9}\d)\b/;
@@ -1002,7 +953,7 @@
 
   const API = { lirePositions, rapprocherPositions, CHAMPS_IMPORT, devinerColonnes, typeImport, lignesImport, dateExcel, rapprocherImport, tableauDepuisJSON, lireXLSX, tableauImport, brutDe, comparerPfuBareme, imputationPertes, vueFiscale, variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
     tri, aTauxFixe, dansIndice, FISC_DEFAUT, fiscalite, SOURCES_REV, tauxImpot, tableauRevenus, listeMois, rendements, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
-    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
+    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, ecarterDoublons, ics, ajoutJours };
   root.Calculs = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

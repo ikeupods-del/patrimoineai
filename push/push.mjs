@@ -3,7 +3,7 @@
 // et les dates encore à confirmer. La notification part sans contenu ; le service worker de l'appareil compose le texte (sw.js).
 // Clés VAPID dans les variables d'environnement (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT), jamais dans le dépôt.
 import crypto from 'node:crypto';
-import { sceller, ouvrir, DEP } from '../banque/commun.mjs';
+import { sceller, ouvrir, DEP } from '../serveur/commun.mjs';
 import CL from '../calculs.js'; /* mêmes calculs que l'application (jours ouvrés, fériés) */
 const env = k => String((DEP.env || process.env)[k] || '').trim();
 const b64u = b => Buffer.from(b).toString('base64url');

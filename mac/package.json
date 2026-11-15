@@ -23,7 +23,6 @@
       "ia-worker.js",
       "dictee.js",
       "dictee-worker.js",
-      "banque-locale.js",
       "package.json",
       "app/**"
     ],
@@ -47,8 +46,7 @@
     "asarUnpack": [
       "node_modules/node-llama-cpp/**",
       "node_modules/@node-llama-cpp/**",
-      "node_modules/sherpa-onnx-*/**",
-      "app/banque/**"
+      "node_modules/sherpa-onnx-*/**"
     ]
   },
   "devDependencies": {

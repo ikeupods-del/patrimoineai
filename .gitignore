@@ -1,4 +1,4 @@
-# Secrets : jamais dans le dépôt (clés Enable Banking, variables d'environnement, certificats)
+# Secrets : jamais dans le dépôt (clés privées, variables d'environnement, certificats)
 .env
 .env.*
 !.env.example

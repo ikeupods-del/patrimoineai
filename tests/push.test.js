@@ -5,7 +5,7 @@ let n = 0; const ok = (c, m) => { assert(c, m); n++; };
 const F = f => import(path.join(__dirname, '..', f));
 
 (async () => {
-  const { DEP } = await F('banque/commun.mjs'), P = await F('push/push.mjs');
+  const { DEP } = await F('serveur/commun.mjs'), P = await F('push/push.mjs');
   const k = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' }), jwk = k.privateKey.export({ format: 'jwk' });
   const pub = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, 'base64url'), Buffer.from(jwk.y, 'base64url')]).toString('base64url');
   ok(!P.confPush().configure, 'sans clés VAPID : non configuré');

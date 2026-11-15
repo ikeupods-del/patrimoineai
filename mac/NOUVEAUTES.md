@@ -6,11 +6,11 @@
 - **Revenus passifs** (nouvel écran Revenus) : ce que vous avez reçu comparé à ce qui était prévu, mois par mois et par année, par source (crowdlending, immobilier fractionné, dividendes, livrets, assurance-vie, loyers), en brut ou net d’impôt, rendement annualisé par plateforme et projection des 12 prochains mois. Les taux d’imposition se règlent dans Réglages → Fiscalité.
 - **Vue fiscale annuelle** (Simulateurs → Vue fiscale) : choix de l’année, intérêts par plateforme, prélèvements déjà retenus à la source, pertes en capital, comparaison PFU ou barème, cases de la déclaration (chacune marquée « à vérifier » quand elle n’est pas certaine), export CSV et PDF.
 - **Import depuis Finary ou un tableur** : déposez un fichier CSV ou Excel (ou une capture d’écran), vérifiez les colonnes, puis chaque ligne (mettre à jour, créer ou ignorer). Les doublons sont repérés et l’import s’annule en un geste.
-- **Mes banques** : un versement attendu reconnu dans vos opérations se valide en un clic ; bouton « Actualiser ».
+- **Liaison bancaire retirée** : Patrimoine AI ne se connecte plus à votre banque (Enable Banking). Vos comptes restent dans le patrimoine avec leur dernier solde, à mettre à jour à la main ou par l’import d’un relevé. L’écran « Mes banques » devient « Mes versements » (rappels de paiement).
 - **Accueil** : nouvelle carte « Revenus du mois » (versements reçus sur ceux prévus, prochain versement attendu) ; boutons rapides plus courts.
 - L’assistant répond aussi sur vos versements, vos revenus nets, la vue fiscale, l’import et vos comptes.
 - **Importer le portefeuille d’un courtier** (Importer, ou Analyse → Enveloppes de vos titres) : l’export CSV des positions de Degiro, BoursoBank, Fortuneo, Trade Republic… remplit votre PEA ou compte-titres d’un coup. Les titres déjà suivis sont mis à jour (quantité, prix de revient, cours), les nouveaux sont ajoutés et leur cours est ensuite suivi tout seul d’après le code ISIN. Un aperçu montre tout avant d’importer, et les titres absents du fichier sont signalés.
-- **Version web** : verrouillage par Face ID, empreinte ou code du téléphone, installation en un geste, « Retrouver mes données » sur un nouvel appareil, et suivi manuel des comptes quand la banque n’est plus synchronisée.
+- **Version web** : verrouillage par Face ID, empreinte ou code du téléphone, installation en un geste, « Retrouver mes données » sur un nouvel appareil.
 - **Nouveaux points d’attention** : frais élevés sur un contrat, frais bancaires de plus de 100 € par an, et au printemps, le récapitulatif de la déclaration des revenus prêt à consulter.
 
 ## 6.7.0
