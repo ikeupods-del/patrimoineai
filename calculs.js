@@ -1,7 +1,7 @@
 /* Patrimoine AI — calculs sans affichage (produit par QuenTools).
    Relevés bancaires (CSV, OFX, QIF), catégories des dépenses, abonnements, budget réel, rendement réel (TRI),
    simulation de l'indépendance financière, fiscalité (vente, plus-value immobilière, succession, donation, IFI),
-   revenus passifs, rappels de paiement et rapprochement avec les opérations de la banque. Fonctions pures, testées par tests/calculs.test.js ; l'interface est dans index.html. */
+   revenus passifs et rappels de paiement. Fonctions pures, testées par tests/calculs.test.js ; l'interface est dans index.html. */
 (function (root) {
   'use strict';
   const num = x => { const n = typeof x === 'number' ? x : parseFloat(String(x ?? '').replace(/\s/g, '').replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -397,6 +397,62 @@
     M.forEach(x => { x.total = r2(x.total); });
     return { mois: M, total: r2(M.reduce((s, x) => s + x.total, 0)) };
   }
+  /* ===================== Revenus passifs : réel contre prévu, brut et net d'impôt ===================== */
+  /* Taux réglables par l'utilisateur (Réglages → Fiscalité) : ils évoluent chaque année. Valeurs par défaut = FISC. */
+  const FISC_DEFAUT = { ir: FISC.ir, ps: FISC.ps, psAV: FISC.psAV, psImmo: FISC.pvImmoPS, tmi: 30, abatFoncier: 30 };
+  function fiscalite(f) {
+    const o = Object.assign({}, FISC_DEFAUT);
+    for (const k of Object.keys(FISC_DEFAUT)) { const v = f && f[k]; if (v !== '' && v != null && isFinite(num(v)) && num(v) >= 0 && num(v) <= 100) o[k] = num(v); }
+    return o;
+  }
+  const SOURCES_REV = { crowd: 'Crowdlending', immo: 'Immobilier fractionné', div: 'Dividendes', livret: 'Livrets', av: 'Assurance-vie', loyer: 'Loyers' };
+  /* Taux d'imposition (en %) d'un revenu selon sa source, règles simplifiées : prélèvement forfaitaire unique (impôt + prélèvements
+     sociaux) pour les intérêts et dividendes ; rien pour les livrets réglementés et le PEA tant qu'on n'y retire rien ; prélèvements
+     sociaux seuls sur les fonds en euros de l'assurance-vie (l'impôt n'est dû qu'au rachat) ; loyers en micro-foncier : tranche
+     marginale et prélèvements sociaux après l'abattement. o : {exonere, pea} */
+  function tauxImpot(type, f, o = {}) {
+    const F = fiscalite(f);
+    if (o.exonere || (type === 'div' && o.pea)) return 0;
+    if (type === 'av') return F.psAV;
+    if (type === 'loyer') return r2((F.tmi + F.psImmo) * (1 - F.abatFoncier / 100));
+    return r2(F.ir + F.ps);
+  }
+  /* sources : [{type, nom, taux (% d'impôt), reel: {'AAAA-MM': montant} | null (pas de suivi réel), prevu: {'AAAA-MM': montant}}]
+     moisL : liste des mois → par mois et au total : réel, prévu, brut et net, et par type de source. Le réel ne se compare qu'au prévu
+     des sources suivies (« suivi ») ; le prévu des sources sans suivi (livrets, loyers…) est une estimation (« estime »). */
+  function tableauRevenus(sources, moisL) {
+    const vide = () => ({ reel: 0, prevu: 0, suivi: 0, estime: 0, reelNet: 0, prevuNet: 0, suiviNet: 0, estimeNet: 0 }), add = (o, k, v, t) => { o[k] += v; o[k + 'Net'] += v * (1 - t / 100); };
+    const tot = Object.assign(vide(), { par: {} }), mois = moisL.map(m => Object.assign({ mois: m, par: {} }, vide()));
+    for (const s of sources || []) {
+      const t = num(s.taux), P = tot.par[s.type] = tot.par[s.type] || vide();
+      mois.forEach(x => {
+        const q = x.par[s.type] = x.par[s.type] || vide(), r = s.reel ? num(s.reel[x.mois]) : 0, p = num((s.prevu || {})[x.mois]);
+        if (r) { add(x, 'reel', r, t); add(q, 'reel', r, t); add(tot, 'reel', r, t); add(P, 'reel', r, t); }
+        if (p) { const k2 = s.reel ? 'suivi' : 'estime'; for (const o of [x, q, tot, P]) { add(o, 'prevu', p, t); add(o, k2, p, t); } }
+      });
+    }
+    const arr = o => { for (const k of Object.keys(vide())) o[k] = r2(o[k]); return o; };
+    mois.forEach(x => { arr(x); Object.values(x.par).forEach(arr); }); arr(tot); Object.values(tot.par).forEach(arr);
+    return { mois, total: tot };
+  }
+  /* Liste de n mois à partir de « debut » ('AAAA-MM') */
+  const listeMois = (debut, n) => Array.from({ length: n }, (_, k) => moisDecale(debut, k));
+  /* Rendement annualisé brut et net par plateforme et global. groupes : [{nom, flux: [{d, m}], valeur, taux (% d'impôt)}]. Le net
+     applique le taux d'impôt de la source au rendement (les revenus sont imposés, le capital non) : approximation honnête pour des
+     placements dont tout le gain est un revenu (crowdlending, loyers). */
+  function rendements(groupes, auj = new Date()) {
+    const res = [], tousF = [];let tousV = 0, tauxPond = 0, poids = 0;
+    for (const g of groupes || []) {
+      const F = (g.flux || []).filter(x => x && x.d && num(x.m)); if (!F.length) continue;
+      const R = tri(F, g.valeur, auj); if (!R) continue;
+      const t = num(g.taux), verse = F.filter(x => num(x.m) > 0).reduce((s, x) => s + num(x.m), 0);
+      res.push({ nom: g.nom, tri: R.tri, triNet: R.tri == null ? null : R.tri * (1 - t / 100), gain: R.gain, verse: r2(verse), valeur: r2(num(g.valeur)), taux: t, jours: R.jours });
+      tousF.push(...F); tousV += num(g.valeur); tauxPond += t * verse; poids += verse;
+    }
+    res.sort((a, b) => (b.valeur || 0) - (a.valeur || 0));
+    const G = tousF.length ? tri(tousF, tousV, auj) : null, tg = poids > 0 ? tauxPond / poids : 0;
+    return { lignes: res, global: G ? { tri: G.tri, triNet: G.tri == null ? null : G.tri * (1 - tg / 100), gain: G.gain, valeur: r2(tousV), taux: r2(tg) } : null };
+  }
   /* Dividendes des 12 derniers mois (horodatages Yahoo en secondes) → montants par mois des 12 prochains mois, rang 0 = mois en cours */
   function dividendesAVenir(divs, quantite, auj = new Date()) {
     const out = Array(12).fill(0), q = num(quantite), il12 = new Date(auj); il12.setFullYear(il12.getFullYear() - 1);
@@ -447,55 +503,96 @@
   }
   /* Paiements arrivés à échéance et pas encore validés (6 derniers mois au plus, jamais avant la création du rappel).
      Au-delà de « delai » jours sans validation, le paiement passe en retard. */
-  function rappelsDus(rappels, auj, delai = 3) {
+  /* Un mois est traité quand il a été validé (reçu) ou fermé (absent) ; une validation annulée (s: 'annule') le rouvre :
+     elle reste dans l'historique comme trace datée, pour que la synchronisation n'y ramène pas l'ancienne validation. */
+  const traite = h => !!(h && h.s !== 'annule');
+  /* Au-delà de « delai » jours sans validation, le paiement passe en retard (orange) ; au-delà de « alerte » jours, en alerte (rouge). */
+  function rappelsDus(rappels, auj, delai = 3, alerte = 10) {
     const out = [];
     for (const r of rappels || []) {
       if (!r || r.actif === false || !(num(r.jour) >= 1)) continue;
       for (let k = 0, m = mois(auj); k < 6; k++, m = moisDecale(m, -1)) {
         const e = echeanceR(r, m);
-        if (e > auj || (r.cree && e < r.cree) || (r.hist && r.hist[m])) continue;
+        if (e > auj || (r.cree && e < r.cree) || traite(r.hist && r.hist[m])) continue;
         const j = ecartJours(e, auj);
-        out.push({ r, mois: m, date: e, jours: j, statut: j > delai ? 'retard' : 'a_valider' });
+        out.push({ r, mois: m, date: e, jours: j, statut: j > alerte ? 'alerte' : j > delai ? 'retard' : 'a_valider' });
       }
     }
     return out.sort((a, b) => a.date.localeCompare(b.date));
   }
   /* Prochaine date de paiement pas encore traitée (aujourd'hui compris) */
   function prochaineEcheance(r, auj) {
-    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeanceR(r, m); if (e >= auj && !(r.hist && r.hist[m])) return e; }
+    for (let k = 0, m = mois(auj); k < 24; k++, m = moisDecale(m, 1)) { const e = echeanceR(r, m); if (e >= auj && !traite(r.hist && r.hist[m])) return e; }
     return null;
   }
-  /* Rapprochement : un crédit sur le compte entre 3 jours avant et 10 jours après l'échéance, dont le libellé contient
-     un des mots du rappel (séparés par |, sinon son nom). Un montant habituel proche départage ; une opération déjà
-     utilisée pour un autre paiement est écartée. */
-  function rapprocher(r, m, ops, utilises) {
-    const e = echeanceR(r, m), deb = ajoutJours(e, -3), fin = ajoutJours(e, 10), att = montantHabituel(r);
-    const mots = String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
-    if (!mots.length) return null;
-    let best = null, bs = -Infinity;
-    for (const o of ops || []) {
-      if (!o || !(o.m > 0) || !o.d || o.d < deb || o.d > fin || (utilises && utilises.has(o.id))) continue;
-      const lib = norm(o.lib).replace(/[^a-z0-9]/g, '');
-      if (!mots.some(w => lib.includes(w))) continue;
-      const s = (att > 0 && Math.abs(o.m - att) <= Math.max(1, att * 0.05) ? 10 : 0) - Math.abs(ecartJours(e, o.d)) / 10;
-      if (s > bs) { bs = s; best = o; }
-    }
-    return best;
+  /* Historique d'un rappel, du plus récent au plus ancien : [{mois, s, m, c, d, t, tx, aid}] (annulations comprises) */
+  const historique = r => Object.entries((r && r.hist) || {}).filter(([, h]) => h && typeof h === 'object').map(([m, h]) => Object.assign({ mois: m }, h)).sort((a, b) => b.mois.localeCompare(a.mois));
+  /* Fusion de deux versions d'un même historique (deux appareils) : mois par mois, l'entrée la plus récente (t) gagne ;
+     une entrée sans date perd contre une entrée datée. */
+  function fusionHist(a, b) {
+    const out = Object.assign({}, a || {});
+    for (const [m, h] of Object.entries(b || {})) { const x = out[m]; if (!x || num(h && h.t) > num(x.t)) out[m] = h; }
+    return out;
   }
-  /* Mots du libellé d'un rappel (séparés par |, sinon son nom) */
-  const motsDe = r => String(r.motif || r.nom || '').split('|').map(x => norm(x).replace(/[^a-z0-9]/g, '')).filter(x => x.length >= 3);
-  /* Retraits probables vers la compte bancaire : crédits dont le libellé évoque la plateforme, reçus après la création du
-     portefeuille, qui ne sont ni un paiement déjà validé ni une opération déjà traitée. La somme est plafonnée au solde du
-     portefeuille. « ignorer » = opérations déjà refusées par l'utilisateur. */
-  function retraitsPossibles(r, ops, utilises, solde, depuis) {
-    const mots = motsDe(r), vu = new Set([...(utilises || []), ...((r.ret || []).map(x => x.tx))]);
-    if (!mots.length || !(num(solde) > 0)) return [];
-    return (ops || []).filter(o => o && o.m > 0 && o.d >= (depuis || '0000') && !vu.has(o.id) && mots.some(w => norm(o.lib).replace(/[^a-z0-9]/g, '').includes(w)))
-      .sort((a, b) => a.d.localeCompare(b.d)).map(o => ({ op: o, somme: r2(Math.min(o.m, num(solde))) }));
+  /* Fusion des rappels de deux appareils, rappel par rappel : réglages de la version la plus récente (u), historique réuni
+     mois par mois, rappels supprimés (del : {id: date}) écartés. « prefLocal » départage deux versions de même date. */
+  function fusionRappels(local, distant, del, prefLocal) {
+    const D = del || {}, L = new Map((local || []).map(r => [r.id, r])), out = [];
+    const garde = r => r && r.id && !(D[r.id] != null && num(D[r.id]) >= num(r.u)); /* supprimé seulement s'il existe une trace de suppression */
+    for (const r of distant || []) {
+      if (!garde(r)) { L.delete(r && r.id); continue; }
+      const l = L.get(r.id); L.delete(r.id);
+      if (!l) { out.push(r); continue; }
+      const gagne = num(l.u) > num(r.u) || (num(l.u) === num(r.u) && prefLocal) ? l : r;
+      out.push(Object.assign({}, gagne, { hist: fusionHist(gagne === l ? r.hist : l.hist, gagne.hist) }));
+    }
+    for (const l of L.values()) if (garde(l)) out.push(l);
+    return out;
+  }
+
+  /* ===================== Échéancier d'un placement (BienPrêter, Bricks…) ===================== */
+  /* p : {montant (capital prêté), taux (%/an), duree (mois), debut ('AAAA-MM-JJ'), jour (jour du versement), mode, paie}
+     mode : 'amort' = mensualités constantes, capital et intérêts (prêts BienPrêter) ; 'infine' = intérêts chaque mois, capital
+     rendu à la fin ; 'loyer' = revenu mensuel régulier sans remboursement de capital (immobilier fractionné, Bricks).
+     → lignes mois par mois {mois, date, interets, capital, total, crd (capital restant après ce versement), recu, capitalRecu}
+     et le capital restant prévu à la date « auj ». Les montants reçus (paie : {d, m, c, mois}) sont rapprochés par mois. */
+  function echeancier(p, auj, horizon = 12) {
+    const P = num(p.montant), t = num(p.taux) / 100 / 12, mode = p.mode || 'amort', debut = jour(p.debut);
+    if (!(P > 0) || !debut || !(t > 0) && mode !== 'amort') return null;
+    const n = mode === 'loyer' ? 0 : Math.round(num(p.duree));
+    if (mode !== 'loyer' && !(n > 0)) return null;
+    const m0 = moisDecale(iso(debut).slice(0, 7), 1), recus = {};
+    for (const x of p.paie || []) { const m = x && (x.mois || String(x.d || '').slice(0, 7)); if (!m) continue; recus[m] = recus[m] || { m: 0, c: 0 }; recus[m].m += num(x.m); recus[m].c += num(x.c); }
+    const mens = mode === 'amort' ? (t ? P * t / (1 - Math.pow(1 + t, -n)) : P / n) : 0, fin = auj ? mois(auj) : null;
+    const total = mode === 'loyer' ? Math.max(1, (fin ? Math.max(0, (Number(fin.slice(0, 4)) - Number(m0.slice(0, 4))) * 12 + Number(fin.slice(5)) - Number(m0.slice(5)) + 1) : 0) + horizon) : n;
+    const L = []; let crd = P;
+    for (let k = 0; k < Math.min(total, 600); k++) {
+      const m = moisDecale(m0, k); let it, cap;
+      if (mode === 'loyer') { it = P * t; cap = 0; }
+      else if (mode === 'infine') { it = crd * t; cap = k === n - 1 ? crd : 0; }
+      else { it = crd * t; cap = k === n - 1 ? crd : Math.min(crd, mens - it); }
+      crd = Math.max(0, crd - cap);
+      const rc = recus[m];
+      L.push({ mois: m, date: echeance(m, p.jour || debut.getDate()), interets: r2(it), capital: r2(cap), total: r2(it + cap), crd: r2(crd), recu: rc ? r2(rc.m) : null, capitalRecu: rc ? r2(rc.c) : null });
+    }
+    const passe = fin ? L.filter(x => x.mois <= fin) : [], reste = passe.length ? passe[passe.length - 1].crd : P;
+    const capRecu = r2((p.paie || []).reduce((s, x) => s + num(x && x.c), 0));
+    return { mode, lignes: L, mensualite: r2(mode === 'amort' ? mens : P * t), capitalRestantPrevu: r2(mode === 'loyer' ? P : reste), capitalRestantReel: r2(Math.max(0, P - capRecu)),
+      prochaines: fin ? L.filter(x => x.mois > fin || (x.mois === fin && x.recu == null)).slice(0, horizon) : L.slice(0, horizon) };
+  }
+  /* Ligne de l'échéancier d'un mois donné (null si hors échéancier) */
+  const ligneDuMois = (E, m) => (E && E.lignes.find(x => x.mois === m)) || null;
+  /* Part de capital d'un versement reçu : celle de l'échéancier si le montant est celui prévu (à 5 % près), sinon le montant
+     reçu moins les intérêts prévus du mois (jamais négative, jamais plus que le versement) */
+  function partCapital(ligne, recu) {
+    if (!ligne || !(ligne.capital > 0)) return 0;
+    const R = num(recu);
+    if (Math.abs(R - ligne.total) <= Math.max(0.5, ligne.total * 0.05)) return r2(Math.min(R, ligne.capital));
+    return r2(Math.max(0, Math.min(R, R - ligne.interets)));
   }
   /* Écarte les opérations nouvelles qui existent déjà dans « existantes » : même montant, à 2 jours près, une seule fois chacune
      (deux achats identiques le même jour restent deux opérations). Sert à ne pas compter deux fois une même opération reçue
-     par la banque et par un relevé importé. */
+     par deux relevés importés. */
   function ecarterDoublons(nouvelles, existantes, tol = 2) {
     const libres = (existantes || []).map(o => ({ o, pris: false }));
     return (nouvelles || []).filter(n => {
@@ -508,17 +605,6 @@
       return true;
     });
   }
-  /* Opérations reçues de la banque (application Mac) → opérations du budget réel. Les opérations en attente et en
-     devise sont ignorées ; une opération déjà importée par un relevé (même montant, à 2 jours près) n'est pas reprise. */
-  function opsBanque(L, ref, existantes) {
-    const ops = (L || []).filter(t => t && t.id && t.etat !== 'PDNG' && /^\d{4}-\d{2}-\d{2}$/.test(t.d) && isFinite(t.m) && t.m !== 0 && (!t.dev || t.dev === 'EUR'))
-      .map(t => ({ d: t.d, lib: String(t.lib || 'Opération').slice(0, 140), m: r2(t.m), fid: 'eb:' + ref + ':' + t.id }));
-    return ecarterDoublons(ops, (existantes || []).filter(o => !/^eb:/.test(o.fid || '')));
-  }
-  /* Opérations d'un compte d'épargne : ni dépenses ni revenus (le virement est déjà compté « mis de côté » sur le compte
-     courant), sauf les intérêts, qui sont un revenu. */
-  const pourEpargne = o => Object.assign({}, o, { cat: /\binterets?\b/.test(norm(o.lib)) && o.m > 0 ? 'revenu' : 'virement' });
-
   /* ===================== Calendrier (.ics) : rappels qui sonnent même application fermée ===================== */
   const icsT = s => String(s || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
   const icsD = s => s.replace(/-/g, '');
@@ -534,12 +620,6 @@
     }
     return L.concat('END:VCALENDAR').join('\r\n') + '\r\n';
   }
-  /* Un seul événement daté (renouvellement de l'accord bancaire, quelques jours avant son expiration) */
-  function icsUnique(uid, titre, description, date, auj) {
-    return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Patrimoine AI//Banque//FR', 'METHOD:PUBLISH', 'BEGIN:VEVENT', 'UID:' + uid + '@patrimoine-ai', 'DTSTAMP:' + icsD(auj) + 'T080000Z', 'DTSTART;VALUE=DATE:' + icsD(date),
-      'SUMMARY:' + icsT(titre), 'DESCRIPTION:' + icsT(description), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsT(titre), 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
-  }
-
   /* Ticker à suivre pour un placement en bourse : ISIN lu dans le nom ou les notes, sinon le nom ; parmi les résultats de la
      recherche Yahoo, actions, ETF et fonds seulement, places européennes en euros d'abord (Paris, puis Amsterdam, Francfort…) */
   const RE_ISIN = /\b([A-Z]{2}[A-Z0-9]{9}\d)\b/;
@@ -610,6 +690,188 @@
     return { annee: o.annee, lignes: L, rappels: R };
   }
 
+  /* ===================== Import d'un tableau de placements (export Finary, tableur, capture lue par l'IA) =====================
+     Aucune API ni identifiant : l'utilisateur exporte lui-même un fichier (CSV ou Excel) ou fait une capture d'écran. */
+  const CHAMPS_IMPORT = ['nom', 'type', 'plateforme', 'valeur', 'quantite', 'pru', 'date'];
+  const MOTS_COLONNES = {
+    nom: ['nom', 'name', 'libelle', 'actif', 'asset', 'titre', 'security', 'designation', 'placement', 'investissement', 'produit', 'holding'],
+    type: ['type', 'categorie', 'category', 'classe', 'asset class', 'nature', 'kind'],
+    plateforme: ['plateforme', 'etablissement', 'institution', 'banque', 'courtier', 'broker', 'account', 'compte', 'platform', 'bank', 'provider', 'source'],
+    valeur: ['valeur', 'value', 'montant', 'solde', 'balance', 'valorisation', 'current value', 'valeur actuelle', 'market value', 'total', 'amount', 'encours'],
+    quantite: ['quantite', 'quantity', 'qty', 'nombre', 'parts', 'shares', 'units', 'nb'],
+    pru: ['pru', 'prix de revient', 'buying price', 'prix moyen', 'average price', 'avg price', 'cost', 'cout moyen', 'prix d achat', 'purchase price', 'unit cost'],
+    date: ['date', 'ouverture', 'opening', 'depuis', 'since', 'created']
+  };
+  /* Colonnes devinées d'après les en-têtes : {champ: index de colonne ou -1}. Un en-tête sert une seule fois ; l'en-tête exact passe avant le mot inclus. */
+  function devinerColonnes(entetes) {
+    const H = (entetes || []).map(h => norm(h).replace(/[_\-()]/g, ' ').replace(/\s+/g, ' ').trim()), pris = new Set(), out = {};
+    for (const ch of CHAMPS_IMPORT) {
+      let best = -1, bs = 0;
+      H.forEach((h, i) => { if (pris.has(i) || !h) return; for (const m of MOTS_COLONNES[ch]) { const s = h === m ? 3 : new RegExp('(^| )' + m + '( |$)').test(h) ? 2 : 0; if (s > bs) { bs = s; best = i; } } });
+      out[ch] = best; if (best >= 0) pris.add(best);
+    }
+    return out;
+  }
+  /* Type de placement de l'application d'après le libellé du type (Finary, banques…), à défaut d'après le nom et l'établissement */
+  function typeImport(t, nom, plat) {
+    const s = norm([t, nom, plat].filter(Boolean).join(' '));
+    const T = [['credit', /\b(credit|pret immobilier|emprunt|loan|mortgage|dette)\b/], ['cash', /\b(livret|ldds|lep|compte courant|checking|savings|epargne bancaire|cash|liquidit|compte a terme|cat)\b/],
+      ['epargne', /\b(assurance vie|life insurance|per|pel|cel|epargne salariale|pee|perco|fonds euros?)\b/], ['crowd', /\b(crowdlending|crowdfunding|pret participatif|bienpreter|october|homunity|anaxago|enerfip|tudigo|fundimmo|raizers|pretup|lendosphere|clubfunding)\b/],
+      ['immo', /\b(scpi|immobilier fractionne|bricks|ma premiere brique|opci|real estate crowdfunding|briques?)\b/], ['bien', /\b(real estate|immobilier|appartement|maison|residence|terrain|property)\b/],
+      ['autre', /\b(cryptos?|cryptocurrency|bitcoin|ethereum|or|gold|metaux|montre|vin|art|startup)\b/], ['bourse', /\b(stock|stocks|action|actions|etf|equity|fund|fonds|obligation|bond|pea|cto|compte titres|tracker|sicav|fcp|securities|investments?)\b/]];
+    const st = norm(t), immo = T.find(x => x[0] === 'immo')[1];
+    for (const [c, re] of T) if (st && re.test(st)) return c === 'bien' && immo.test(s) ? 'immo' : c; /* « Real estate » + SCPI : immobilier fractionné */
+    for (const [c, re] of T) if (re.test(s)) return c;
+    return 'autre';
+  }
+  /* Lignes du tableau → placements à importer {ligne, nom, cat, plat, valeur, quantite, pru, date, erreur} */
+  function lignesImport(tab, map) {
+    const g = (l, ch) => map[ch] >= 0 && map[ch] < l.length ? String(l[map[ch]] ?? '').trim() : '';
+    return (tab.lignes || []).map((l, i) => {
+      const nom = g(l, 'nom'), valeur = lireMontant(g(l, 'valeur')), q = lireMontant(g(l, 'quantite')), p = lireMontant(g(l, 'pru')), dt = g(l, 'date');
+      const o = { ligne: i + 1, nom, cat: typeImport(g(l, 'type'), nom, g(l, 'plateforme')), plat: g(l, 'plateforme'), valeur: valeur == null ? null : r2(valeur), quantite: q == null ? null : q, pru: p == null ? null : p, date: lireDate(dt) || (/^\d{5}(\.\d+)?$/.test(dt) ? dateExcel(+dt) : null) };
+      if (!nom) o.erreur = 'nom manquant'; else if (o.valeur == null && !(o.quantite > 0 && o.pru > 0)) o.erreur = 'valeur manquante';
+      return o;
+    }).filter(o => o.nom || o.valeur != null);
+  }
+  /* Date Excel (nombre de jours depuis le 30/12/1899) */
+  function dateExcel(n) { if (!(n > 20000 && n < 80000)) return null; const d = new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 864e5); return d.toISOString().slice(0, 10); }
+  /* Rapprochement avec les placements existants : même nom (et même établissement si les deux en ont un) → mettre à jour ;
+     sinon créer. Une ligne déjà vue dans le même import est un doublon (ignorée par défaut) ; une ligne identique au placement
+     existant (même valeur) est « déjà à jour » (ignorée par défaut). actifs : [{id, nom, plat, valeur}] */
+  function rapprocherImport(items, actifs) {
+    const ALIAS = { boursobank: 'boursorama', bienpreter: 'bienpreter', lcl: 'creditlyonnais', labanquepostale: 'banquepostale' };
+    const cle = s => { const k = norm(s).replace(/[^a-z0-9]/g, ''); return ALIAS[k] || k; }, vu = new Map();
+    return (items || []).map(it => {
+      const kn = cle(it.nom), kp = cle(it.plat), k = kn + '|' + kp, r = Object.assign({}, it);
+      if (it.erreur) return Object.assign(r, { action: 'ignorer', raison: it.erreur });
+      if (vu.has(k)) return Object.assign(r, { action: 'ignorer', doublon: vu.get(k), raison: 'doublon de la ligne ' + vu.get(k) });
+      vu.set(k, it.ligne);
+      const cands = (actifs || []).filter(a => cle(a.nom) === kn && kn);
+      /* même établissement ; à défaut, le seul placement de ce nom (l'établissement diffère ou manque : à confirmer) */
+      const memeEt = a => cle(a.plat) && kp && (cle(a.plat) === kp || cle(a.plat).includes(kp) || kp.includes(cle(a.plat)));
+      const m = cands.find(memeEt) || cands.find(a => !kp || !cle(a.plat)) || (cands.length === 1 ? Object.assign({ platDiff: true }, cands[0]) : null);
+      if (m && m.platDiff) r.platDiff = true;
+      if (!m) return Object.assign(r, { action: 'creer' });
+      r.cible = m.id; r.ancienne = m.valeur;
+      if (it.valeur != null && Math.abs(num(m.valeur) - it.valeur) < 0.01) return Object.assign(r, { action: 'ignorer', raison: 'déjà à jour' });
+      return Object.assign(r, { action: 'maj' });
+    });
+  }
+  /* Réponse de l'IA (capture d'écran) : un tableau JSON d'objets, éventuellement entouré de texte ou de ``` → tableau d'import */
+  function tableauDepuisJSON(texte) {
+    const t = String(texte || ''), i = t.indexOf('['), j = t.lastIndexOf(']');
+    if (i < 0 || j <= i) return null;
+    let L; try { L = JSON.parse(t.slice(i, j + 1)); } catch (e) { return null; }
+    if (!Array.isArray(L)) return null;
+    const v = x => x == null ? '' : String(x);
+    return { entetes: CHAMPS_IMPORT.slice(), lignes: L.filter(o => o && typeof o === 'object').slice(0, 300).map(o => CHAMPS_IMPORT.map(ch => v(o[ch] ?? o[{ quantite: 'quantité' }[ch]] ?? o[{ plateforme: 'etablissement' }[ch]]))) };
+  }
+  /* Fichier Excel (.xlsx) : première feuille, valeurs affichées (texte partagé, texte en ligne, nombres). bytes : Uint8Array.
+     Lecture du zip par le navigateur (DecompressionStream), sans bibliothèque. */
+  async function lireXLSX(bytes) {
+    const B = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), dv = new DataView(B.buffer, B.byteOffset, B.byteLength), td = new TextDecoder();
+    let e = -1; for (let i = B.length - 22; i >= Math.max(0, B.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error('fichier Excel illisible');
+    const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const F = {};
+    for (let k = 0; k < n; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const meth = dv.getUint16(p + 10, true), cs = dv.getUint32(p + 20, true), ln = dv.getUint16(p + 28, true), lx = dv.getUint16(p + 30, true), lc = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      F[td.decode(B.subarray(p + 46, p + 46 + ln))] = { meth, cs, off }; p += 46 + ln + lx + lc;
+    }
+    const lire = async nom => {
+      const f = F[nom]; if (!f) return null; const lo = f.off, d0 = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), data = B.subarray(d0, d0 + f.cs);
+      if (f.meth === 0) return td.decode(data);
+      if (f.meth !== 8 || typeof DecompressionStream === 'undefined') throw new Error('compression non prise en charge');
+      return td.decode(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    };
+    const xml = s => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (m, c) => String.fromCharCode(+c)).replace(/&amp;/g, '&');
+    const ss = []; const sx = await lire('xl/sharedStrings.xml');
+    if (sx) for (const m of sx.matchAll(/<si>([\s\S]*?)<\/si>/g)) ss.push(xml([...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')));
+    let feuille = 'xl/worksheets/sheet1.xml';
+    const wb = await lire('xl/workbook.xml'), rels = await lire('xl/_rels/workbook.xml.rels');
+    if (wb && rels) { const rid = (/<sheet\b[^>]*r:id="([^"]+)"/.exec(wb) || [])[1], t = rid && new RegExp('<Relationship\\b[^>]*Id="' + rid + '"[^>]*Target="([^"]+)"').exec(rels) || (rid && new RegExp('<Relationship\\b[^>]*Target="([^"]+)"[^>]*Id="' + rid + '"').exec(rels)); if (t) feuille = 'xl/' + t[1].replace(/^\/?xl\//, ''); }
+    const ws = await lire(feuille); if (!ws) throw new Error('feuille introuvable');
+    const col = r => { let c = 0; for (const ch of r.replace(/\d+$/, '')) c = c * 26 + ch.charCodeAt(0) - 64; return c - 1; }, rows = [];
+    for (const m of ws.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+      const R = [];
+      for (const c of m[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const at = c[1], ref = (/\br="([A-Z]+\d+)"/.exec(at) || [])[1], t = (/\bt="(\w+)"/.exec(at) || [])[1], body = c[2] || '';
+        const v = (/<v>([\s\S]*?)<\/v>/.exec(body) || [])[1];
+        let val = t === 's' ? ss[+v] ?? '' : t === 'inlineStr' ? xml([...body.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(x => x[1]).join('')) : v != null ? xml(v) : '';
+        R[ref ? col(ref) : R.length] = val;
+      }
+      rows.push(Array.from(R, x => x ?? ''));
+    }
+    return rows.filter(r => r.some(x => String(x).trim()));
+  }
+  /* Tableau lu (CSV ou Excel) → {entetes, lignes} : la première ligne non vide qui contient du texte sert d'en-têtes */
+  function tableauImport(rows) {
+    const R = (rows || []).filter(r => r && r.some(x => String(x).trim()));
+    if (!R.length) return { entetes: [], lignes: [] };
+    const k = R.findIndex(r => r.filter(x => /[a-z]/i.test(String(x)) && lireMontant(x) == null).length >= 2), h = k < 0 ? 0 : k;
+    return { entetes: R[h].map(x => String(x).trim()), lignes: R.slice(h + 1) };
+  }
+
+  /* ===================== Vue fiscale annuelle ===================== */
+  /* Montant brut d'un intérêt reçu : si la plateforme verse les intérêts nets des prélèvements retenus à la source (acompte d'impôt
+     et prélèvements sociaux), le brut est reconstitué avec les taux réglés ; sinon le montant reçu est le brut. */
+  function brutDe(recu, net, f) { const F = fiscalite(f), t = (F.ir + F.ps) / 100, b = net ? num(recu) / (1 - t) : num(recu); return { brut: r2(b), ir: net ? r2(b * F.ir / 100) : 0, ps: net ? r2(b * F.ps / 100) : 0 }; }
+  /* PFU ou barème progressif pour les revenus du capital d'une année. r : {interets, dividendes, plusValues} ; f : taux réglés ;
+     regles : FISCAL_CONFIG.regles (abattement de 40 % des dividendes et CSG déductible au barème). Les prélèvements sociaux sont
+     les mêmes dans les deux cas. */
+  function comparerPfuBareme(r, f, regles) {
+    const F = fiscalite(f), R = regles || {}, I = Math.max(0, num(r.interets)), Dv = Math.max(0, num(r.dividendes)), PV = Math.max(0, num(r.plusValues)), base = I + Dv + PV;
+    const ab = num((R.abattementDividendes || {}).taux ?? 40) / 100, csg = num((R.csgDeductible || {}).taux ?? 6.8) / 100, T = F.tmi / 100, ps = r2(base * F.ps / 100);
+    const pfu = r2(base * F.ir / 100), bar = r2(Math.max(0, (I + Dv * (1 - ab) + PV) * T - base * csg * T));
+    return { base: r2(base), ps, pfu: { impot: pfu, total: r2(pfu + ps) }, bareme: { impot: bar, total: r2(bar + ps) }, meilleur: pfu <= bar ? 'pfu' : 'bareme', ecart: r2(Math.abs(pfu - bar)), tmi: F.tmi };
+  }
+  /* Imputation des pertes définitives sur prêts participatifs : sur les intérêts de même nature de l'année, dans la limite annuelle,
+     le reste reporté sur les années suivantes (au plus « reportAns » ans), les plus anciennes d'abord. Règle « à vérifier » (fiscal-config.js). */
+  function imputationPertes(pertesParAn, interetsParAn, annee, regle) {
+    const P = pertesParAn || {}, I = interetsParAn || {}, R = regle || {}, plaf = num(R.plafondAnnuel) > 0 ? num(R.plafondAnnuel) : Infinity, rep = num(R.reportAns) || 5;
+    const ans = Object.keys(P).concat(Object.keys(I)).map(Number).filter(y => y && y <= annee), y0 = ans.length ? Math.min(...ans) : annee;
+    let stock = [], res = { perteAnnee: r2(num(P[annee])), disponible: 0, impute: 0, reste: 0, plafond: plaf === Infinity ? null : plaf };
+    for (let y = y0; y <= annee; y++) {
+      stock.push({ an: y, reste: num(P[y]) }); stock = stock.filter(s => s.reste > 0 && y - s.an <= rep);
+      const dispo = stock.reduce((s, x) => s + x.reste, 0), cap = Math.min(plaf, Math.max(0, num(I[y]))); let imp = 0;
+      for (const s of stock) { const u = Math.min(s.reste, cap - imp); if (u <= 0) break; s.reste -= u; imp += u; }
+      if (y === annee) Object.assign(res, { disponible: r2(dispo), impute: r2(imp), reste: r2(stock.reduce((s, x) => s + x.reste, 0)) });
+    }
+    return res;
+  }
+  /* o : {annee, interets: [{nom, plat, brut, ir, ps, estime, pret}], dividendes: [{nom, m}], ventes: {n, gains, pertes, net},
+     loyers: [{nom, m}], etrangers, exoneres, crypto, pertes: {an: montant} (définitives, prêts participatifs), interetsPretsParAn,
+     enDefaut: [{nom, m, pret}]} ; cfg : FISCAL_CONFIG ; f : taux réglés → récapitulatif de l'année, lignes à reporter avec la case et
+     son degré de certitude, imputation des pertes, comparaison PFU / barème. */
+  function vueFiscale(o, cfg, f) {
+    const C = (cfg && cfg.cases) || {}, RG = (cfg && cfg.regles) || {}, cs = k => C[k] || {}, L = [], R = [], s = T => r2((T || []).reduce((a, x) => a + num(x), 0));
+    const it = o.interets || [], parPlat = {};
+    it.forEach(x => { const k = x.plat || x.nom; const p = parPlat[k] = parPlat[k] || { plat: k, brut: 0, ir: 0, ps: 0, estime: false, pret: false }; p.brut += num(x.brut); p.ir += num(x.ir); p.ps += num(x.ps); p.estime = p.estime || !!x.estime; p.pret = p.pret || !!x.pret; });
+    const plateformes = Object.values(parPlat).map(p => Object.assign(p, { brut: r2(p.brut), ir: r2(p.ir), ps: r2(p.ps), net: r2(p.brut - p.ir - p.ps) })).sort((a, b) => b.brut - a.brut);
+    const iPret = s(it.filter(x => x.pret).map(x => x.brut)), iAutre = s(it.filter(x => !x.pret).map(x => x.brut)), dv = s((o.dividendes || []).map(x => x.m));
+    const retIR = s(it.map(x => x.ir)), retPS = s(it.map(x => x.ps)), basePS = s(it.filter(x => num(x.ps) > 0).map(x => x.brut)), v = o.ventes || {}, ly = s((o.loyers || []).map(x => x.m));
+    const imput = imputationPertes(o.pertes, o.interetsPretsParAn, o.annee, RG.pertesPretsParticipatifs);
+    const ligne = (cle, k, montant, extra) => L.push(Object.assign({ cle, titre: cs(k).libelle || cle, montant: r2(montant), cases: cs(k).case || cs(k).formulaire || '', certitude: cs(k).certitude || 'a_verifier', note: cs(k).note || '' }, extra || {}));
+    const est = l => l.some(x => x.estime);
+    if (iPret > 0) ligne('interetsPrets', 'interetsPretsParticipatifs', iPret, { estime: est(it.filter(x => x.pret)), detail: it.filter(x => x.pret).map(x => ({ nom: x.nom, m: x.brut, estime: x.estime })) });
+    if (iAutre > 0) ligne('interets', 'interets', iAutre, { estime: est(it.filter(x => !x.pret)), detail: it.filter(x => !x.pret).map(x => ({ nom: x.nom, m: x.brut, estime: x.estime })) });
+    if (dv > 0) ligne('dividendes', 'dividendes', dv, { estime: true, detail: o.dividendes, note: 'Estimés avec la quantité détenue aujourd’hui ; le montant de l’IFU du courtier fait foi.' });
+    if (retIR > 0) ligne('acompte', 'acompte', retIR, { estime: true, note: 'Acompte d’impôt retenu par les plateformes qui versent des intérêts nets ; il est déduit de l’impôt (ou remboursé).' });
+    if (basePS > 0) ligne('dejaSoumisPS', 'dejaSoumisPS', basePS, { estime: true, note: (cs('dejaSoumisPS').note || '') + ' Prélèvements sociaux déjà retenus : ' + eu(retPS) + '.' });
+    if (v.n) ligne('ventes', v.net >= 0 ? 'plusValues' : 'moinsValues', Math.abs(v.net), { note: `Gains ${eu(v.gains)}, pertes ${eu(v.pertes)} sur ${v.n} vente${v.n > 1 ? 's' : ''} enregistrée${v.n > 1 ? 's' : ''}. Formulaire 2074 si les cessions sont nombreuses ou complexes.` });
+    if (imput.perteAnnee > 0 || imput.impute > 0) ligne('pertes', 'pertesPretsParticipatifs', imput.perteAnnee, { estime: true, note: `Imputable cette année sur vos intérêts de prêts participatifs : ${eu(imput.impute)}${imput.plafond ? ' (limite de ' + eu(imput.plafond) + ' par an)' : ''} ; reste reportable : ${eu(imput.reste)}. ` + ((RG.pertesPretsParticipatifs || {}).texte || '') });
+    if (ly > 0) ligne('loyers', ly <= 15000 ? 'microFoncier' : 'foncierReel', ly, { estime: true, detail: o.loyers, note: ly <= 15000 ? 'Loyers bruts de l’année ; l’abattement est appliqué par l’administration. Une location meublée se déclare autrement.' : 'Plus de 15 000 € de loyers : régime réel.' });
+    const liste = T => T.length > 1 ? T.slice(0, -1).join(', ') + ' et ' + T[T.length - 1] : T.join('');
+    if (o.crypto) R.push('Vente de cryptoactifs enregistrée : formulaire ' + (cs('crypto').formulaire || '2086') + ' si vous les avez échangés contre des euros.');
+    if ((o.etrangers || []).length) R.push('Comptes à l’étranger (' + liste(o.etrangers) + ') : case ' + (cs('comptesEtranger').case || '8UU') + ' et formulaire ' + (cs('comptesEtranger').formulaire || '3916') + ', même sans revenu.');
+    if ((o.enDefaut || []).length) R.push('Projets en défaut (' + liste(o.enDefaut.map(x => x.nom)) + ') : ' + ((RG.perteDefinitive || {}).texte || 'seule une perte définitive est imputable.') + (o.enDefaut.some(x => !x.pret) ? ' ' + ((RG.pertesObligations || {}).texte || '') : ''));
+    if ((o.exoneres || []).length) R.push('Rien à déclarer pour ' + liste(o.exoneres) + ', sauf retrait ou rachat dans l’année.');
+    const cmp = comparerPfuBareme({ interets: Math.max(0, iPret - imput.impute) + iAutre, dividendes: dv, plusValues: Math.max(0, num(v.net)) }, f, RG);
+    return { annee: o.annee, plateformes, totaux: { interets: r2(iPret + iAutre), interetsPrets: iPret, dividendes: dv, retenuIR: retIR, retenuPS: retPS, basePS, loyers: ly, plusValues: r2(num(v.net)) },
+      imputation: imput, enDefaut: o.enDefaut || [], comparaison: cmp, lignes: L, rappels: R, avertissement: (cfg && cfg.avertissement) || '' };
+  }
+
   /* ===================== Frais ===================== */
   /* Frais des placements : [{id, nom, valeur, frais (%/an)}] comparés à un ETF Monde (ref, %/an), sur 20 ans à 5 % brut */
   const FRAIS_REF = 0.2;
@@ -624,19 +886,74 @@
   const RE_FRAIS = /\b(frais|commissions?|cotisations? (carte|cb|visa|mastercard|offre|compte|forfait|package)|cotis (carte|cb)|agios?|interets debiteurs|tenue de compte|com(mission)? d intervention|frais de rejet|minimum forfaitaire|forfait (de )?compte)\b/;
   const PAS_FRAIS = /\b(grand frais|frais de port|livraison|ecole|scolarite|cantine|garde)\b/;
   function fraisBancaires(ops, auj = new Date()) {
-    const lim = new Date(auj); lim.setFullYear(lim.getFullYear() - 1); const G = {};
+    const lim = new Date(auj); lim.setFullYear(lim.getFullYear() - 1); const G = {}, finJour = new Date(auj); finJour.setHours(23, 59, 59, 999); /* une opération du jour compte, même avant midi */
     for (const o of ops || []) {
       if (!(o.m < 0) || ['revenu', 'epargne', 'virement', 'credit', 'impots', 'sante', 'logement', 'alimentation'].includes(o.cat)) continue;
-      const t = jour(o.d), l = norm(o.lib); if (!t || t < lim || t > auj || !RE_FRAIS.test(l) || PAS_FRAIS.test(l)) continue;
+      const t = jour(o.d), l = norm(o.lib); if (!t || t < lim || t > finJour || !RE_FRAIS.test(l) || PAS_FRAIS.test(l)) continue;
       const k = cleLibelle(o.lib) || l; (G[k] = G[k] || { nom: o.lib, total: 0, n: 0 }); G[k].total += -o.m; G[k].n++;
     }
     const lignes = Object.values(G).map(x => ({ nom: x.nom, total: r2(x.total), n: x.n })).sort((a, b) => b.total - a.total);
     return { lignes, total: r2(lignes.reduce((s, x) => s + x.total, 0)) };
   }
 
-  const API = { variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
-    tri, aTauxFixe, dansIndice, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
-    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, rapprocher, retraitsPossibles, ecarterDoublons, opsBanque, pourEpargne, ics, icsUnique, ajoutJours };
+  /* ===================== Relevé de portefeuille d'un courtier (export CSV des positions) ===================== */
+  /* Colonnes reconnues par leur nom (Degiro, Boursorama, Fortuneo, Trade Republic, Interactive Brokers… en français ou en anglais) */
+  const COURTIERS = [['degiro', 'Degiro'], ['boursorama|boursobank', 'BoursoBank'], ['fortuneo', 'Fortuneo'], ['trade republic', 'Trade Republic'], ['bourse direct', 'Bourse Direct'],
+    ['interactive brokers|ibkr', 'Interactive Brokers'], ['saxo', 'Saxo'], ['linxea', 'Linxea'], ['easybourse', 'EasyBourse'], ['credit agricole', 'Crédit Agricole'], ['societe generale', 'Société Générale'],
+    ['bnp', 'BNP Paribas'], ['ing', 'ING'], ['lcl', 'LCL'], ['caisse d epargne', 'Caisse d’Épargne'], ['etoro', 'eToro'], ['scalable', 'Scalable Capital'], ['trading 212', 'Trading 212']];
+  function colonnesPositions(entete) {
+    const h = entete.map(norm), pris = new Set(), trouve = (re, sauf) => { const i = h.findIndex((x, j) => !pris.has(j) && re.test(x) && !(sauf && sauf.test(x))); if (i >= 0) pris.add(i); return i; };
+    const isin = trouve(/isin/);
+    const pru = trouve(/\bpru\b|prix de revient|prix (moyen|d achat|de reference)|cout (moyen|unitaire|de revient)|buying ?price|average (cost|price)|avg (cost|price)|cost (price|basis per)|\bpam\b|prix unitaire d achat/);
+    let qte = trouve(/quantit|^qte|qty|^nombre|nb (de )?(titres|parts)|^titres$|shares|^parts$|position$/);
+    if (qte < 0 && h.some(x => /value in eur|valeur en eur/.test(x))) qte = trouve(/^amount$/); // Degiro en anglais : « Amount » = quantité
+    let nom = trouve(/^(produit|product|libelle|nom|name|instrument|designation|security|security name)\b|libelle|designation|instrument|^nom /);
+    if (nom < 0) nom = trouve(/^(valeur|titre|support|actif|asset|description|ligne|fonds)\b/, /valeur (en|locale|totale|boursiere|actuelle|de)|^valeur$/);
+    const ticker = trouve(/^(symbole|symbol|ticker|mnemo|mnemonique|code)$/);
+    const valeur = trouve(/valeur en eur|value in eur|en eur$|valorisation|montant|market value|^valeur$|^value$|^amount$|^total$/, /locale|local|variation|\+\/-|plus|gain/);
+    const cours = trouve(/^(cours|dernier( cours)?|cloture|closing|last|last ?price|price|prix|cotation|cours (actuel|du jour|de cloture)|dernier prix)$/);
+    const devise = h.findIndex(x => /^(devise|currency)$/.test(x));
+    return { nom, isin, ticker, qte, pru, cours, valeur, devise };
+  }
+  function lirePositions(texte) {
+    const t = String(texte || ''), R = decouperCSV(t);
+    let k = -1, C = null;
+    for (let i = 0; i < Math.min(R.length, 30); i++) { const c = colonnesPositions(R[i]); if ((c.nom >= 0 || c.isin >= 0) && c.qte >= 0) { k = i; C = c; break; } }
+    const ct = norm(t.slice(0, 3000)), cr = COURTIERS.find(([re]) => new RegExp('(^|[^a-z])(' + re + ')([^a-z]|$)').test(ct));
+    if (!C) return { positions: [], especes: 0, erreurs: R.length, courtier: cr ? cr[1] : '', reconnu: false };
+    const out = [], vus = {}; let especes = 0, err = 0;
+    const cel = (r, i) => (i >= 0 ? String(r[i] ?? '').trim() : ''), nb = (r, i) => { const v = lireMontant(cel(r, i).replace(/\s*(eur|usd|gbp|chf|€|\$)$/i, '')); return v == null ? null : v; };
+    for (const r of R.slice(k + 1)) {
+      if (!r.some(x => x)) continue;
+      const isin = isinDe(cel(r, C.isin), cel(r, C.nom)), nom = (cel(r, C.nom) || isin).replace(/\s+/g, ' ').slice(0, 80), qte = nb(r, C.qte), val = nb(r, C.valeur);
+      if (/^(sous.)?(total|totaux)( |$|:)/.test(norm(nom))) continue;
+      if (!(qte > 0)) { if (/cash|especes|liquidit|solde|fonds disponibles|money market/.test(norm(nom)) && val > 0) especes += val; else if (nom) err++; continue; }
+      if (!nom) { err++; continue; }
+      const dev = (cel(r, C.devise) || r.find(x => /^(EUR|USD|GBP|GBX|CHF|JPY|CAD|SEK|DKK|NOK|HKD|AUD)$/.test(String(x).trim())) || '').toUpperCase(), cours = nb(r, C.cours);
+      let price = val > 0 ? val / qte : cours > 0 && (!dev || dev === 'EUR') ? cours : null; // prix en euros : d'après la valeur en euros, sinon le cours s'il est en euros
+      const pru = nb(r, C.pru), sansPru = !(pru > 0);
+      if (!(price > 0) && !sansPru) price = pru;
+      if (!(price > 0)) { err++; continue; }
+      const p = { nom, isin, ticker: cel(r, C.ticker).toUpperCase().slice(0, 16), qte: Math.round(qte * 1e6) / 1e6, pru: sansPru ? Math.round(price * 1e4) / 1e4 : Math.round(pru * 1e4) / 1e4, price: Math.round(price * 1e4) / 1e4, sansPru, devise: dev && dev !== 'EUR' ? dev : '' };
+      const cle = isin || norm(nom);
+      if (vus[cle]) { const a = vus[cle], q2 = a.qte + p.qte; a.pru = Math.round((a.pru * a.qte + p.pru * p.qte) / q2 * 1e4) / 1e4; a.qte = Math.round(q2 * 1e6) / 1e6; continue; } // même titre sur deux lignes (deux places)
+      vus[cle] = p; out.push(p);
+    }
+    return { positions: out, especes: r2(especes), erreurs: err, courtier: cr ? cr[1] : '', reconnu: true };
+  }
+  /* Positions lues rapprochées des lignes de bourse existantes [{id, nom, isin, tick}] : par ISIN, puis par nom */
+  function rapprocherPositions(actifs, positions) {
+    const A = (actifs || []).map(a => ({ id: a.id, isin: a.isin || isinDe(a.nom, a.notes), nom: norm(a.nom), tick: String(a.tick || '').toUpperCase().split('.')[0] })), pris = new Set(), maj = [], nouveaux = [];
+    for (const p of positions || []) {
+      const n = norm(p.nom), a = A.find(x => !pris.has(x.id) && p.isin && x.isin === p.isin) || A.find(x => !pris.has(x.id) && x.nom && x.nom === n) || A.find(x => !pris.has(x.id) && p.ticker && x.tick && x.tick === p.ticker.split('.')[0]);
+      if (a) { pris.add(a.id); maj.push(Object.assign({ id: a.id }, p)); } else nouveaux.push(p);
+    }
+    return { maj, nouveaux, absents: A.filter(x => !pris.has(x.id)).map(x => x.id) };
+  }
+
+  const API = { lirePositions, rapprocherPositions, CHAMPS_IMPORT, devinerColonnes, typeImport, lignesImport, dateExcel, rapprocherImport, tableauDepuisJSON, lireXLSX, tableauImport, brutDe, comparerPfuBareme, imputationPertes, vueFiscale, variation, interetsRecus, dividendesAnnee, ventesAnnee, etrangere, declaration, FRAIS_REF, fraisPlacements, fraisBancaires, isinDe, choisirTicker, num, norm, lireMontant, lireDate, decouperCSV, lireReleve, lireCSV, lireOFX, lireQIF, CATEGORIES, HORS_DEPENSES, categoriser, cleLibelle, fusionnerOps, cleOp, depense, moisDispo, reelDuMois, comparer, moyennes, abonnements,
+    tri, aTauxFixe, dansIndice, FISC_DEFAUT, fiscalite, SOURCES_REV, tauxImpot, tableauRevenus, listeMois, rendements, coutFrais, SCENARIOS, independance, FISC, abattementsImmo, surtaxeImmo, impotVente, droits, succession, donation, ifi, ABATTEMENTS, revenusPassifs, dividendesAVenir,
+    echeance, echeanceR, ferie, montantHabituel, rappelsDus, prochaineEcheance, traite, historique, fusionHist, fusionRappels, echeancier, ligneDuMois, partCapital, moisDecale, ecarterDoublons, ics, ajoutJours };
   root.Calculs = API;
   if (typeof module !== 'undefined') module.exports = API;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -34,7 +34,7 @@ const envoyer = (canal, ...a) => { if (win && !win.isDestroyed()) win.webContent
 /* ---------- Fichiers de l'application ---------- */
 // Politique de sécurité des pages : même si un texte piégé réussissait à exécuter du code dans la page, il ne pourrait charger
 // aucun script ni envoyer de données ailleurs que vers les services dont l'application a besoin (cours, actualités, compte Google,
-// IA choisie, relais des cours). Les échanges avec la banque passent par l'application elle-même (app://).
+// IA choisie, relais des cours).
 function securite() {
   let relais = '';
   try { const m = /marketProxy:\s*'([^']*)'/.exec(fs.readFileSync(path.join(RACINE, 'config.js'), 'utf8')); if (m && /^https:\/\/[\w.-]+(:\d+)?(\/|$)/.test(m[1])) relais = new URL(m[1]).origin; } catch (e) { /* sans relais personnel */ }
@@ -50,15 +50,6 @@ function servir() {
     const u = new URL(req.url);
     if (u.host !== 'patrimoine') return new Response('Introuvable', { status: 404 });
     let p = decodeURIComponent(u.pathname);
-    // liaison bancaire : les fonctions de banque/routes tournent dans l'application (aucun serveur en ligne)
-    if (p.startsWith('/api/banque/')) {
-      const corps = req.method === 'POST' || req.method === 'DELETE' ? await req.text() : '';
-      // lier ou déconnecter la banque : Touch ID demandé par l'application elle-même (une page détournée ne peut pas s'en passer)
-      if ((p === '/api/banque/demarrer' || p === '/api/banque/deconnecter') && !(await exigerTouchID(p.endsWith('demarrer') ? 'lier votre banque à Patrimoine AI' : 'déconnecter votre banque')))
-        return new Response(JSON.stringify({ code: 'touch_id', message: 'Touch ID non confirmé : rien n’a été fait.' }), { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } });
-      if (corps.length > 4000) return new Response(JSON.stringify({ code: 'requete', message: 'Demande trop volumineuse.' }), { status: 413 });
-      return BANQUE().appeler(p.slice(12), req.method, corps, u.search);
-    }
     if (!p || p === '/') p = '/index.html';
     const f = path.normalize(path.join(RACINE, p));
     if (!f.startsWith(RACINE + path.sep) || !fs.existsSync(f) || !fs.statSync(f).isFile()) return new Response('Introuvable', { status: 404 });
@@ -112,7 +103,7 @@ ipcMain.handle('ia:ecrire', garde((e, m) => {
   return IA().ecrire({ systeme: s(m && m.systeme, 4000), demande: s(m && m.demande, 30000), maxTokens: Math.min(1500, Math.max(50, +(m && m.maxTokens) || 800)), temperature: Math.min(1, Math.max(0, +(m && m.temperature) || 0.3)) });
 }));
 
-/* ---------- Touch ID exigé pour les actions sensibles (banque, clé, restauration) : seulement si le Mac en a un ---------- */
+/* ---------- Touch ID exigé pour les actions sensibles (restauration d'une sauvegarde) : seulement si le Mac en a un ---------- */
 async function exigerTouchID(raison) {
   if (AUTOTEST) return true;
   let dispo = false; try { dispo = process.platform === 'darwin' && systemPreferences.canPromptTouchID(); } catch (e) { dispo = false; }
@@ -120,30 +111,6 @@ async function exigerTouchID(raison) {
   try { await systemPreferences.promptTouchID(raison); return true; } catch (e) { return false; }
 }
 const avecTouchID = (raison, fn) => async (...a) => { if (!(await exigerTouchID(raison))) throw new Error('Touch ID non confirmé : rien n’a été fait.'); return fn(...a); };
-
-/* ---------- Liaison bancaire (Enable Banking) : clé gardée par le trousseau, session sur ce Mac (banque-locale.js) ---------- */
-let banque = null;
-const BANQUE = () => banque || (banque = require('./banque-locale').creer({
-  dossier: app.getPath('userData'),
-  empreintes: path.join(__dirname, 'app', 'banque-empreintes.json'), // dans l'archive de l'application : les fichiers sortis de l'archive sont vérifiés
-  racine: path.join(__dirname, 'app', 'banque').replace('app.asar' + path.sep, 'app.asar.unpacked' + path.sep), // modules .mjs lus hors de l'archive
-  coffre: { chiffrer: t => { if (!safeStorage.isEncryptionAvailable()) throw new Error('trousseau indisponible'); return safeStorage.encryptString(t); }, dechiffrer: b => safeStorage.decryptString(b) },
-  quandLiee: ok => { if (ok) { montrer(); envoyer('commande', 'bqlie'); } }
-}));
-ipcMain.handle('banque:conf', garde(() => BANQUE().etatConf()));
-ipcMain.handle('banque:demo', garde((e, actif) => BANQUE().demo(!!actif)));
-ipcMain.handle('banque:oublier', garde(avecTouchID('retirer la clé de votre banque', () => BANQUE().oublier())));
-ipcMain.handle('banque:cle', garde(async () => {
-  if (!(await exigerTouchID('enregistrer la clé d’accès à votre banque'))) throw new Error('Touch ID non confirmé : rien n’a été fait.');
-  const r = await dialog.showOpenDialog(win, { title: 'Clé de l’application Enable Banking', message: 'Choisissez le fichier .pem téléchargé chez Enable Banking', properties: ['openFile'], filters: [{ name: 'Clé privée', extensions: ['pem'] }] });
-  if (r.canceled || !r.filePaths[0]) return { annule: true, ...BANQUE().etatConf() };
-  const f = r.filePaths[0]; if (fs.statSync(f).size > 20000) throw new Error('Fichier trop gros pour une clé .pem.');
-  const etat = BANQUE().enregistrerCle(path.basename(f), fs.readFileSync(f, 'utf8'));
-  // la clé est désormais gardée par le trousseau : la copie en clair (Téléchargements…) n'a plus à traîner sur le disque
-  const q = await dialog.showMessageBox(win, { type: 'question', buttons: ['Mettre à la corbeille', 'Garder le fichier'], defaultId: 0, cancelId: 1, message: 'Clé enregistrée dans le trousseau du Mac', detail: 'Le fichier « ' + path.basename(f) + ' » n’est plus nécessaire. Le mettre à la corbeille évite qu’il reste lisible sur votre Mac (videz ensuite la corbeille). Gardez une copie seulement sur un support sûr.' });
-  if (q.response === 0) { try { await shell.trashItem(f); etat.corbeille = true; } catch (e) { etat.corbeille = false; } }
-  return etat;
-}));
 
 /* ---------- Sauvegardes automatiques : une par jour, 60 jours, dans le dossier de l'application ---------- */
 const DOSSIER_SAUV = () => path.join(app.getPath('userData'), 'Sauvegardes');
@@ -340,7 +307,7 @@ const verifierMaj = () => maj.verifier().then(e => { envoyer('maj:etat', e); ret
 ipcMain.handle('maj:etat', garde(() => maj.etat));
 ipcMain.handle('maj:verifier', garde(() => verifierMaj()));
 ipcMain.handle('maj:installer', garde(() => { if (maj.installer(true)) setTimeout(() => app.quit(), 200); return maj.etat; }));
-app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); if (dictee) dictee.arreter(); if (banque) banque.arreter(); });
+app.on('will-quit', () => { maj.installer(false); if (ia) ia.arreter(); if (dictee) dictee.arreter(); });
 
 /* ---------- Menus ---------- */
 const cmd = c => () => { if (!win) ouvrir(); envoyer('commande', c); };
@@ -462,14 +429,6 @@ function autotest() {
       res.iaReponse = await js(`(async()=>{await macIaEtat();if(!MACIA.installee)return{installee:false};const t0=Date.now();
         try{const m=await macAnswer('Combien dois-je investir chaque mois ?',[],{max:200});return{installee:true,src:m.src,note:m.note||'',texte:String(m.t).slice(0,1200),ms:Date.now()-t0}}
         catch(e){return{installee:true,erreur:String(e.message||e),ms:Date.now()-t0}}})()`);
-      // liaison bancaire sans serveur, banque de démonstration : route app://, retour sur 127.0.0.1, session confiée au trousseau
-      res.banque = await (async () => { const b = BANQUE(), r = {};
-        try { b.demo(true); r.page = await js(`fetch('/api/banque/etat').then(r=>r.json())`);
-          const d = await (await b.appeler('demarrer', 'POST')).json(); r.retour = (await net.fetch(d.url)).status;
-          r.comptes = ((await (await b.appeler('comptes')).json()).comptes || []).length;
-          r.ops = ((await (await b.appeler('operations', 'GET', '', '?compte=demo-courant')).json()).operations || []).length;
-          r.trousseau = !fs.readFileSync(path.join(app.getPath('userData'), 'banque-session.bin')).toString('latin1').includes('"iv"');
-        } catch (e) { r.erreur = e.message; } finally { b.oublier(); } return r; })();
       res.erreursPage = await js(`window.__erreurs||[]`);
     } catch (e) { res.erreur = e.message; }
     fin();

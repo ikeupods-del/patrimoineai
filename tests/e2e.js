@@ -76,7 +76,7 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const net = await pg.evaluate(() => { const d = new Date(); d.setMonth(d.getMonth() - 12); D.assets.push({ id: 'b1', cat: 'bien', name: 'Appartement', usage: 'rp', value: 200000, amount: 180000 }, { id: 'c1', cat: 'credit', name: 'Prêt', amount: 120000, rate: 3, dur: 240, date: d.toLocaleDateString('sv-SE'), value: '' }); save(); render(); const T = totals(), a = D.assets.find(x => x.id === 'c1'); return { crd: crd(a), m: loanM(a), net: T.net, tv: T.tv, debt: T.debt }; });
   ok(Math.abs(net.m - 665.52) < 0.5, 'mensualité du crédit ' + net.m.toFixed(2));
   ok(Math.abs(net.crd - 115553) < 20 && Math.abs(net.net - (net.tv - net.debt)) < 0.01, 'capital restant dû ' + Math.round(net.crd) + ', patrimoine net');
-  ok((await pg.textContent('#h-lab')) === 'Patrimoine net', 'accueil en patrimoine net');
+  ok((await pg.evaluate(() => { renderHome(); return $('h-lab').textContent; })) === 'Patrimoine net', 'accueil en patrimoine net');
   /* budget : épargne possible et plan d'investissement */
   await pg.click('#tmore'); await pg.click('.tile[data-v=tools]'); await pg.click('.tab[data-nav=budget]'); await pg.click('[data-act=bstart]'); await pg.waitForTimeout(120);
   const fill = async (sel, v) => { await pg.fill(sel, String(v)); };
@@ -166,8 +166,8 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   const so = await pg.textContent('#v-tools'); ok(/Droits par enfant/.test(so) && /Droits de donation/.test(so) && /fortune immobilière/.test(so), 'succession, donation et IFI');
   /* résumé du mois */
   await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000 }, { d: pm + '-27', v: 101500 }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; go('home'); renderHome(); });
-  const rc = await pg.textContent('#v-home'); ok(/Votre bilan de/.test(rc) && /1\s500/.test(rc.replace(/ | /g, ' ')), 'résumé du mois écoulé sur l’accueil');
-  await pg.click('[data-act=recapok]'); ok(!/Votre bilan de/.test(await pg.textContent('#v-home')), 'résumé masqué après lecture');
+  const rc = await pg.textContent('#v-home'); ok(/Votre bilan (de|d’)/.test(rc) && /1\s500/.test(rc.replace(/ | /g, ' ')), 'résumé du mois écoulé sur l’accueil');
+  await pg.click('[data-act=recapok]'); ok(!/Votre bilan (de|d’)/.test(await pg.textContent('#v-home')), 'résumé masqué après lecture');
   /* pourquoi le patrimoine a bougé : versements, marché, crédits */
   await pg.evaluate(() => { const pm = moisDecale(moisCourant(), -1), av = moisDecale(moisCourant(), -2); D.hist = D.hist.filter(h => h.d.slice(0, 7) !== pm && h.d.slice(0, 7) !== av).concat([{ d: av + '-28', v: 100000, i: 80000, k: 50000, g: { bourse: 1000 } }, { d: pm + '-27', v: 101500, i: 80500, k: 49700, g: { bourse: 1700 } }]).sort((a, b) => a.d.localeCompare(b.d)); delete D.set.recapVu; save(); go('home'); render(); });
   const rb = await pg.textContent('#v-home'); ok(/Surtout grâce à la hausse de vos placements \(\+700/.test(rb.replace(/[\u00a0\u202f]/g, ' ')) && /en particulier bourse/.test(rb) && /Voir le détail/.test(rb), 'résumé du mois : cause principale de la variation');
@@ -186,11 +186,34 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
     D.assets.push({ id: 'c9', cat: 'crowd', name: 'Projet test', plat: 'Bienprêter', amount: 1000, rate: 10, dur: 36, date: (Y - 1) + '-06-01', status: 'cours', paie: [{ d: Y + '-02-05', m: 30, c: 20 }, { d: Y + '-08-05', m: 40 }] },
       { id: 't9', cat: 'bourse', name: 'ETF chez Trade Republic', qty: 1, pru: 100, env: 'cto' }); save(); UI.tool = 'decl'; go('tools'); renderTools(true); });
   const dcl = (await pg.textContent('#v-tools')).replace(/[\u00a0\u202f]/g, ' ');
-  ok(/Aide à la déclaration des revenus/.test(dcl) && /Case 2TR ou 2TT/.test(dcl) && /50,00 €/.test(dcl) && /Case 3VG/.test(dcl) && /250,00 €/.test(dcl) && /Case 4BE/.test(dcl) && /8 400,00 €/.test(dcl) && /Case 2DC/.test(dcl), 'déclaration : intérêts reçus, plus-value, loyers, dividendes et leurs cases');
+  ok(/Vue fiscale \d{4}/.test(dcl) && /Aide à la déclaration/.test(dcl) && /Case 2TT/.test(dcl) && /à vérifier/.test(dcl) && /72,89 €/.test(dcl) && /Case 2CK/.test(dcl) && /Case 3VG/.test(dcl) && /250,00 €/.test(dcl) && /Case 4BE/.test(dcl) && /8 400,00 €/.test(dcl) && /Case 2DC/.test(dcl), 'vue fiscale : intérêts reçus nets → brut reconstitué, acompte retenu, plus-value, loyers, dividendes et leurs cases');
+  ok(/Intérêts par plateforme/.test(dcl) && /Prélèvements retenus à la source/.test(dcl) && /PFU ou barème progressif/.test(dcl) && /notice officielle/.test(dcl), 'vue fiscale : plateformes, prélèvements, comparaison PFU / barème, avertissement');
+  await pg.selectOption('#v-tools [data-ch=fiscsrc]', 'brut'); await pg.waitForTimeout(100);
+  ok(/50,00 €/.test((await pg.textContent('#v-tools')).replace(/[ \u202f]/g, ' ')) && await pg.evaluate(() => D.fisc.src.bienpreter === 'brut' && !srcNet('Bienprêter')), 'versements bruts : montant reçu déclaré tel quel');
+  /* perte définitive d'un projet en défaut : imputée sur les intérêts de prêts participatifs (règle à vérifier) */
+  await pg.evaluate(() => { const Y = new Date().getFullYear() - 1; D.assets.push({ id: 'c8', cat: 'crowd', name: 'Projet perdu', plat: 'Bienprêter', amount: 500, rate: 9, dur: 24, date: (Y - 2) + '-01-10', status: 'defaut' }); save(); renderTools(true); });
+  ok(/Projet perdu/.test(await pg.textContent('#v-tools')) && /Perte définitive/.test(await pg.textContent('#v-tools')), 'projet en défaut : perte possible signalée, pas encore imputée');
+  await pg.click('#v-tools [data-act=perte][data-id=c8]'); await pg.fill('#pe-m', '30'); await pg.click('[data-act=pertesave]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => { const R = declData(new Date().getFullYear() - 1); return R.imputation.perteAnnee === 30 && R.imputation.impute === 30 && R.lignes.some(l => l.cle === 'pertes' && l.certitude === 'a_verifier'); }), 'perte définitive : imputée sur les intérêts de l’année, case marquée à vérifier');
+  const [dcsv] = await Promise.all([pg.waitForEvent('download'), pg.click('#v-tools [data-act=declcsv]')]); const csvF = fs.readFileSync(await dcsv.path(), 'utf8');
+  ok(/^\ufeffSection;Libellé/.test(csvF) && /Déclaration;.*2TT/.test(csvF) && /PFU ou barème/.test(csvF) && /notice officielle/.test(csvF), 'export CSV de la vue fiscale');
+  ok(await pg.evaluate(() => { const h = declPdfHTML(2025, declData(2025)); return /<h1>Vue fiscale 2025<\/h1>/.test(h) && /À reporter/.test(h); }), 'export PDF : document imprimable');
+  await pg.click('#v-tools [data-act=decltax]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => UI.tool === 'tax' && num($('t-inc').value) > 0 && /plus avantageux/.test($('t-out').textContent)), 'comparateur : simulateur d’impôt prérempli avec les revenus de l’année');
+  await pg.evaluate(() => { D.assets = D.assets.filter(a => a.id !== 'c8'); D.fisc = {}; save(); UI.tool = 'decl'; renderTools(true); });
   ok(/3916/.test(dcl) && /Trade Republic/.test(dcl) && /livrets réglementés/.test(dcl) && /assurance-vie/.test(dcl), 'déclaration : compte à l’étranger, placements sans déclaration');
   await pg.click('[data-act=declan][data-v="' + new Date().getFullYear() + '"]'); await pg.waitForTimeout(100);
   ok(/Revenus \d{4} \(en cours\)/.test(await pg.textContent('#v-tools')) && await pg.evaluate(() => declAnnee() === new Date().getFullYear() && /Case 3VG/.test(declHTML())), 'déclaration : année en cours (vente du jour)');
-  ok(await pg.evaluate(() => /2TR ou 2TT/.test(declTexte(declData(new Date().getFullYear() - 1))) && /IFU/.test(declTexte(declData(2000)))), 'déclaration : récapitulatif à copier');
+  ok(await pg.evaluate(() => /case 2TT, à vérifier/.test(declTexte(declData(new Date().getFullYear() - 1))) && /IFU/.test(declTexte(declData(2000)))), 'déclaration : récapitulatif à copier');
+  /* portefeuille d'un courtier importé (positions mises à jour par nom ou ISIN, nouveaux titres ajoutés) */
+  await pg.evaluate(() => openImport()); await pg.setInputFiles('#pos-f', { name: 'positions-boursobank.csv', mimeType: 'text/csv', buffer: Buffer.from('name;isin;quantity;buyingPrice;lastPrice;amount\n"Apple";US0378331005;12;160;210;2520\n"AMUNDI MSCI WORLD";FR0010756098;3;400;520;1560\n', 'latin1') });
+  await pg.waitForSelector('[data-act=posgo]'); const pa = (await pg.textContent('#pos-r')).replace(/[  ]/g, ' ');
+  ok(/2 titres lus \(BoursoBank\)/.test(pa) && /mis à jour/.test(pa) && /nouveau/.test(pa) && await pg.inputValue('#pos-env') === 'cto', 'portefeuille : aperçu (courtier reconnu, mise à jour et nouveau titre)');
+  await pg.click('[data-act=posgo]'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => { const a = D.assets.find(x => x.id === 'a1'), n = D.assets.find(x => x.name === 'AMUNDI MSCI WORLD'); return a.qty === 12 && a.pru === 160 && a.price === 210 && /US0378331005/.test(a.notes) && n && n.env === 'cto' && n.plat === 'BoursoBank' && n.qty === 3 && /FR0010756098/.test(n.notes); }), 'portefeuille importé : quantités, prix de revient, cours et ISIN');
+  await pg.evaluate(() => openImport()); await pg.setInputFiles('#pos-f', { name: 'releve.csv', mimeType: 'text/csv', buffer: Buffer.from('Date;Libellé;Montant\n01/10/2026;CB;-12\n') });
+  await pg.waitForFunction(() => /Colonnes non reconnues/.test(document.getElementById('pos-r').textContent)); ok(true, 'portefeuille : un relevé de compte est refusé avec une explication'); await pg.keyboard.press('Escape');
+  ok(await pg.evaluate(() => { const fr = D.assets.find(x => x.id === 'e1'); fr.fees = 1.9; return insights().some(i => /Frais élevés : Assurance-vie/.test(i.title)); }), 'point d’attention : frais élevés');
   const rep67 = await pg.evaluate(() => ['pourquoi mon patrimoine a bougé ?', 'quelle case pour mes dividendes sur la déclaration ?', 'quels sont mes frais cachés ?'].map(q => LAI.answer(q).t));
   ok(/^#### Variation du/.test(rep67[0]) && /à déclarer/.test(rep67[1]) && /case 2DC/.test(rep67[1]) && /Vos frais/.test(rep67[2]) && /Frais bancaires/.test(rep67[2]), 'assistant local : variation, déclaration, frais (' + rep67.map(t => t.slice(0, 40)).join(' | ') + ')');
   await pg.click('[data-act=declcopy]'); ok(!errs.length, 'aucune erreur JavaScript (variation, frais, déclaration) : ' + errs.join(' | '));
@@ -202,10 +225,65 @@ const PRICE = { AAPL: [190, 188, 'USD'], 'MC.PA': [700, 690, 'EUR'], 'CW8.PA': [
   ok(/Documents \(1\)/.test(await pg.textContent('#sheet')), 'document rangé dans la fiche');
   await pg.keyboard.press('Escape');
   /* l'assistant connaît les nouvelles données */
-  ok(await pg.evaluate(() => { const d = dossier(); return d.depenses_reelles && d.depenses_reelles.abonnements_par_an > 0 && d.rendement_reel && d.revenus_passifs_12_mois > 0; }), 'dossier de l’assistant complété');
+  ok(await pg.evaluate(() => { const d = dossier(); return d.depenses_reelles && d.depenses_reelles.abonnements_par_an > 0 && d.rendement_reel && d.revenus_passifs && d.revenus_passifs.a_venir_12_mois.brut > 0 && d.revenus_passifs.fiscalite_retenue_pct.pfu_impot === 12.8; }), 'dossier de l’assistant complété');
   const rep63 = await pg.evaluate(() => ['quels sont mes abonnements ?', 'à quel âge puis-je prendre ma retraite ?', 'combien me rapportent mes revenus passifs ?', 'combien dois-je investir chaque mois ?'].map(q => LAI.answer(q).t));
-  ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /revenus passifs sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
+  ok(/Abonnements et prélèvements réguliers/.test(rep63[0]) && /Capital à réunir/.test(rep63[1]) && /Vos revenus passifs/.test(rep63[2]) && /À venir sur 12 mois/.test(rep63[2]) && /En réalité/.test(rep63[3]), 'assistant local : abonnements, retraite, revenus passifs, budget réel');
   ok(await pg.evaluate(() => { const n = D.ops.length, lib = D.ops[0].lib, P = JSON.parse(JSON.stringify(payload())); P.mt = Object.assign({}, P.mt, { ops: Date.now() + 1e6 }); const big = JSON.stringify(payload()).length; mergeRemote(P); return Array.isArray(P.ops[0]) && D.ops.length === n && D.ops[0].lib === lib.slice(0, 60) && typeof D.ops[0].m === 'number' && big < 400000; }), 'opérations synchronisées en format compact puis relues');
+  /* 6.8 : tableau de bord des revenus passifs (réel contre prévu, brut et net, projection, par source, rendement, par année) */
+  await pg.evaluate(() => { const d = new Date(); d.setMonth(d.getMonth() - 8); D.assets.push({ id: 'rv1', cat: 'crowd', name: 'Prêt Lyon', plat: 'Bienprêter', amount: 2000, value: 2000, rate: 9, dur: 24, date: d.toLocaleDateString('sv-SE'), status: 'cours' });
+    D.rappels.push({ id: 'rrv', nom: 'Bienprêter', jour: 5, aid: 'rv1', dest: 'aucun', hist: {}, cree: '2000-01-01' }); const m = moisDecale(moisCourant(), -1), l = CL.ligneDuMois(echOf(D.assets.find(a => a.id === 'rv1')), m); rapValider('rrv', m, l.total, { d: m + '-05' }); go('rev'); });
+  await pg.waitForTimeout(200); let rv = await pg.textContent('#v-rev');
+  ok(/Vos revenus passifs/.test(rv) && /Reçus sur 12 mois/.test(rv) && /Projection des 12 prochains mois/.test(rv) && /Par source/.test(rv) && /Crowdlending/.test(rv) && /Rendement annualisé/.test(rv) && /Par année/.test(rv), 'écran Revenus : réel, prévu, projection, sources, rendement, années');
+  ok(await pg.locator('#v-rev .rev-bars').count() === 3 && await pg.locator('#v-rev .rev-bars .pv').count() > 0, 'graphiques : barres par source et repère du prévu');
+  const rbv = await pg.evaluate(() => { const R = revData(); return { reel: R.passe.total.reel, net: R.passe.total.reelNet, a: R.avenir.total.prevu }; });
+  ok(rbv.reel > 0 && Math.abs(rbv.net - rbv.reel * 0.686) < 0.05 && rbv.a > 0, 'versement confirmé compté en reçu, net après PFU 31,4 % (' + JSON.stringify(rbv) + ')');
+  await pg.click('#v-rev [data-act=revnet][data-v="1"]'); ok(await pg.locator('#v-rev [data-act=revnet][data-v="1"][aria-pressed=true]').count() === 1, 'bascule brut / net d’impôt');
+  await pg.click('#v-rev [data-act=fisc]'); await pg.fill('#fi-ps', '17.2'); await pg.click('[data-act=fiscsave]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => D.fisc.ps === 17.2 && Math.abs(revData().passe.total.reelNet - revData().passe.total.reel * 0.7) < 0.05 && SF.includes('fisc') && payload().fisc.ps === 17.2), 'taux d’imposition modifiables, synchronisés, appliqués au net');
+  await pg.click('#v-rev [data-act=fisc]'); await pg.click('[data-act=fiscdef]'); ok(await pg.evaluate(() => !Object.keys(D.fisc).length && fiscD().ps === 18.6), 'retour aux taux par défaut');
+  const ya = String(new Date().getFullYear() - 1); if (await pg.locator(`#v-rev [data-act=revan][data-v="${ya}"]`).count()) { await pg.click(`#v-rev [data-act=revan][data-v="${ya}"]`); ok(/Reçu en \d{4}/.test(await pg.textContent('#v-rev')) && (await pg.evaluate(() => revData().Y)) === +ya, 'choix de l’année'); }
+  ok(/Revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)) || /Vos revenus passifs/.test(await pg.evaluate(() => LAI.answer('quels sont mes revenus nets d’impôt ?').t)), 'assistant local : revenus nets');
+  await pg.evaluate(() => { UI.revNet = false; UI.revAn = ''; D.assets = D.assets.filter(a => a.id !== 'rv1'); D.rappels = D.rappels.filter(r => r.id !== 'rrv'); save(); render(); go('home'); });
+  /* 6.8 : sauvegarde complète et restauration « ajouter » : rappels, objectifs, opérations, fiscalité repris sans écraser l'existant */
+  ok(await pg.evaluate(() => {
+    const avant = JSON.parse(JSON.stringify(D)), b = JSON.parse(JSON.stringify(D)); b.assets = [{ id: 'zz1', cat: 'cash', name: 'Livret sauvegardé', amount: 10 }];
+    b.rappels = [{ id: 'rz', nom: 'Homunity', jour: 12, hist: { '2025-01': { s: 'recu', m: 9, d: '2025-01-12' } } }]; b.goals = [{ id: 'gz', name: 'Voyage', target: 3000 }]; b.ops = [{ id: 'oz', d: '2025-01-03', lib: 'TEST', m: -5, cat: 'autre' }]; b.fisc = { tmi: 11, src: { x: 'brut' } }; delete b.sv;
+    IMP.rest = b; restore('merge'); const r = D.rappels.find(x => x.id === 'rz');
+        const res = D.assets.some(a => a.id === 'zz1') && r && r.hist['2025-01'].t > 0 && D.goals.some(g => g.id === 'gz') && D.ops.some(o => o.id === 'oz') && D.fisc.tmi === 11 && D.rappels.length === avant.rappels.length + 1;
+    D = Object.assign(load(), avant); save(); render(); return res;
+  }), 'restauration « ajouter » : placements, rappels (schéma mis à jour), objectifs, opérations et fiscalité repris');
+  ok(await pg.evaluate(() => { const avant = JSON.parse(JSON.stringify(D)), R = JSON.parse(JSON.stringify(payload())); R.rappels = (R.rappels || []).concat([{ id: 'old1', nom: 'Ancien appareil', jour: 3, hist: { '2025-05': { s: 'recu', m: 4, d: '2025-05-03' } } }]); delete R.sv; R.mt = Object.assign({}, R.mt, { rappels: 1 });
+    mergeRemote(R); const r = D.rappels.find(x => x.id === 'old1'), res = !!r && r.hist['2025-05'].m === 4 && D.rappels.length === avant.rappels.length + 1; D = Object.assign(load(), avant); save(); render(); return res; }), 'synchronisation avec un appareil d’avant la 6.8 : ses rappels et leur historique sont gardés');
+  /* 6.8 : import depuis Finary ou un tableur (glisser-déposer, colonnes retenues, rapprochement, doublons, Excel, capture, annulation) */
+  await pg.evaluate(() => { D.assets = D.assets.filter(a => !/amundi msci world/i.test(a.name)); D.assets.push({ id: 'fi1', cat: 'cash', name: 'Livret A', plat: 'Boursorama', amount: 4000, value: 4000 }); save(); go('assets'); openImport(); });
+  await pg.click('[data-act=imptab]'); ok(await pg.locator('#imp-dz').count() === 1 && /Aucun identifiant/.test(await pg.textContent('#sheet')), 'import Finary : zone de dépôt, sans identifiant');
+  const csvFin = 'Nom;Catégorie;Établissement;Valeur actuelle;Quantité;PRU\nAmundi MSCI World;ETF;Boursorama;5 120,50 €;10;480\nLivret A;Livret;BoursoBank;4 250,00;;\nAmundi MSCI World;ETF;Boursorama;5 120,50;10;480\nProjet Lyon;Crowdlending;Bienprêter;1 000;;\n';
+  await pg.evaluate(t => { const dt = new DataTransfer(); dt.items.add(new File([t], 'finary.csv', { type: 'text/csv' })); document.getElementById('imp-dz').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }, csvFin);
+  await pg.waitForSelector('#ic-nom'); ok(await pg.inputValue('#ic-valeur') === '3' && await pg.inputValue('#ic-plateforme') === '2' && /5 120,50/.test((await pg.textContent('#imp-ap')).replace(/[ \u202f]/g, ' ')), 'fichier déposé : colonnes reconnues, aperçu');
+  await pg.click('[data-act=imprap]'); await pg.waitForTimeout(100);
+  const ir = await pg.evaluate(() => IMP.R.map(x => x.action + (x.cible ? ':' + x.cible : '') + (x.doublon ? ':doublon' : '')));
+  ok(ir.join() === 'creer,maj:fi1,ignorer:doublon,creer' && /4 000,00 € → /.test((await pg.textContent('#sheet')).replace(/[ \u202f]/g, ' ')), 'rapprochement : créer, mettre à jour le Livret A (BoursoBank = Boursorama), doublon ignoré (' + ir + ')');
+  await pg.selectOption('[data-ch=impact][data-i="3"]', 'ignorer'); ok(/Importer 2 lignes/.test(await pg.textContent('#imp-go')), 'choix par ligne : compteur mis à jour');
+  await pg.click('#imp-go'); await pg.waitForTimeout(150);
+  ok(await pg.evaluate(() => { const a = D.assets.find(x => x.name === 'Amundi MSCI World'), l = D.assets.find(x => x.id === 'fi1'); return a && a.cat === 'bourse' && a.qty === 10 && a.pru === 480 && Math.abs(a.price - 512.05) < 1e-6 && l.value === 4250 && !D.assets.some(x => x.name === 'Projet Lyon') && D.impUndo.n === 2 && Object.values(D.impMap)[0].valeur === 3; }), 'import appliqué : titre créé (quantité, PRU, cours), livret mis à jour, colonnes retenues');
+  await pg.click('#toast [data-act=toastact]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => !D.assets.some(x => x.name === 'Amundi MSCI World') && D.assets.find(x => x.id === 'fi1').value === 4000 && !D.impUndo), 'annulation de l’import : tout revient comme avant');
+  /* fichier Excel (.xlsx) */
+  const xlsx = await pg.evaluate(async () => {
+    const enc = new TextEncoder(), F = { 'xl/workbook.xml': '<workbook><sheets><sheet name="A" sheetId="1" r:id="rId1"/></sheets></workbook>', 'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>', 'xl/sharedStrings.xml': '<sst><si><t>Asset</t></si><si><t>Balance</t></si><si><t>SCPI Corum</t></si></sst>', 'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row><row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>3000</v></c></row></sheetData></worksheet>' };
+    const parts = [], cen = []; let off = 0; const u16 = n => [n & 255, n >> 8], u32 = n => [n & 255, (n >> 8) & 255, (n >> 16) & 255, n >>> 24];
+    for (const [nom, t] of Object.entries(F)) { const n = enc.encode(nom), d = enc.encode(t); parts.push(new Uint8Array([...u32(0x04034b50), ...u16(20), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(d.length), ...u32(d.length), ...u16(n.length), 0, 0]), n, d);
+      cen.push(new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(d.length), ...u32(d.length), ...u16(n.length), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(off)]), n); off += 30 + n.length + d.length; }
+    const cl = cen.reduce((s, x) => s + x.length, 0); parts.push(...cen, new Uint8Array([...u32(0x06054b50), 0, 0, 0, 0, ...u16(4), ...u16(4), ...u32(cl), ...u32(off), 0, 0]));
+    openImpTab(); await impLire(new File(parts, 'export.xlsx')); return { val: $('ic-valeur') && $('ic-valeur').value, ap: $('imp-ap').textContent };
+  });
+  ok(xlsx.val === '1' && /SCPI Corum/.test(xlsx.ap) && /Immobilier fractionné/.test(xlsx.ap), 'fichier Excel lu : colonnes et type (SCPI → immobilier fractionné)');
+  /* capture d'écran lue par Gemini (réponse simulée), même écran de vérification */
+  const cap = await pg.evaluate(async () => { localStorage.setItem('pat_ai_key', 'AIza' + 'x'.repeat(35)); const g0 = window.gem; window.gem = async () => 'Voici : [{"nom":"Bitcoin","type":"Crypto","plateforme":"Coinbase","valeur":"1 500 €","quantite":"0,02"}]';
+    openImpTab(); await impLire(new File([new Uint8Array([137, 80, 78, 71])], 'capture.png', { type: 'image/png' })); window.gem = g0; localStorage.removeItem('pat_ai_key'); return { R: IMP.R && IMP.R.map(x => x.nom + ':' + x.action + ':' + x.cat + ':' + x.valeur), t: $('sheet').textContent }; });
+  ok(cap.R && cap.R[0] === 'Bitcoin:maj:autre:1500' && /vérifiez chaque nom/.test(cap.t) && /6 000,00 € → 1 500,00 €/.test(cap.t.replace(/[\u00a0\u202f]/g, ' ')), 'capture d’écran : lignes lues par l’IA, rapprochées du Bitcoin existant, vérification avant import');
+  ok(/Finary/.test(await pg.evaluate(() => LAI.answer('comment importer depuis Finary ?').t)), 'assistant local : import Finary');
+  await pg.evaluate(() => { closeM(); D.assets = D.assets.filter(a => a.id !== 'fi1'); D.impMap = {}; save(); render(); go('home'); });
   ok(!errs.length, 'aucune erreur JavaScript (version 6.3) : ' + errs.join(' | '));
   /* application Mac (pont simulé) : verrouillage Touch ID, délai réglable, montant masqué dans la barre des menus */
   { const pm = await ctx.newPage(); const errsMac = []; pm.on('pageerror', e => errsMac.push(e.message));

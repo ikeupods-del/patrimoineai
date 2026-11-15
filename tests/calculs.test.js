@@ -100,18 +100,11 @@ ok(C.echeance('2026-10', 8) === '2026-10-08' && C.echeance('2026-02', 31) === '2
 const bricks = { id: 'r1', nom: 'Bricks', jour: 8, cree: '2026-09-01', hist: {} }, bp = { id: 'r2', nom: 'BienPrêter', jour: 5, cree: '2026-10-01', hist: {}, motif: 'bienpreter|lemonway', attendu: 42.5 };
 ok(C.rappelsDus([bricks, bp], '2026-10-04').length === 1 && C.rappelsDus([bricks, bp], '2026-10-04')[0].mois === '2026-09', 'avant le jour J : seul le mois précédent non validé est dû');
 const du = C.rappelsDus([bricks, bp], '2026-10-08');
-ok(du.length === 3 && du[2].r === bricks && du[2].statut === 'a_valider' && du[1].r === bp && du[1].statut === 'a_valider' && du[0].statut === 'retard', 'le jour J : à valider ; septembre non validé : en retard');
+ok(du.length === 3 && du[2].r === bricks && du[2].statut === 'a_valider' && du[1].r === bp && du[1].statut === 'a_valider' && du[0].statut === 'alerte', 'le jour J : à valider ; septembre non validé depuis un mois : en alerte');
 ok(C.rappelsDus([bp], '2026-10-08')[0].statut === 'a_valider' && C.rappelsDus([bp], '2026-10-09')[0].statut === 'retard' && C.rappelsDus([bp], '2026-10-09')[0].jours === 4, 'en retard après 3 jours sans validation');
 bricks.hist['2026-09'] = { s: 'recu', m: 31.2 }; bricks.hist['2026-10'] = { s: 'absent' };
 ok(C.rappelsDus([bricks], '2026-10-20').length === 0 && C.prochaineEcheance(bricks, '2026-10-20') === '2026-11-09' && C.prochaineEcheance(bp, '2026-10-05') === '2026-10-05', 'validé ou absent : plus dû ; prochaine échéance');
 ok(C.rappelsDus([Object.assign({}, bp, { actif: false })], '2026-12-01').length === 0 && C.rappelsDus([Object.assign({}, bp, { cree: '2026-10-06' })], '2026-10-20').length === 0, 'rappel désactivé ou créé après la date : rien de dû');
-const opsB = [{ id: 'x1', d: '2026-10-06', lib: 'VIR SEPA LEMONWAY BIENPRETER', m: 42.5 }, { id: 'x2', d: '2026-10-05', lib: 'VIR BIENPRETER', m: 10 }, { id: 'x3', d: '2026-10-05', lib: 'CARTE BIENPRETER', m: -42.5 }, { id: 'x4', d: '2026-09-20', lib: 'VIR BIENPRETER', m: 42.5 }, { id: 'x5', d: '2026-10-09', lib: 'VIR SALAIRE', m: 42.5 }];
-ok(C.rapprocher(bp, '2026-10', opsB).id === 'x1', 'rapprochement : bon libellé, bon montant, dans la fenêtre');
-ok(C.rapprocher(bp, '2026-10', opsB, new Set(['x1'])).id === 'x2' && C.rapprocher(bp, '2026-10', opsB, new Set(['x1', 'x2'])) === null, 'opération déjà utilisée écartée');
-ok(C.rapprocher({ nom: 'Bricks', jour: 8 }, '2026-10', [{ id: 'b', d: '2026-10-09', lib: 'Vir. Bricks.co loyers', m: 12.3 }]).id === 'b', 'rapprochement par le nom de la plateforme');
-const ob = C.opsBanque([{ id: 't1', d: '2026-10-02', lib: 'CB CARREFOUR', m: -54.2, dev: 'EUR' }, { id: 't2', d: '2026-10-03', lib: 'EN ATTENTE', m: -5, etat: 'PDNG' }, { id: 't3', d: '2026-10-04', lib: 'USD', m: -5, dev: 'USD' }, { id: 't4', d: '2026-10-05', lib: 'NETFLIX', m: -13.49 }], 'abc', [{ d: '2026-10-05', m: -13.49, lib: 'PRLV NETFLIX.COM' }]);
-ok(ob.length === 1 && ob[0].fid === 'eb:abc:t1' && ob[0].m === -54.2, 'opérations de la banque : en attente, devise et doublon d’un relevé écartés');
-ok(C.fusionnerOps(ob, C.opsBanque([{ id: 't1', d: '2026-10-02', lib: 'CB CARREFOUR MARKET', m: -54.2 }], 'abc')).length === 0, 'opération de la banque déjà reçue non reprise');
 
 /* jours ouvrés : week-end et jours fériés décalés au jour ouvré suivant */
 ok(C.echeanceR({ jour: 8 }, '2026-11') === '2026-11-09' && C.echeanceR({ jour: 8, ouvre: false }, '2026-11') === '2026-11-08' && C.echeanceR({ jour: 5 }, '2026-10') === '2026-10-05', 'un dimanche devient lundi, sauf si on demande de ne pas décaler');
@@ -120,20 +113,12 @@ ok(C.echeanceR({ jour: 11 }, '2026-11') === '2026-11-12' && C.echeanceR({ jour: 
 ok(C.rappelsDus([{ id: 'w', nom: 'X', jour: 8, cree: '2026-10-01', hist: {} }], '2026-11-08').length === 1 && C.rappelsDus([{ id: 'w', nom: 'X', jour: 8, cree: '2026-11-01', hist: {} }], '2026-11-08').length === 0 && C.rappelsDus([{ id: 'w', nom: 'X', jour: 8, cree: '2026-11-01', hist: {} }], '2026-11-09').length === 1, 'rien d’exigé le dimanche : le paiement est attendu lundi');
 /* montant habituel */
 ok(C.montantHabituel({ attendu: 40 }) === 40 && C.montantHabituel({ hist: { '2026-07': { s: 'recu', m: 10 }, '2026-08': { s: 'recu', m: 30 }, '2026-09': { s: 'recu', m: 12 }, '2026-10': { s: 'absent' }, '2026-05': { s: 'recu', m: 999 } } }) === 12 && C.montantHabituel({}) === 0, 'montant habituel : saisi, sinon médiane des trois derniers paiements');
-/* retraits vers la banque */
-const pf = { nom: 'Bricks', jour: 8, ret: [{ tx: 'r2' }] }, cr = [{ id: 'r1', d: '2026-10-12', lib: 'VIR SEPA BRICKS RETRAIT', m: 50 }, { id: 'r2', d: '2026-10-13', lib: 'VIR BRICKS', m: 20 }, { id: 'r3', d: '2026-10-14', lib: 'VIR SALAIRE', m: 500 }, { id: 'r4', d: '2026-09-01', lib: 'VIR BRICKS ANCIEN', m: 9 }, { id: 'r5', d: '2026-10-15', lib: 'CB BRICKS', m: -5 }, { id: 'r6', d: '2026-10-16', lib: 'VIR BRICKS', m: 300 }];
-const rt = C.retraitsPossibles(pf, cr, new Set(), 80, '2026-10-01');
-ok(rt.length === 2 && rt[0].op.id === 'r1' && rt[0].somme === 50 && rt[1].op.id === 'r6' && rt[1].somme === 80, 'retraits : libellé de la plateforme, après la création, jamais traités, plafonnés au portefeuille');
-ok(C.retraitsPossibles(pf, cr, new Set(['r1', 'r6']), 80, '2026-10-01').length === 0 && C.retraitsPossibles(pf, cr, new Set(), 0, '2026-10-01').length === 0, 'retrait déjà utilisé ou portefeuille vide : rien');
 /* doublons entre sources (une seule fois chacune, 2 jours de tolérance) */
 const dd = C.ecarterDoublons([{ d: '2026-10-05', m: -2.5 }, { d: '2026-10-05', m: -2.5 }, { d: '2026-10-07', m: -13.49 }, { d: '2026-10-20', m: -9 }], [{ d: '2026-10-06', m: -2.5 }, { d: '2026-10-05', m: -13.49 }]);
 ok(dd.length === 2 && dd.filter(x => x.m === -2.5).length === 1 && dd.some(x => x.m === -9) && !dd.some(x => x.m === -13.49), 'doublons : un seul achat identique est écarté, pas les deux ; 2 jours d’écart tolérés (' + JSON.stringify(dd) + ')');
-ok(C.opsBanque([{ id: 'a', d: '2026-10-07', lib: 'NETFLIX', m: -13.49 }], 'x', [{ d: '2026-10-05', m: -13.49, lib: 'PRLV NETFLIX.COM' }]).length === 0 && C.opsBanque([{ id: 'a', d: '2026-10-09', lib: 'NETFLIX', m: -13.49 }], 'x', [{ d: '2026-10-05', m: -13.49, lib: 'PRLV NETFLIX.COM' }]).length === 1, 'banque contre relevé CSV : doublon reconnu à 2 jours près, pas à 4');
-ok(C.pourEpargne({ lib: 'VIR DE M DUPONT', m: 200 }).cat === 'virement' && C.pourEpargne({ lib: 'INTERETS CREDITEURS', m: 3.2 }).cat === 'revenu' && C.pourEpargne({ lib: 'RETRAIT', m: -100 }).cat === 'virement', 'compte d’épargne : virements neutres, intérêts en revenu');
 /* calendrier */
 const ic = C.ics([{ id: 'r1', nom: 'Bricks', jour: 8, attendu: 31.2 }, { id: 'r2', nom: 'Fin; de mois', jour: 31 }, { id: 'r3', nom: 'Off', jour: 3, actif: false }], '2026-10-16');
 ok(/^BEGIN:VCALENDAR\r\n/.test(ic) && /END:VCALENDAR\r\n$/.test(ic) && (ic.match(/BEGIN:VEVENT/g) || []).length === 2 && /DTSTART;VALUE=DATE:20261108\r\n/.test(ic) && /RRULE:FREQ=MONTHLY;BYMONTHDAY=8\r\n/.test(ic) && /BYMONTHDAY=-1/.test(ic) && /environ 31\\,2 €/.test(ic) && /Fin\\; de mois/.test(ic) && /TRIGGER:PT9H/.test(ic) && !/Off/.test(ic), 'calendrier : un événement mensuel par rappel actif, échappements, dernier jour du mois');
-ok(/DTSTART;VALUE=DATE:20261105/.test(C.icsUnique('x', 'Renouveler', 'Banque', '2026-11-05', '2026-10-16')) && /SUMMARY:Renouveler/.test(C.icsUnique('x', 'Renouveler', 'Banque', '2026-11-05', '2026-10-16')), 'calendrier : événement unique');
 
 /* ticker à suivre : ISIN lu dans le texte, places européennes d'abord, ni indice ni change */
 ok(C.isinDe('S&P 500 EUR (Acc)', 'isin : fr0011550185') === 'FR0011550185' && C.isinDe('Air Liquide') === '', 'ISIN lu dans le nom ou les notes');
@@ -169,5 +154,119 @@ ok(fp.lignes.length === 2 && fp.lignes[0].id === 'a' && fp.parAn === 420 && fp.l
 const fb = C.fraisBancaires([{ d: '2026-09-10', lib: 'COTISATION CARTE VISA PREMIER', m: -134, cat: 'autre' }, { d: '2026-08-02', lib: 'FRAIS COMMISSION D INTERVENTION', m: -8, cat: 'autre' }, { d: '2026-07-02', lib: 'FRAIS COMMISSION D INTERVENTION', m: -8, cat: 'autre' },
   { d: '2026-09-12', lib: 'CB GRAND FRAIS 11/09', m: -42, cat: 'alimentation' }, { d: '2026-09-13', lib: 'CB GRAND FRAIS LYON', m: -42, cat: 'autre' }, { d: '2025-01-02', lib: 'AGIOS', m: -30, cat: 'autre' }, { d: '2026-09-01', lib: 'COTISATION MUTUELLE', m: -60, cat: 'autre' }], AUJ);
 ok(fb.total === 150 && fb.lignes.length === 2 && fb.lignes[0].total === 134 && fb.lignes[1].n === 2, 'frais bancaires des 12 derniers mois (' + JSON.stringify(fb) + ')');
+
+/* relevé de portefeuille d'un courtier : colonnes reconnues par leur nom */
+const dgFr = C.lirePositions('Produit,Symbole/ISIN,Quantité,Clôture,,Valeur locale,,Valeur en EUR\nCASH & CASH FUND & FTX CASH (EUR),,,,EUR,"152,30",,"152,30"\nISHARES CORE MSCI WORLD UCITS ETF,IE00B4L5Y983,12,"98,50",EUR,"1182,00",,"1182,00"\nAPPLE INC,US0378331005,3,"230,10",USD,"690,30",,"636,00"\n');
+ok(dgFr.reconnu && dgFr.positions.length === 2 && dgFr.especes === 152.3 && dgFr.positions[0].isin === 'IE00B4L5Y983' && dgFr.positions[0].qte === 12 && dgFr.positions[0].price === 98.5 && dgFr.positions[0].sansPru, 'Degiro (français) : positions, espèces à part, sans prix de revient (' + JSON.stringify(dgFr) + ')');
+ok(dgFr.positions[1].price === 212 && dgFr.positions[1].devise === 'USD', 'Degiro : prix en euros d’après la valeur en euros, devise notée');
+const dgEn = C.lirePositions('Product,Symbol/ISIN,Amount,Closing,,Local value,,Value in EUR\nVANGUARD FTSE ALL-WORLD,IE00BK5BQT80,5,"110.20",EUR,"551.00",,"551.00"\n');
+ok(dgEn.positions.length === 1 && dgEn.positions[0].qte === 5 && dgEn.positions[0].price === 110.2, 'Degiro (anglais) : « Amount » lu comme la quantité');
+const bo2 = C.lirePositions('name;isin;quantity;buyingPrice;lastPrice;intradayVariation;amount;amountVariation;variation\n"AMUNDI MSCI WORLD";FR0010756098;20;400,5;520,25;0,4;10405;2395;29,9\n"AIR LIQUIDE";FR0000120073;10;150;180;-0,2;1800;300;20\n"AIR LIQUIDE";FR0000120073;5;180;180;-0,2;900;0;0\n');
+ok(bo2.positions.length === 2 && bo2.positions[0].pru === 400.5 && bo2.positions[0].price === 520.25 && !bo2.positions[0].sansPru && bo2.positions[1].qte === 15 && bo2.positions[1].pru === 160, 'BoursoBank : prix de revient, cours, même titre sur deux lignes réuni (' + JSON.stringify(bo2.positions) + ')');
+const gen = C.lirePositions('Portefeuille PEA - Fortuneo au 27/10/2026\n\nLibellé;Code ISIN;Qté;PRU;Cours;Valorisation\nTOTALENERGIES;FR0000120271;40;55,10 €;58,20 €;2 328,00 €\nTotal;;;;;2 328,00 €\n');
+ok(gen.positions.length === 1 && gen.courtier === 'Fortuneo' && gen.positions[0].pru === 55.1 && gen.positions[0].price === 58.2 && gen.erreurs === 0, 'relevé avec titre et ligne de total, courtier reconnu (' + JSON.stringify(gen) + ')');
+ok(!C.lirePositions('Date;Libellé;Montant\n01/10/2026;CB;-12\n').reconnu, 'un relevé de compte n’est pas pris pour un portefeuille');
+const rp2 = C.rapprocherPositions([{ id: 'x1', nom: 'ETF Monde', notes: 'ISIN IE00B4L5Y983' }, { id: 'x2', nom: 'Apple Inc' }, { id: 'x3', nom: 'Vieux titre' }], dgFr.positions.concat([{ nom: 'Nouveau', isin: 'FR0000120271', qte: 1, pru: 1, price: 1 }]));
+ok(rp2.maj.length === 2 && rp2.maj[0].id === 'x1' && rp2.maj[1].id === 'x2' && rp2.nouveaux.length === 1 && rp2.absents.length === 1 && rp2.absents[0] === 'x3', 'positions rapprochées par ISIN puis par nom, titres absents signalés');
+/* rappels : alerte à J+10, annulation, fusion entre appareils (6.8) */
+{
+  const r = { id: 'r1', nom: 'BienPrêter', jour: 5, cree: '2026-01-01', hist: {} };
+  const st = a => C.rappelsDus([r], a).filter(x => x.mois === '2026-10').map(x => x.statut)[0];
+  ok(st('2026-10-05') === 'a_valider' && st('2026-10-09') === 'retard' && st('2026-10-15') === 'retard' && st('2026-10-16') === 'alerte', 'rappel : à confirmer, en retard à J+3, en alerte à J+10');
+  r.hist['2026-10'] = { s: 'annule', t: 2 };
+  ok(st('2026-10-20') === 'alerte' && C.prochaineEcheance(r, '2026-10-01') === '2026-10-05', 'une validation annulée rouvre le rappel');
+  r.hist['2026-10'] = { s: 'recu', m: 50, t: 3 };
+  ok(st('2026-10-20') === undefined && C.historique(r)[0].mois === '2026-10', 'validation : rappel fermé, historique lisible');
+  const L = [{ id: 'a', nom: 'A', jour: 5, u: 10, hist: { '2026-09': { s: 'recu', m: 10, t: 5 } } }, { id: 'b', nom: 'B', jour: 8, u: 10, hist: {} }, { id: 'loc', nom: 'Nouveau', jour: 1, u: 30, hist: {} }];
+  const R = [{ id: 'a', nom: 'A (renommé)', jour: 5, u: 20, hist: { '2026-09': { s: 'annule', t: 9 }, '2026-10': { s: 'recu', m: 11, t: 8 } } }, { id: 'b', nom: 'B', jour: 8, u: 5, hist: {} }, { id: 'dist', nom: 'Distant', jour: 2, u: 1, hist: {} }];
+  const F = C.fusionRappels(L, R, { b: 15 }, true), fa = F.find(x => x.id === 'a');
+  ok(fa.nom === 'A (renommé)' && fa.hist['2026-09'].s === 'annule' && fa.hist['2026-10'].m === 11, 'fusion des rappels : réglages les plus récents, historique mois par mois');
+  ok(!F.find(x => x.id === 'b') && F.find(x => x.id === 'loc') && F.find(x => x.id === 'dist') && F.length === 3, 'fusion des rappels : suppression respectée, ajouts des deux côtés gardés');
+  ok(C.fusionRappels([{ id: 'v1', nom: 'Ancien', jour: 5, hist: {} }], [{ id: 'v2', nom: 'Ancien distant', jour: 8, hist: {} }], {}, true).length === 2 && C.fusionRappels([{ id: 'v1', jour: 5 }], [], { v1: 5 }, true).length === 0, 'fusion : rappels d’avant la 6.8 (sans date) gardés, suppression datée respectée');
+  ok(C.fusionHist({ m: { s: 'recu', m: 1 } }, { m: { s: 'absent', t: 1 } }).m.s === 'absent' && C.fusionHist({ m: { s: 'recu', t: 9 } }, { m: { s: 'absent', t: 1 } }).m.s === 'recu', 'fusion d’historique : l’entrée datée la plus récente gagne');
+}
+/* échéancier : prêt amortissable (BienPrêter), in fine, loyers (Bricks) */
+{
+  const E = C.echeancier({ montant: 1000, taux: 7, duree: 12, debut: '2025-10-15', jour: 5, mode: 'amort', paie: [{ d: '2025-11-05', m: 86.53, c: 80.7 }] }, '2026-04-20');
+  ok(E && E.lignes.length === 12 && Math.abs(E.mensualite - 86.53) < 0.01 && E.lignes[0].mois === '2025-11' && E.lignes[0].date === '2025-11-05' && E.lignes[11].crd === 0, 'échéancier amortissable : 12 mensualités de 86,53 €, capital soldé à la fin');
+  ok(Math.abs(E.lignes[0].interets - 5.83) < 0.01 && Math.abs(E.lignes[0].capital - 80.7) < 0.02 && E.lignes[0].recu === 86.53 && E.lignes[1].recu === null, 'échéancier : intérêts, capital et montant reçu par mois');
+  ok(E.capitalRestantPrevu === E.lignes.find(x => x.mois === '2026-04').crd && E.capitalRestantReel === 919.3 && E.prochaines[0].mois === '2026-04', 'capital restant prévu et réel');
+  ok(C.partCapital(C.ligneDuMois(E, '2025-11'), 86.53) === 80.69 && C.partCapital(C.ligneDuMois(E, '2025-11'), 50) === 44.17 && C.partCapital(null, 50) === 0, 'part de capital d’un versement');
+  const I = C.echeancier({ montant: 1000, taux: 12, duree: 3, debut: '2026-01-10', mode: 'infine' }, '2026-02-01');
+  ok(I.lignes.map(x => x.total).join() === '10,10,1010' && I.capitalRestantPrevu === 1000, 'échéancier in fine : intérêts chaque mois, capital à la fin');
+  const B = C.echeancier({ montant: 1200, taux: 6, debut: '2026-01-10', mode: 'loyer' }, '2026-03-01', 12);
+  ok(B.lignes.every(x => x.total === 6 && x.capital === 0) && B.prochaines.length === 12 && B.capitalRestantPrevu === 1200, 'échéancier de loyers (Bricks) : revenu mensuel, capital inchangé');
+  ok(C.echeancier({ montant: 0, taux: 5, duree: 12, debut: '2026-01-01' }) === null && C.echeancier({ montant: 100, taux: 5, debut: '2026-01-01', mode: 'amort' }) === null, 'échéancier : données incomplètes → rien');
+}
+
+/* revenus passifs : fiscalité réglable, réel contre prévu, brut et net, rendements par plateforme */
+{
+  ok(C.fiscalite({}).ir === 12.8 && C.fiscalite({ ps: '17,2' }).ps === 17.2 && C.fiscalite({ ps: 150, ir: '' }).ps === 18.6 && C.fiscalite({ ir: 0 }).ir === 0, 'fiscalité : valeurs par défaut, saisies, valeurs aberrantes ignorées');
+  ok(C.tauxImpot('crowd', {}) === 31.4 && C.tauxImpot('livret', {}, { exonere: true }) === 0 && C.tauxImpot('div', {}, { pea: true }) === 0 && C.tauxImpot('av', {}) === 17.2 && C.tauxImpot('loyer', { tmi: 30, psImmo: 17.2, abatFoncier: 30 }) === 33.04 && C.tauxImpot('loyer', {}) === 33.04 && C.tauxImpot('crowd', { ir: 12.8, ps: 17.2 }) === 30, 'taux d’imposition par source');
+  const ML = C.listeMois('2026-11', 3);
+  ok(ML.join() === '2026-11,2026-12,2027-01', 'liste de mois');
+  const T = C.tableauRevenus([{ type: 'crowd', taux: 30, reel: { '2026-11': 100 }, prevu: { '2026-11': 90, '2026-12': 90 } }, { type: 'livret', taux: 0, reel: null, prevu: { '2026-12': 50 } }], ML);
+  ok(T.total.reel === 100 && T.total.prevu === 230 && T.total.reelNet === 70 && T.total.prevuNet === 176 && T.mois[1].prevu === 140 && T.mois[2].prevu === 0 && T.total.par.crowd.prevuNet === 126 && T.total.par.livret.reel === 0 && T.total.suivi === 180 && T.total.estime === 50 && T.mois[1].estime === 50, 'tableau des revenus : réel, prévu, brut et net, par source');
+  const Rd = C.rendements([{ nom: 'BienPrêter', flux: [{ d: '2025-01-01', m: 1000 }, { d: '2025-07-01', m: -40 }], valeur: 1000, taux: 31.4 }, { nom: 'Vide', flux: [], valeur: 0 }], new Date('2026-01-01T12:00:00'));
+  ok(Rd.lignes.length === 1 && Rd.lignes[0].tri > 0.03 && Rd.lignes[0].tri < 0.05 && Math.abs(Rd.lignes[0].triNet - Rd.lignes[0].tri * 0.686) < 1e-9 && Rd.global && Math.abs(Rd.global.tri - Rd.lignes[0].tri) < 1e-9, 'rendement annualisé brut et net par plateforme et global');
+}
+
+/* vue fiscale annuelle : brut reconstitué, PFU ou barème, imputation des pertes, lignes à reporter avec leur case */
+{
+  global.window = global.window || {}; require('../fiscal-config.js'); const CFG = global.window.FISCAL_CONFIG;
+  ok(CFG && CFG.cases.interets.case === '2TR' && /notice officielle/.test(CFG.avertissement) && CFG.regles.pertesPretsParticipatifs.certitude === 'a_verifier', 'fichier de configuration fiscale : cases, règles et avertissement');
+  const b = C.brutDe(68.6, true, {}); ok(b.brut === 100 && b.ir === 12.8 && b.ps === 18.6 && C.brutDe(50, false, {}).brut === 50 && C.brutDe(50, false, {}).ir === 0, 'intérêts nets des prélèvements : brut reconstitué');
+  const cp = C.comparerPfuBareme({ interets: 1000, dividendes: 1000 }, { tmi: 11 }, CFG.regles);
+  ok(cp.pfu.impot === 256 && cp.ps === 372 && cp.meilleur === 'bareme' && Math.abs(cp.bareme.impot - (1600 * 0.11 - 2000 * 0.068 * 0.11)) < 0.01, 'PFU ou barème : abattement de 40 % des dividendes, CSG déductible');
+  ok(C.comparerPfuBareme({ interets: 1000 }, { tmi: 41 }, CFG.regles).meilleur === 'pfu', 'tranche élevée : PFU plus avantageux');
+  const ip = C.imputationPertes({ 2024: 10000, 2025: 500 }, { 2024: 3000, 2025: 9000 }, 2025, { plafondAnnuel: 8000, reportAns: 5 });
+  ok(ip.perteAnnee === 500 && ip.disponible === 7500 && ip.impute === 7500 && ip.reste === 0, 'imputation des pertes : reports des années précédentes, limite annuelle');
+  const ip2 = C.imputationPertes({ 2018: 5000 }, { 2025: 9000 }, 2025, { plafondAnnuel: 8000, reportAns: 5 });
+  ok(ip2.impute === 0 && ip2.reste === 0, 'imputation des pertes : report au-delà de 5 ans perdu');
+  const vf = C.vueFiscale({ annee: 2025, interets: [{ nom: 'Prêt A', plat: 'BienPrêter', brut: 100, ir: 12.8, ps: 18.6, pret: true }, { nom: 'Prêt B', plat: 'BienPrêter', brut: 50, ir: 6.4, ps: 9.3, pret: true }, { nom: 'Livret bancaire', plat: 'Banque', brut: 30, estime: true }],
+    dividendes: [{ nom: 'TTE', m: 40 }], ventes: { n: 1, gains: 0, pertes: 80, net: -80 }, pertes: { 2025: 60 }, interetsPretsParAn: { 2025: 150 }, enDefaut: [{ nom: 'Projet X', m: 1000, pret: true }], etrangers: ['Trade Republic'] }, CFG, {});
+  const L = k => vf.lignes.find(x => x.cle === k);
+  ok(vf.plateformes[0].plat === 'BienPrêter' && vf.plateformes[0].brut === 150 && vf.plateformes[0].net === 102.9 && vf.totaux.retenuIR === 19.2 && vf.totaux.basePS === 150, 'vue fiscale : intérêts par plateforme, prélèvements retenus');
+  ok(L('interetsPrets').cases === '2TT' && L('interetsPrets').certitude === 'a_verifier' && L('interets').cases === '2TR' && L('acompte').cases === '2CK' && L('dejaSoumisPS').cases === '2BH' && L('ventes').cases === '3VH' && L('pertes').montant === 60 && /reportable/.test(L('pertes').note), 'vue fiscale : cases tirées du fichier de configuration, certitude affichée');
+  ok(vf.imputation.impute === 60 && vf.comparaison.base === 160 && vf.rappels.some(r => /3916/.test(r)) && vf.rappels.some(r => /Projet X/.test(r) && /définitive/.test(r)), 'vue fiscale : pertes imputées avant comparaison, rappels (étranger, défaut)');
+}
+
+ok(C.fraisBancaires([{ d: '2026-10-31', lib: 'COTISATION CARTE', m: -10, cat: 'autre' }], new Date('2026-10-31T00:30:00')).total === 10, 'frais bancaires : une opération du jour compte même avant midi');
+/* import d'un tableau (Finary, tableur, capture) : colonnes devinées, types, rapprochement, doublons, Excel */
+const zlib = require('zlib');
+function zipDe(fichiers) { /* petit fichier zip (deflate) pour essayer la lecture Excel */
+  const loc = [], cen = []; let off = 0;
+  for (const [nom, txt] of Object.entries(fichiers)) {
+    const n = Buffer.from(nom), d = Buffer.from(txt), c = zlib.deflateRawSync(d), h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(8, 8); h.writeUInt32LE(c.length, 18); h.writeUInt32LE(d.length, 22); h.writeUInt16LE(n.length, 26);
+    const g = Buffer.alloc(46); g.writeUInt32LE(0x02014b50, 0); g.writeUInt16LE(20, 4); g.writeUInt16LE(20, 6); g.writeUInt16LE(8, 10); g.writeUInt32LE(c.length, 20); g.writeUInt32LE(d.length, 24); g.writeUInt16LE(n.length, 28); g.writeUInt32LE(off, 42);
+    loc.push(h, n, c); cen.push(g, n); off += 30 + n.length + c.length;
+  }
+  const C = Buffer.concat(cen), e = Buffer.alloc(22); e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(cen.length / 2, 8); e.writeUInt16LE(cen.length / 2, 10); e.writeUInt32LE(C.length, 12); e.writeUInt32LE(off, 16);
+  return new Uint8Array(Buffer.concat([...loc, C, e]));
+}
+(async () => {
+  const mp = C.devinerColonnes(['Nom', 'Catégorie', 'Établissement', 'Valeur actuelle', 'Quantité', 'Prix de revient unitaire', 'Date']);
+  ok(mp.nom === 0 && mp.type === 1 && mp.plateforme === 2 && mp.valeur === 3 && mp.quantite === 4 && mp.pru === 5 && mp.date === 6, 'import : colonnes devinées (français)');
+  const me = C.devinerColonnes(['Asset', 'Account', 'Category', 'Balance']); ok(me.nom === 0 && me.plateforme === 1 && me.type === 2 && me.valeur === 3 && me.quantite === -1, 'import : colonnes devinées (anglais), colonne absente');
+  ok(C.typeImport('ETF', 'Amundi MSCI World') === 'bourse' && C.typeImport('Crowdlending', '') === 'crowd' && C.typeImport('', 'Livret A', 'BoursoBank') === 'cash' && C.typeImport('Real estate', 'SCPI Corum') === 'immo' && C.typeImport('Cryptos', 'Bitcoin') === 'autre' && C.typeImport('Assurance vie', '') === 'epargne' && C.typeImport('Loan', 'Prêt immo') === 'credit', 'import : type de placement');
+  const tab = C.tableauImport(C.decouperCSV('Export Finary;;\nNom;Catégorie;Établissement;Valeur actuelle;Quantité;PRU;Date\nAmundi MSCI World;ETF;Boursorama;5 120,50 €;10;480;15/03/2024\nLivret A;Livret;BoursoBank;12 000;;;\nAmundi MSCI World;ETF;Boursorama;5 120,50;10;480;\nProjet X;Crowdlending;Bienprêter;1000;;;\n;;;;;;\nSans valeur;Livret;;;;;'));
+  ok(tab.entetes[0] === 'Nom' && tab.lignes.length === 5, 'import : en-têtes repérés sous une ligne de titre');
+  const L = C.lignesImport(tab, C.devinerColonnes(tab.entetes));
+  ok(L.length === 5 && L[0].valeur === 5120.5 && L[0].quantite === 10 && L[0].pru === 480 && L[0].date === '2024-03-15' && L[0].cat === 'bourse' && L[1].cat === 'cash' && L[4].erreur === 'valeur manquante', 'import : montants, quantités, dates, types, ligne incomplète');
+  const R = C.rapprocherImport(L, [{ id: 'a0', nom: 'Livret A', plat: '', valeur: 50 }, { id: 'a1', nom: 'Livret A', plat: 'Boursorama', valeur: 12000 }, { id: 'a2', nom: 'Projet X', plat: 'BienPrêter', valeur: 1000 - 200 }]);
+  ok(R[0].action === 'creer' && R[1].action === 'ignorer' && R[1].raison === 'déjà à jour' && R[2].action === 'ignorer' && /doublon/.test(R[2].raison) && R[3].action === 'maj' && R[3].cible === 'a2' && R[3].ancienne === 800 && R[4].action === 'ignorer', 'import : créer, déjà à jour, doublon, mettre à jour, ligne en erreur');
+  const J = C.tableauDepuisJSON('Voici :\n```json\n[{"nom":"Apple","type":"Actions","plateforme":"Trade Republic","valeur":"1 900","quantite":10}]\n```');
+  ok(J && J.entetes[0] === 'nom' && J.lignes[0][0] === 'Apple' && J.lignes[0][3] === '1 900' && C.tableauDepuisJSON('pas de tableau') === null, 'import par capture : réponse JSON de l’IA lue');
+  ok(C.dateExcel(45366) === '2024-03-15' && C.dateExcel(5) === null, 'date Excel');
+  const X = zipDe({
+    'xl/workbook.xml': '<workbook><sheets><sheet name="Portefeuille" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+    'xl/sharedStrings.xml': '<sst><si><t>Nom</t></si><si><t>Valeur</t></si><si><t>Ma &amp; SCPI</t></si><si><r><t>Livret </t></r><r><t>A</t></r></si></sst>',
+    'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="D1" t="inlineStr"><is><t>Date</t></is></c></row><row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>2500.5</v></c><c r="D2"><v>45366</v></c></row><row r="3"><c r="A3" t="s"><v>3</v></c><c r="B3"><v>100</v></c></row></sheetData></worksheet>' });
+  const xr = await C.lireXLSX(X), xt = C.tableauImport(xr), xl = C.lignesImport(xt, C.devinerColonnes(xt.entetes));
+  ok(xr.length === 3 && xt.entetes.join() === 'Nom,Valeur,,Date' && xl[0].nom === 'Ma & SCPI' && xl[0].valeur === 2500.5 && xl[0].date === '2024-03-15' && xl[0].cat === 'immo' && xl[1].nom === 'Livret A', 'fichier Excel : texte partagé, nombres, cellules vides, date Excel');
+  console.log('calculs (import) :', n, 'contrôles réussis');
+})().catch(e => { console.error(e); process.exit(1); });
 
 console.log('calculs :', n, 'contrôles réussis');
